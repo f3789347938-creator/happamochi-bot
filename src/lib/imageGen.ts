@@ -343,8 +343,8 @@ function buildAvatarCard(
                 props: {
                   style: {
                     display: 'flex',
-                    color: '#555555',
-                    fontSize: '16px',
+                    color: '#aaaaaa',
+                    fontSize: '15px',
                     fontWeight: 400,
                     textAlign: 'center',
                     justifyContent: 'center',
@@ -361,8 +361,8 @@ function buildAvatarCard(
                     position: 'absolute',
                     right: '25px',
                     bottom: '18px',
-                    color: '#666666',
-                    fontSize: '18px',
+                    color: '#777777',
+                    fontSize: '13px',
                     fontWeight: 400,
                   },
                   children: 'HappaMochi Bot',
