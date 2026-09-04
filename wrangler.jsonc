@@ -12,5 +12,12 @@
       "database_name": "line-group-bbs-db",
       "database_id": "f17e1465-7471-45a5-9217-c9b408cde5ec"
     }
+  ],
+  "rules": [
+    {
+      "type": "Data",
+      "globs": ["**/*.ttf"],
+      "fallthrough": true
+    }
   ]
 }

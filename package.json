@@ -3,13 +3,16 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/inject-wasm.mjs",
     "preview": "wrangler pages dev",
     "deploy": "npm run build && wrangler pages deploy",
     "cf-typegen": "wrangler types --env-interface CloudflareBindings"
   },
   "dependencies": {
-    "hono": "^4.13.5"
+    "@resvg/resvg-wasm": "^2.6.2",
+    "hono": "^4.13.5",
+    "satori": "0.32.0",
+    "satori-html": "^0.3.2"
   },
   "devDependencies": {
     "@hono/vite-build": "^1.11.1",
