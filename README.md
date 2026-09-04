@@ -11,7 +11,12 @@
 - **誕生日通知**: `誕生日登録 [月]/[日]` で登録、当日になったら次のメッセージ時に自動でお祝い通知(cron不使用、遅延評価方式)
 - **星座占い**: `星座登録 [星座名]`→`運勢`で日替わり運勢を取得(シード付き疑似ランダムで同日は同じ結果)
 - **週間ランキング**: グループの活動量ランキングを週次で自動配信(cron不使用、遅延評価方式)
-- **名言カード**: `名言:[テキスト]` で、satori + @resvg/resvg-wasm によって実際にPNG画像(1280x720、アバター/名言テキスト/ユーザー名/透かし入り)をCloudflare Workers上でレンダリングし、LINEの`imageMessage`(`originalContentUrl`/`previewImageUrl`)として配信する。生成したPNGはCloudflare D1の`quote_images.image_data`にBLOBとして保存し、`GET /quote-image/:id`で公開配信する。過去の一時的なリビルドでLINE Flex Message(偽の吹き出し)に差し替えられていたが、本来の実画像生成に復元済み。
+- **名言カード**: `名言:[テキスト]` で、satori + @resvg/resvg-wasm によって実際にPNG画像(1280x720)をCloudflare Workers上でレンダリングし、LINEの`imageMessage`(`originalContentUrl`/`previewImageUrl`)として配信する。生成したPNGはCloudflare D1の`quote_images.image_data`にBLOBとして保存し、`GET /quote-image/:id`で公開配信する。過去の一時的なリビルドでLINE Flex Message(偽の吹き出し)に差し替えられていたが、本来の実画像生成に復元済み。
+  デザインは本番D1に残っていたレガシー画像を実際に取得・比較して再現した2パターン切り替え式:
+  - プロフィール画像が取得できる場合: 左半分に実写プロフィール画像(右端が黒へソフトフェード)、
+    右半分は黒背景に引用文/`@表示名`/ユーザーID/右下に`HappaMochi Bot`の透かし文字。
+  - プロフィール画像が取得できない場合(フォールバック): ネイビー/インディゴの斜めグラデーション
+    背景 + 四隅に半透明の装飾引用符 + 中央揃えの引用文 + `— 表示名`。透かしなし。
 - **ウェルカムメッセージ**: 新メンバー参加時の歓迎メッセージ、`ウェルカムオン/オフ`、`ウェルカムメッセージ設定 [本文]` でカスタマイズ
 - **タグ機能**: `タグ追加/削除/一覧 [タグ名]`
 - **称号システム**: `称号一覧`、`称号装備 [称号名]`、`称号確認`(既存の本番データ: 5種のSSR称号、付与済み2件を引き継ぎ)
@@ -79,6 +84,21 @@ Cloudflare Workers上で本物のPNG画像を動的生成する仕組み。「Wo
   `ArrayBuffer`に変換してからbindし(`src/features/quote.ts`)、読み込み時もD1のローカル
   エミュレーションがplain Arrayとして返す場合があるため`Uint8Array.from()`で正規化してから
   `Response`に渡す(`src/index.tsx`の`/quote-image/:id`)。
+- **フォントはBold(700)とRegular(400)の2ウェイトを埋め込んでいる**
+  (`public/static/fonts/NotoSansJP-{Bold,Regular}.ttf` → ビルド時に`.bin`へリネームして
+  `scripts/inject-wasm.mjs`が静的importを注入)。レガシー画像の実物を確認したところ本文は
+  Bold単体ではなくRegularウェイトで組まれていたため、Regularも追加した。satoriの`fonts`配列に
+  両方を`weight`違いで登録し、各要素の`fontWeight`で使い分ける。
+- **⚠️ サンドボックスのメモリ制約に注意**: フォントを2つ(合計約10MB)埋め込むようになった影響で、
+  `wrangler pages deploy`のesbuildコンパイル工程がメモリ不足で**無言で途中停止**することがある
+  (`wrangler pages deploy`が`Uploaded ... already uploaded`→`Compiled Worker successfully`まで
+  表示した後、`Uploading Worker bundle`/`Deploying...`が出ないまま終了コード0で終わり、
+  本番には反映されない、という非常に分かりにくい失敗モード)。デプロイ前に必ず
+  `pm2 delete happamochi-bot && fuser -k 3000/tcp` でローカルのwranglerサーバーを止めて
+  メモリを空けてからデプロイすること。デプロイ後は`wrangler pages deployment list`で
+  直近のコミットハッシュに対応する新しいデプロイIDが実際に出現しているか(タイムスタンプが
+  更新されているか)を必ず確認し、「✨ Deployment complete!」という行が出力に含まれているかも
+  チェックする(これが出ない場合はWorkerバンドルのアップロードまで到達していない)。
 
 ## データアーキテクチャ
 - **Storage**: Cloudflare D1 (`line-group-bbs-db`, database_id: `f17e1465-7471-45a5-9217-c9b408cde5ec`)
@@ -93,9 +113,10 @@ Cloudflare Workers上で本物のPNG画像を動的生成する仕組み。「Wo
 ## デプロイ状況
 - **Platform**: Cloudflare Pages (プロジェクト `line-group-bbs`)
 - **Production URL**: https://line-group-bbs.pages.dev
-- **Status**: ✅ 本番デプロイ済み。名言カードの実PNG画像生成を含む全機能を本番D1に接続した状態で
-  ローカル・本番の両方で動作確認済み(`/quote-image/:id`が本番でも正しく`PNG image data`を
-  返すことを確認済み)。
+- **Status**: ✅ 本番デプロイ済み。名言カードの実PNG画像生成(レガシーデザイン再現版)を含む
+  全機能を本番D1に接続した状態でローカル・本番の両方で動作確認済み(`/quote-image/:id`が
+  本番でも正しく新デザインの`PNG image data`を返すことを確認済み。デプロイID
+  `33911a30-867d-4536-8ac5-4e5571fb3a38`、コミット`f248b4f`)。
 - **Tech Stack**: Hono + TypeScript + Cloudflare D1 + Cloudflare Workers + satori + @resvg/resvg-wasm
 - **Local dev**: `npm run build && pm2 start ecosystem.config.cjs` → `curl http://localhost:3000/`
 - **注意**: `wrangler.jsonc`に`rules`フィールドを追加してはいけない。Cloudflare Pagesの設定は
