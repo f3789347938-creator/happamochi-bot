@@ -85,18 +85,32 @@ app.post('/webhook', async (c) => {
   if (!valid) return c.json({ error: 'invalid signature' }, 401)
 
   const payload = JSON.parse(bodyText) as { events: any[] }
+  const events = payload.events ?? []
 
-  for (const event of payload.events ?? []) {
-    try {
-      await handleEvent(c.env, event)
-    } catch (e: any) {
-      await c.env.DB.prepare(
-        `INSERT INTO webhook_debug_logs (timestamp, request_body, has_signature, event_type, error_message) VALUES (?, ?, ?, ?, ?)`
-      )
-        .bind(new Date().toISOString(), JSON.stringify(event).slice(0, 2000), 1, event.type, String(e?.message ?? e))
-        .run()
-    }
-  }
+  // IMPORTANT: LINE's webhook connection has a short timeout. We must ACK
+  // (return 200) immediately after verifying the signature — NOT after
+  // finishing all the DB writes / profile fetches / Reply API calls.
+  // Otherwise LINE cancels the connection before we ever call Reply API,
+  // which is exactly why real LINE traffic showed up as
+  // `outcome: "canceled"` (cpuTime≈4ms, wallTime≈2000ms) in the tail logs
+  // while our own sandbox curl requests (which just wait patiently) always
+  // succeeded. So: respond first, then keep processing in the background
+  // via waitUntil so the replyToken is still fresh when we use it.
+  c.executionCtx.waitUntil(
+    (async () => {
+      for (const event of events) {
+        try {
+          await handleEvent(c.env, event)
+        } catch (e: any) {
+          await c.env.DB.prepare(
+            `INSERT INTO webhook_debug_logs (timestamp, request_body, has_signature, event_type, error_message) VALUES (?, ?, ?, ?, ?)`
+          )
+            .bind(new Date().toISOString(), JSON.stringify(event).slice(0, 2000), 1, event.type, String(e?.message ?? e))
+            .run()
+        }
+      }
+    })()
+  )
 
   return c.json({ ok: true })
 })
