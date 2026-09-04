@@ -249,21 +249,45 @@ export async function applyMove(
 
 // ─── Flex Message rendering ───
 
-const BOARD_COLOR = '#2e7d32'
-const LEGAL_COLOR = '#66bb6a'
-const CELL_PX = 40
-const STONE_PX = 32
+const HEADER_BG = '#1b5e20'
+const FRAME_BG = '#5d4037' // wood-ish frame around the board
+const BOARD_BG = '#1b5e20'
+const CELL_BG = '#2e7d32'
+const CELL_LEGAL_BG = '#43a047'
+const GRID_LINE = '#1b5e20'
+const HINT_DOT = '#ffffffb0'
+const CELL_PX = 42
+const STONE_PX = 34
 const STONE_PAD = (CELL_PX - STONE_PX) / 2
+
+const BLACK_GRADIENT = { type: 'linearGradient', angle: '135deg', startColor: '#5a5a5a', endColor: '#050505' }
+const WHITE_GRADIENT = { type: 'linearGradient', angle: '135deg', startColor: '#ffffff', endColor: '#cfcfcf' }
 
 function renderCell(cell: Cell, legal: boolean, r: number, c: number): Record<string, any> {
   if (cell === '.') {
     const box: Record<string, any> = {
       type: 'box',
       layout: 'vertical',
-      contents: [],
+      contents: legal
+        ? [
+            {
+              type: 'box',
+              layout: 'vertical',
+              contents: [],
+              width: '10px',
+              height: '10px',
+              cornerRadius: '5px',
+              backgroundColor: HINT_DOT,
+            },
+          ]
+        : [],
       width: `${CELL_PX}px`,
       height: `${CELL_PX}px`,
-      backgroundColor: legal ? LEGAL_COLOR : BOARD_COLOR,
+      backgroundColor: legal ? CELL_LEGAL_BG : CELL_BG,
+      borderColor: GRID_LINE,
+      borderWidth: '1px',
+      justifyContent: 'center',
+      alignItems: 'center',
     }
     if (legal) {
       box.action = { type: 'postback', data: `othello:${r},${c}` }
@@ -271,7 +295,6 @@ function renderCell(cell: Cell, legal: boolean, r: number, c: number): Record<st
     return box
   }
 
-  const stoneColor = cell === 'B' ? '#111111' : '#f5f5f5'
   return {
     type: 'box',
     layout: 'vertical',
@@ -283,12 +306,16 @@ function renderCell(cell: Cell, legal: boolean, r: number, c: number): Record<st
         width: `${STONE_PX}px`,
         height: `${STONE_PX}px`,
         cornerRadius: `${STONE_PX / 2}px`,
-        backgroundColor: stoneColor,
+        background: cell === 'B' ? BLACK_GRADIENT : WHITE_GRADIENT,
+        borderColor: cell === 'B' ? '#000000' : '#bdbdbd',
+        borderWidth: '1px',
       },
     ],
     width: `${CELL_PX}px`,
     height: `${CELL_PX}px`,
-    backgroundColor: BOARD_COLOR,
+    backgroundColor: CELL_BG,
+    borderColor: GRID_LINE,
+    borderWidth: '1px',
     paddingAll: `${STONE_PAD}px`,
   }
 }
@@ -308,40 +335,125 @@ function renderBoard(game: OthelloGame): Record<string, any> {
     type: 'box',
     layout: 'vertical',
     contents: rows,
-    backgroundColor: '#1b5e20',
-    paddingAll: '4px',
-    cornerRadius: 'sm',
+    spacing: 'none',
+    backgroundColor: BOARD_BG,
+    paddingAll: '2px',
   }
 }
 
-function statusText(game: OthelloGame): string {
+// Wraps the raw grid in a wood-toned frame so the green board doesn't float
+// directly on the bubble background.
+function renderBoardFrame(game: OthelloGame): Record<string, any> {
+  return {
+    type: 'box',
+    layout: 'vertical',
+    contents: [renderBoard(game)],
+    backgroundColor: FRAME_BG,
+    paddingAll: '6px',
+    cornerRadius: 'md',
+  }
+}
+
+function stoneIcon(color: Color, size = 18): Record<string, any> {
+  return {
+    type: 'box',
+    layout: 'vertical',
+    contents: [],
+    width: `${size}px`,
+    height: `${size}px`,
+    cornerRadius: `${size / 2}px`,
+    background: color === 'B' ? BLACK_GRADIENT : WHITE_GRADIENT,
+    borderColor: color === 'B' ? '#000000' : '#bdbdbd',
+    borderWidth: '1px',
+  }
+}
+
+// A single player's card in the scoreboard row: stone icon, name, score.
+// The card currently on-turn is highlighted with a gold border/background;
+// a finished game instead highlights the winner in gold.
+function playerCard(
+  color: Color,
+  name: string,
+  score: number,
+  highlight: boolean
+): Record<string, any> {
+  return {
+    type: 'box',
+    layout: 'vertical',
+    flex: 1,
+    spacing: 'xs',
+    alignItems: 'center',
+    paddingAll: 'sm',
+    cornerRadius: 'md',
+    backgroundColor: highlight ? '#fff8e1' : '#f5f5f5',
+    borderColor: highlight ? '#ffb300' : '#e0e0e0',
+    borderWidth: highlight ? '2px' : '1px',
+    contents: [
+      stoneIcon(color, 20),
+      { type: 'text', text: name, size: 'xs', weight: highlight ? 'bold' : 'regular', align: 'center', wrap: true, color: '#333333' },
+      { type: 'text', text: String(score), size: 'xl', weight: 'bold', align: 'center', color: highlight ? '#e65100' : '#616161' },
+    ],
+  }
+}
+
+function renderScoreboard(game: OthelloGame): Record<string, any> {
   const { black, white } = countPieces(game.board)
   const blackName = game.black_name ?? '黒番'
   const whiteName = game.white_name ?? '白番'
 
+  let blackHighlight: boolean
+  let whiteHighlight: boolean
+  if (game.status === 'finished') {
+    blackHighlight = black > white
+    whiteHighlight = white > black
+  } else {
+    blackHighlight = game.turn === 'B'
+    whiteHighlight = game.turn === 'W'
+  }
+
+  return {
+    type: 'box',
+    layout: 'horizontal',
+    spacing: 'sm',
+    contents: [
+      playerCard('B', blackName, black, blackHighlight),
+      playerCard('W', whiteName, white, whiteHighlight),
+    ],
+  }
+}
+
+function statusMessage(game: OthelloGame): string | null {
   if (game.status === 'waiting') {
-    return `対局相手を待っています\n⚫${blackName}\n「オセロ参加」で参加できます`
+    return '対局相手を待っています。「オセロ参加」で参加できます'
   }
   if (game.status === 'finished') {
-    let result: string
-    if (black > white) result = `⚫${blackName} の勝ち！`
-    else if (white > black) result = `⚪${whiteName} の勝ち！`
-    else result = '引き分け！'
-    return `対局終了\n⚫${black} - ${white}⚪\n${result}`
+    const { black, white } = countPieces(game.board)
+    if (black === white) return '引き分けでした！'
+    return `${black > white ? '⚫ 黒' : '⚪ 白'}の勝ちです！`
   }
-  const turnName = game.turn === 'B' ? blackName : whiteName
-  const turnMark = game.turn === 'B' ? '⚫' : '⚪'
-  return `⚫${black} - ${white}⚪\n${turnMark} ${turnName} の番です`
+  return null
 }
 
 export function buildOthelloMessage(game: OthelloGame, note?: string): LineMessage {
-  const contents: Record<string, any>[] = [
-    { type: 'text', text: statusText(game), wrap: true, weight: 'bold', size: 'sm' },
-  ]
-  if (note) {
-    contents.push({ type: 'text', text: note, wrap: true, size: 'xs', color: '#888888' })
+  const bodyContents: Record<string, any>[] = [renderScoreboard(game)]
+
+  const message = statusMessage(game)
+  if (message) {
+    bodyContents.push({
+      type: 'text',
+      text: message,
+      wrap: true,
+      size: 'sm',
+      weight: 'bold',
+      align: 'center',
+      color: game.status === 'finished' ? '#e65100' : '#555555',
+    })
   }
-  contents.push(renderBoard(game))
+  if (note) {
+    bodyContents.push({ type: 'text', text: note, wrap: true, size: 'xs', align: 'center', color: '#e65100' })
+  }
+
+  bodyContents.push(renderBoardFrame(game))
 
   return {
     type: 'flex',
@@ -349,11 +461,21 @@ export function buildOthelloMessage(game: OthelloGame, note?: string): LineMessa
     contents: {
       type: 'bubble',
       size: 'giga',
+      header: {
+        type: 'box',
+        layout: 'vertical',
+        backgroundColor: HEADER_BG,
+        paddingAll: 'md',
+        contents: [
+          { type: 'text', text: '🎲 オセロ', color: '#ffffff', weight: 'bold', size: 'md', align: 'center' },
+        ],
+      },
       body: {
         type: 'box',
         layout: 'vertical',
-        spacing: 'sm',
-        contents,
+        spacing: 'md',
+        paddingAll: 'md',
+        contents: bodyContents,
       },
     },
   }
