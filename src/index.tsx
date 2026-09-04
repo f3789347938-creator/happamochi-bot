@@ -27,6 +27,7 @@ import { saveQuote, buildQuoteImageMessage } from './features/quote'
 import { addTagToGroup, listGroupTags, removeTagFromGroup } from './features/tags'
 import { setWelcomeSetting } from './features/welcome'
 import { equipTitle, getEquippedTitle, listUserTitles } from './features/titles'
+import { startGame as startOthello, joinGame as joinOthello, endGame as endOthello, applyMove as applyOthelloMove, buildOthelloMessage } from './features/othello'
 
 type Bindings = LineEnv
 
@@ -162,6 +163,10 @@ async function handleEvent(env: Bindings, event: any, baseUrl: string) {
       await handleMessageEvent(env, event, baseUrl)
       return
 
+    case 'postback':
+      await handlePostback(env, event)
+      return
+
     case 'memberJoined':
       await handleMemberJoined(env, event)
       return
@@ -255,6 +260,30 @@ async function handleMessageEvent(env: Bindings, event: any, baseUrl: string) {
     await flushQueueOnReply(env, groupId, replyToken, directReplies)
   } else if (directReplies.length > 0) {
     await replyMessage(env, replyToken, directReplies, userId)
+  }
+}
+
+// Handles taps on the Othello board (a `postback` action on a legal-move
+// cell). Reply-only: the postback event carries its own one-time
+// replyToken, exactly like a message event, so this never needs Push API.
+async function handlePostback(env: Bindings, event: any) {
+  const source = event.source
+  if (source.type !== 'group') return
+  const groupId = source.groupId
+  const userId = source.userId
+  const replyToken: string | undefined = event.replyToken
+  const data: string = event.postback?.data ?? ''
+  if (!groupId || !userId || !replyToken) return
+
+  const othelloMatch = data.match(/^othello:(\d+),(\d+)$/)
+  if (othelloMatch) {
+    const row = Number(othelloMatch[1])
+    const col = Number(othelloMatch[2])
+    const result = await applyOthelloMove(env, groupId, userId, row, col)
+    const message = result.ok
+      ? buildOthelloMessage(result.game, result.note)
+      : { type: 'text', text: result.reason }
+    await flushQueueOnReply(env, groupId, replyToken, [message])
   }
 }
 
@@ -396,6 +425,23 @@ async function routeCommand(env: Bindings, ctx: CommandCtx): Promise<LineMessage
     return [buildQuoteImageMessage(ctx.baseUrl, imageId)]
   }
 
+  if (text === 'オセロ開始' && ctx.isGroup && ctx.groupId && ctx.userId) {
+    const result = await startOthello(env, ctx.groupId, ctx.userId, ctx.displayName)
+    if (!result.ok) return [{ type: 'text', text: result.reason }]
+    return [buildOthelloMessage(result.game)]
+  }
+
+  if (text === 'オセロ参加' && ctx.isGroup && ctx.groupId && ctx.userId) {
+    const result = await joinOthello(env, ctx.groupId, ctx.userId, ctx.displayName)
+    if (!result.ok) return [{ type: 'text', text: result.reason }]
+    return [buildOthelloMessage(result.game)]
+  }
+
+  if (text === 'オセロ終了' && ctx.isGroup && ctx.groupId && ctx.userId) {
+    const result = await endOthello(env, ctx.groupId, ctx.userId)
+    return [{ type: 'text', text: result.ok ? 'オセロを終了しました' : result.reason }]
+  }
+
   const tagAddMatch = text.match(/^タグ追加\s*(.+)$/)
   if (tagAddMatch && ctx.isGroup && ctx.groupId) {
     await addTagToGroup(env, ctx.groupId, tagAddMatch[1].trim())
@@ -460,6 +506,12 @@ const HELP_TEXT = `葉っぱもち Bot ヘルプ
 【名言カード】
 めいく:[テキスト] - 名言カードを生成
 (他人のメッセージに「返信(リプライ)」で「めいく」だけ送ると、その人の名言カードを生成)
+
+【オセロ】
+オセロ開始 - オセロを開始(自分が黒番になる)
+オセロ参加 - 白番として参加
+オセロ終了 - 対局を終了
+盤面のマスをタップして石を置く
 
 【タグ】
 タグ追加/削除/一覧 [タグ名]
