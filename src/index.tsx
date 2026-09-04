@@ -229,6 +229,11 @@ interface CommandCtx {
 async function routeCommand(env: Bindings, ctx: CommandCtx): Promise<LineMessage[]> {
   const { text } = ctx
 
+  // 固定テストコマンド。今後は言葉を変えず、これだけで動作確認する。
+  if (text === 'テスト') {
+    return [{ type: 'text', text: `テスト成功🍡 (${new Date().toISOString()})` }]
+  }
+
   if (text === 'ヘルプ' || text.toLowerCase() === 'help') {
     return [{ type: 'text', text: HELP_TEXT }]
   }
