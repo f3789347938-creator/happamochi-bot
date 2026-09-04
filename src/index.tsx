@@ -2,7 +2,6 @@ import { Hono } from 'hono'
 import { serveStatic } from 'hono/cloudflare-workers'
 import {
   replyMessage,
-  pushMessage,
   getProfile,
   getGroupSummary,
   verifySignature,
