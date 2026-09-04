@@ -38,6 +38,37 @@ app.use('/static/*', serveStatic({ root: './public' }))
 // ─── Health check ───
 app.get('/', (c) => c.text('HappaMochi Bot is running 🍡'))
 
+// ─── Debug: simulate a text command WITHOUT touching LINE ───
+// LINEに実際のメッセージを送らず、Botのコマンドロジックが「何を返そうとしているか」
+// だけをJSONで確認できるエンドポイント。テスト用のreplyToken/署名は不要。
+// 本番用途ではなく、動作確認専用(データベースへの書き込みは実際に発生する点に注意)。
+app.post('/debug/simulate', async (c) => {
+  const { text, groupId, userId } = await c.req.json<{ text: string; groupId?: string; userId?: string }>()
+  if (!text) return c.json({ error: 'text is required' }, 400)
+
+  const ctx = {
+    text: text.trim(),
+    isGroup: true,
+    groupId: groupId ?? 'Cdebug_simulated_group',
+    userId: userId ?? 'Udebug_simulated_user',
+    displayName: 'デバッグユーザー',
+    pictureUrl: null,
+  }
+
+  try {
+    const directReplies = await routeCommand(c.env, ctx)
+    const { messages: queued, ids: queuedIds } = await peekBroadcasts(c.env, ctx.groupId!)
+    return c.json({
+      input: { text: ctx.text, groupId: ctx.groupId, userId: ctx.userId },
+      would_reply_with: [...directReplies, ...queued].slice(0, 5),
+      pending_broadcast_queue_ids_not_yet_sent: queuedIds,
+      note: 'これはLINEに送信されていません。ロジックが生成した返信内容の確認のみです。',
+    })
+  } catch (e: any) {
+    return c.json({ error: String(e?.message ?? e) }, 500)
+  }
+})
+
 // ─── LINE Webhook ───
 app.post('/webhook', async (c) => {
   const bodyText = await c.req.text()

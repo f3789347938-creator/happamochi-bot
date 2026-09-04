@@ -73,6 +73,36 @@ Cloudflare Pages Hosted Deployではcronトリガー(`triggers`)が使えない�
 - **Tech Stack**: Hono + TypeScript + Cloudflare D1 + Cloudflare Workers
 - **Local dev**: `npm run build && pm2 start ecosystem.config.cjs` → `curl http://localhost:3000/`
 
+## テスト用コマンド(サンドボックスから直接確認できる)
+
+LINEアプリを開かなくても、Botのロジックが正しく動いているかを確認できます。
+
+### 1. コマンドの返信内容を確認する(LINEには送信されない)
+```bash
+cd /home/user/happamochi-bot
+bash scripts/test_command.sh "ヘルプ"
+bash scripts/test_command.sh "称号一覧"
+bash scripts/test_command.sh "運勢"
+```
+本番サイトの `/debug/simulate` エンドポイントに問い合わせて、「もしLINEでこのテキストを
+送ったらBotは何を返信しようとするか」をその場でJSON表示する。LINEには何も送られない。
+コマンドの分岐ロジックが正しいか、エラーが起きていないかはこれで分かる。
+**実際にLINEアプリに届くかどうかはこれでは分からない**(replyTokenが必要なため)。
+
+### 2. 受信ログを確認する(実際にLINEでBotに話しかけた後に実行)
+```bash
+cd /home/user/happamochi-bot
+bash scripts/check_webhook_result.sh
+```
+本番D1の `webhook_debug_logs` / `group_messages` / `pending_broadcasts` を見て、
+Botが実際にLINEからのメッセージを受信・保存できているか、エラーが出ていないかを確認する。
+
+### 実際にLINEでBotからの返信を"見る"には
+上記のコマンドはBotの受信〜処理ロジックの健全性を確認するものであり、実際に
+LINEの画面にBotからの返信が届くかどうかは、**LINEアプリでBotに実際にメッセージを
+送ってもらう以外に確認方法がない**(LINEのReply APIはLINE公式サーバーが発行した
+本物のreplyTokenを要求するため、サンドボックスから模擬することができない)。
+
 ## セットアップ
 ```bash
 npm install
