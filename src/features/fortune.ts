@@ -10,7 +10,7 @@ const ZODIAC_SIGNS = [
   '天秤座', '蠍座', '射手座', '山羊座', '水瓶座', '魚座',
 ]
 
-const FORTUNE_LEVELS = ['絶好調✨', '好調😊', '普通🙂', 'ちょっと注意⚠️', '慎重に🙏']
+const FORTUNE_LEVELS = ['絶好調', '好調', '普通', 'ちょっと注意', '慎重に']
 const LUCKY_ITEMS = ['青いペン', 'コーヒー', '観葉植物', '手帳', 'イヤホン', 'ハンカチ', '折り紙', 'キャンドル']
 const LUCKY_COLORS = ['赤', '青', '緑', '黄', '紫', '白', 'オレンジ', 'ピンク']
 const ADVICES = [
@@ -83,7 +83,7 @@ export async function registerZodiacSign(env: LineEnv, userId: string, sign: str
 
 export function formatFortuneText(f: any): string {
   return (
-    `🔮 ${f.zodiac_sign}の今日の運勢 (第${f.ranking}位)\n\n` +
+    `${f.zodiac_sign}の今日の運勢 (第${f.ranking}位)\n\n` +
     `総合運: ${f.overall_fortune}\n` +
     `恋愛運: ${f.love_fortune}\n` +
     `金運: ${f.money_fortune}\n` +
@@ -91,7 +91,7 @@ export function formatFortuneText(f: any): string {
     `ラッキーアイテム: ${f.lucky_item}\n` +
     `ラッキーカラー: ${f.lucky_color}\n` +
     `ラッキーナンバー: ${f.lucky_number}\n\n` +
-    `💬 ${f.advice}`
+    `${f.advice}`
   )
 }
 
@@ -134,7 +134,7 @@ export async function checkAndQueueGroupFortune(env: LineEnv, groupId: string) {
     env,
     groupId,
     'fortune',
-    [{ type: 'text', text: `🔮 今日の運勢\n\n${lines.join('\n')}` }],
+    [{ type: 'text', text: `今日の運勢\n\n${lines.join('\n')}` }],
     `fortune_${groupId}_${dateStr}`
   )
   await env.DB.prepare(`INSERT OR IGNORE INTO daily_fortune_sent (group_id, sent_date) VALUES (?, ?)`)

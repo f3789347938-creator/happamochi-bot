@@ -18,8 +18,8 @@ export async function buildWelcomeMessages(
   const names = joinedMembers.map((m) => m.displayName || '新しいメンバー').join('、')
   const custom = setting?.custom_message
   const text = custom
-    ? `🎉 ${names} さん、ようこそ!\n\n${custom}`
-    : `🎉 ${names} さん、ようこそ!\nグループへの参加を歓迎します😊`
+    ? `${names} さん、ようこそ!\n\n${custom}`
+    : `${names} さん、ようこそ!\nグループへの参加を歓迎します`
 
   return [{ type: 'text', text }]
 }

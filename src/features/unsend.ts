@@ -66,7 +66,7 @@ export async function handleUnsend(env: LineEnv, event: UnsendEvent) {
 
   const dedupKey = `unsend_${groupId}_${messageId}`
   const notifyText =
-    `🗑️ メッセージが取り消されました\n\n` +
+    `メッセージが取り消されました\n\n` +
     `送信者: ${original.display_name ?? '不明'}\n` +
     `内容: ${original.message_text}\n\n` +
     `取り消された時刻: ${formatJst(unsentAtIso)}`

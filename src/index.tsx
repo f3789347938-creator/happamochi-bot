@@ -36,7 +36,7 @@ const app = new Hono<{ Bindings: Bindings }>()
 app.use('/static/*', serveStatic({ root: './public' }))
 
 // ─── Health check ───
-app.get('/', (c) => c.text('HappaMochi Bot is running 🍡'))
+app.get('/', (c) => c.text('HappaMochi Bot is running'))
 
 // ─── Debug: simulate a text command WITHOUT touching LINE ───
 // LINEに実際のメッセージを送らず、Botのコマンドロジックが「何を返そうとしているか」
@@ -245,7 +245,7 @@ async function routeCommand(env: Bindings, ctx: CommandCtx): Promise<LineMessage
 
   // 固定テストコマンド。今後は言葉を変えず、これだけで動作確認する。
   if (text === 'テスト') {
-    return [{ type: 'text', text: `テスト成功🍡 (${new Date().toISOString()})` }]
+    return [{ type: 'text', text: `テスト成功 (${new Date().toISOString()})` }]
   }
 
   if (text === 'ヘルプ' || text.toLowerCase() === 'help') {
@@ -271,7 +271,7 @@ async function routeCommand(env: Bindings, ctx: CommandCtx): Promise<LineMessage
       return [{ type: 'text', text: `不明な星座です。次のいずれかを送ってください:\n${ZODIAC_SIGNS.join('/')}` }]
     }
     await registerZodiacSign(env, ctx.userId, sign)
-    return [{ type: 'text', text: `${sign}を登録しました🔮` }]
+    return [{ type: 'text', text: `${sign}を登録しました` }]
   }
 
   const birthdayMatch = text.match(/^誕生日登録\s*(\d{1,2})\/(\d{1,2})$/)
@@ -280,7 +280,7 @@ async function routeCommand(env: Bindings, ctx: CommandCtx): Promise<LineMessage
     const day = parseInt(birthdayMatch[2], 10)
     if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
       await registerBirthday(env, ctx.groupId, ctx.userId, ctx.displayName ?? '不明', month, day)
-      return [{ type: 'text', text: `誕生日を${month}/${day}として登録しました🎂` }]
+      return [{ type: 'text', text: `誕生日を${month}/${day}として登録しました` }]
     }
     return [{ type: 'text', text: '日付の形式が正しくありません。例: 誕生日登録 4/1' }]
   }
@@ -346,7 +346,7 @@ async function routeCommand(env: Bindings, ctx: CommandCtx): Promise<LineMessage
     if (titles.length === 0) return [{ type: 'text', text: '所持している称号はありません' }]
     const equipped = await getEquippedTitle(env, ctx.userId, ctx.groupId)
     const lines = titles.map((t) => (t === equipped ? `★${t}（装備中）` : `・${t}`))
-    return [{ type: 'text', text: `🏆 所持称号一覧\n${lines.join('\n')}` }]
+    return [{ type: 'text', text: `所持称号一覧\n${lines.join('\n')}` }]
   }
 
   const equipMatch = text.match(/^称号装備\s*(.+)$/)
@@ -357,18 +357,18 @@ async function routeCommand(env: Bindings, ctx: CommandCtx): Promise<LineMessage
       return [{ type: 'text', text: `「${titleName}」は所持していません` }]
     }
     await equipTitle(env, ctx.userId, ctx.groupId, titleName)
-    return [{ type: 'text', text: `称号「${titleName}」を装備しました🏆` }]
+    return [{ type: 'text', text: `称号「${titleName}」を装備しました` }]
   }
 
   if (text === '称号確認' && ctx.isGroup && ctx.groupId && ctx.userId) {
     const equipped = await getEquippedTitle(env, ctx.userId, ctx.groupId)
-    return [{ type: 'text', text: equipped ? `装備中の称号: 🏆${equipped}` : '称号は装備していません' }]
+    return [{ type: 'text', text: equipped ? `装備中の称号: ${equipped}` : '称号は装備していません' }]
   }
 
   return []
 }
 
-const HELP_TEXT = `🍡 葉っぱもち Bot ヘルプ
+const HELP_TEXT = `葉っぱもち Bot ヘルプ
 
 【基本】
 ヘルプ - このメッセージを表示

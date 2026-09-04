@@ -76,7 +76,7 @@ export function buildQuoteFlexMessage(
         type: 'box',
         layout: 'vertical',
         contents: [
-          { type: 'text', text: '🍡 葉っぱもち Bot', size: 'xxs', color: '#aaaaaa', align: 'center' },
+          { type: 'text', text: '葉っぱもち Bot', size: 'xxs', color: '#aaaaaa', align: 'center' },
         ],
       },
     },

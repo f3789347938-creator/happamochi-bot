@@ -53,7 +53,7 @@ export async function checkAndQueueBirthdays(env: LineEnv, groupId: string) {
     env,
     groupId,
     'birthday',
-    [{ type: 'text', text: `🎂 今日は ${names} さんの誕生日です!\nおめでとうございます🎉` }],
+    [{ type: 'text', text: `今日は ${names} さんの誕生日です!\nおめでとうございます` }],
     `birthday_${groupId}_${todayStr}`
   )
 

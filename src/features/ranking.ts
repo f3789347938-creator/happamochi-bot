@@ -50,7 +50,7 @@ export async function checkAndQueueWeeklyRanking(env: LineEnv, groupId: string) 
     env,
     groupId,
     'ranking',
-    [{ type: 'text', text: `📊 週間発言数ランキング\n\n${lines.join('\n')}` }],
+    [{ type: 'text', text: `週間発言数ランキング\n\n${lines.join('\n')}` }],
     `ranking_${groupId}_${weekStart}`
   )
   await env.DB.prepare(
