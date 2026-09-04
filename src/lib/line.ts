@@ -26,24 +26,48 @@ export interface LineEnv {
 // mark anything (e.g. queued broadcasts) as delivered. A replyToken can only
 // be used ONCE, so we only ever send the first 5-message chunk here; any
 // overflow beyond 5 messages must be handled by the caller (re-queue it).
+//
+// IMPORTANT: every call — success or failure — is written to
+// reply_api_logs. This is the ONLY reliable way to know, after the fact,
+// whether the bot actually tried to reply on LINE and what happened. Never
+// remove this logging; it's how real (non-simulated) failures get diagnosed.
 export async function replyMessage(
   env: LineEnv,
   replyToken: string,
-  messages: LineMessage[]
+  messages: LineMessage[],
+  groupId?: string
 ): Promise<{ ok: boolean; status: number; body: string }> {
   const chunk = messages.slice(0, 5)
   if (chunk.length === 0) return { ok: true, status: 200, body: '' }
 
-  const res = await fetch(`${LINE_API}/message/reply`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${env.LINE_CHANNEL_ACCESS_TOKEN}`,
-    },
-    body: JSON.stringify({ replyToken, messages: chunk }),
-  })
-  const bodyText = await res.text().catch(() => '')
-  return { ok: res.ok, status: res.status, body: bodyText }
+  let status = 0
+  let bodyText = ''
+  let ok = false
+  try {
+    const res = await fetch(`${LINE_API}/message/reply`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${env.LINE_CHANNEL_ACCESS_TOKEN}`,
+      },
+      body: JSON.stringify({ replyToken, messages: chunk }),
+    })
+    status = res.status
+    ok = res.ok
+    bodyText = await res.text().catch(() => '')
+  } catch (e: any) {
+    status = 0
+    bodyText = `fetch threw: ${String(e?.message ?? e)}`
+    ok = false
+  }
+
+  await env.DB.prepare(
+    `INSERT INTO reply_api_logs (group_id, reply_token, status_code, ok, response_body, message_preview) VALUES (?, ?, ?, ?, ?, ?)`
+  )
+    .bind(groupId ?? null, replyToken, status, ok ? 1 : 0, bodyText.slice(0, 1000), JSON.stringify(chunk[0] ?? {}).slice(0, 500))
+    .run()
+
+  return { ok, status, body: bodyText }
 }
 
 // Explicit push — logged, and intended for rare manual/admin use only.

@@ -191,7 +191,7 @@ async function handleMessageEvent(env: Bindings, event: any) {
   if (isGroup) {
     await flushQueueOnReply(env, groupId, replyToken, directReplies)
   } else if (directReplies.length > 0) {
-    await replyMessage(env, replyToken, directReplies)
+    await replyMessage(env, replyToken, directReplies, userId)
   }
 }
 
@@ -208,7 +208,7 @@ async function flushQueueOnReply(env: Bindings, groupId: string, replyToken: str
   const combined = [...direct, ...queued].slice(0, 5)
   if (combined.length === 0) return
 
-  const result = await replyMessage(env, replyToken, combined)
+  const result = await replyMessage(env, replyToken, combined, groupId)
   if (result.ok) {
     await markBroadcastsDelivered(env, queuedIds)
   }
