@@ -11,7 +11,7 @@ import {
   type LineMessage,
 } from './lib/line'
 import { handleUnsend } from './features/unsend'
-import { cacheGroupMessage, touchGroupMember, ensureGroupMetadata, markGroupLeft } from './features/groupTracking'
+import { cacheGroupMessage, touchGroupMember, ensureGroupMetadata, markGroupLeft, getGroupMessage } from './features/groupTracking'
 import { buildWelcomeMessages } from './features/welcome'
 import { registerBirthday, checkAndQueueBirthdays } from './features/birthday'
 import {
@@ -248,6 +248,7 @@ async function handleMessageEvent(env: Bindings, event: any, baseUrl: string) {
     displayName,
     pictureUrl,
     baseUrl,
+    quotedMessageId: message.quotedMessageId,
   })
 
   if (isGroup) {
@@ -287,6 +288,7 @@ interface CommandCtx {
   displayName: string | null
   pictureUrl: string | null
   baseUrl: string
+  quotedMessageId?: string
 }
 
 async function routeCommand(env: Bindings, ctx: CommandCtx): Promise<LineMessage[]> {
@@ -368,6 +370,25 @@ async function routeCommand(env: Bindings, ctx: CommandCtx): Promise<LineMessage
     return [{ type: 'text', text: 'ウェルカムメッセージを設定しました' }]
   }
 
+  // Reply mode: bare "めいく" (no colon/text) sent as a LINE reply to someone
+  // else's message. quotedMessageId points at the ORIGINAL message, so the
+  // card must use ITS author's name/icon and ITS text — not the replier's.
+  if (text === 'めいく' && ctx.isGroup && ctx.groupId && ctx.quotedMessageId) {
+    const original = await getGroupMessage(env, ctx.groupId, ctx.quotedMessageId)
+    if (!original) {
+      return [{ type: 'text', text: '元のメッセージが見つかりませんでした(古すぎるか、記録前の発言かもしれません)' }]
+    }
+    const imageId = await saveQuote(
+      env,
+      ctx.groupId,
+      original.user_id,
+      original.display_name ?? '不明',
+      original.picture_url,
+      original.message_text
+    )
+    return [buildQuoteImageMessage(ctx.baseUrl, imageId)]
+  }
+
   const quoteMatch = text.match(/^めいく[:：]\s*(.+)$/s)
   if (quoteMatch && ctx.isGroup && ctx.groupId && ctx.userId) {
     const quoteText = quoteMatch[1].trim()
@@ -438,6 +459,7 @@ const HELP_TEXT = `葉っぱもち Bot ヘルプ
 
 【名言カード】
 めいく:[テキスト] - 名言カードを生成
+(他人のメッセージに「返信(リプライ)」で「めいく」だけ送ると、その人の名言カードを生成)
 
 【タグ】
 タグ追加/削除/一覧 [タグ名]

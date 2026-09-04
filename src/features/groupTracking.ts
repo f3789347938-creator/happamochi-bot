@@ -20,6 +20,20 @@ export async function cacheGroupMessage(
     .run()
 }
 
+// Looks up a previously-cached group message by its LINE message id. Used
+// by the reply-based "めいく" quote feature: when a message is itself a
+// reply (event.message.quotedMessageId is set), we need the ORIGINAL
+// message's author/text, not the replier's — this is the only place that
+// data can come from (LINE has no "fetch an arbitrary past message" API).
+export async function getGroupMessage(env: LineEnv, groupId: string, messageId: string) {
+  return env.DB.prepare(
+    `SELECT user_id, display_name, picture_url, message_text
+       FROM group_messages WHERE group_id = ? AND message_id = ?`
+  )
+    .bind(groupId, messageId)
+    .first<{ user_id: string; display_name: string | null; picture_url: string | null; message_text: string }>()
+}
+
 export async function touchGroupMember(
   env: LineEnv,
   groupId: string,
