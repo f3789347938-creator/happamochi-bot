@@ -69,7 +69,12 @@ app.get('/quote-image/:id', async (c) => {
 // だけをJSONで確認できるエンドポイント。テスト用のreplyToken/署名は不要。
 // 本番用途ではなく、動作確認専用(データベースへの書き込みは実際に発生する点に注意)。
 app.post('/debug/simulate', async (c) => {
-  const { text, groupId, userId } = await c.req.json<{ text: string; groupId?: string; userId?: string }>()
+  const { text, groupId, userId, pictureUrl } = await c.req.json<{
+    text: string
+    groupId?: string
+    userId?: string
+    pictureUrl?: string
+  }>()
   if (!text) return c.json({ error: 'text is required' }, 400)
 
   const ctx = {
@@ -78,7 +83,10 @@ app.post('/debug/simulate', async (c) => {
     groupId: groupId ?? 'Cdebug_simulated_group',
     userId: userId ?? 'Udebug_simulated_user',
     displayName: 'デバッグユーザー',
-    pictureUrl: null,
+    // Debug-only override so /debug/simulate can exercise the
+    // "with avatar" quote-card code path too (e.g. imageGen.ts), not just
+    // the no-avatar fallback. Defaults to null exactly as before.
+    pictureUrl: pictureUrl ?? null,
     baseUrl: new URL(c.req.url).origin,
   }
 

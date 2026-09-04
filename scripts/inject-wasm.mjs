@@ -28,6 +28,10 @@ copyFileSync(resolve(root, 'node_modules/@resvg/resvg-wasm/index_bg.wasm'), reso
 // rule exists in wrangler.jsonc. Renaming to `.bin` makes it match the
 // built-in Data rule and bundle correctly as an ArrayBuffer.
 copyFileSync(resolve(root, 'public/static/fonts/NotoSansJP-Bold.ttf'), resolve(distDir, 'assets/NotoSansJP-Bold.bin'))
+// Regular (400) weight — the legacy quote-card design uses a lighter
+// weight for body/author text than the Bold-only font previously embedded
+// (see imageGen.ts's font-weight choices per element).
+copyFileSync(resolve(root, 'public/static/fonts/NotoSansJP-Regular.ttf'), resolve(distDir, 'assets/NotoSansJP-Regular.bin'))
 // NOTE: satori is deliberately pinned to 0.32.0 (see package.json) — 0.33.0
 // added a HarfBuzz-based text shaper whose Emscripten loader self-triggers
 // a `fetch('hb.wasm')` at module-eval time (top-level, outside any request
@@ -74,10 +78,12 @@ const prelude = `globalThis.__filename ??= './satori-standalone-yoga.js';
 if (typeof process === 'object' && process) { process.type = 'renderer' }
 import __yogaWasm from './assets/yoga.wasm';
 import __resvgWasm from './assets/resvg.wasm';
-import __notoSansJpFont from './assets/NotoSansJP-Bold.bin';
+import __notoSansJpFontBold from './assets/NotoSansJP-Bold.bin';
+import __notoSansJpFontRegular from './assets/NotoSansJP-Regular.bin';
 globalThis.__HAPPAMOCHI_YOGA_WASM__ = __yogaWasm;
 globalThis.__HAPPAMOCHI_RESVG_WASM__ = __resvgWasm;
-globalThis.__HAPPAMOCHI_FONT_TTF__ = __notoSansJpFont;
+globalThis.__HAPPAMOCHI_FONT_TTF__ = __notoSansJpFontBold;
+globalThis.__HAPPAMOCHI_FONT_TTF_REGULAR__ = __notoSansJpFontRegular;
 `
 
 writeFileSync(workerPath, prelude + original)

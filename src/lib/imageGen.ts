@@ -44,6 +44,8 @@ declare global {
   var __HAPPAMOCHI_RESVG_WASM__: WebAssembly.Module | undefined
   // eslint-disable-next-line no-var
   var __HAPPAMOCHI_FONT_TTF__: ArrayBuffer | undefined
+  // eslint-disable-next-line no-var
+  var __HAPPAMOCHI_FONT_TTF_REGULAR__: ArrayBuffer | undefined
 }
 
 let initialized = false
@@ -126,57 +128,167 @@ export interface QuoteCardInput {
   pictureUrl: string | null
 }
 
-// Renders the "meigen card" (quote card): a photo on the left (the LINE
-// profile picture, if fetchable), a dark panel on the right with the quote
-// text, display name, user id, and a small watermark bottom-right —
-// matching the legacy bot's layout that was verified against real rows in
-// the production `quote_images` table.
-export async function generateQuoteCardPng(input: QuoteCardInput): Promise<Uint8Array> {
-  await ensureInit()
+// Quote text gets smaller as it gets longer, so long posts still fit —
+// matches the legacy bot's behavior (a one-line quote like "だった" renders
+// huge; a multi-line URL-laden post renders much smaller).
+function quoteFontSize(text: string): number {
+  const len = text.length
+  if (len <= 8) return 54
+  if (len <= 20) return 44
+  if (len <= 50) return 32
+  if (len <= 100) return 24
+  return 18
+}
 
-  const fontData = globalThis.__HAPPAMOCHI_FONT_TTF__
-  if (!fontData) {
-    throw new Error('font data not found on globalThis — did the build run scripts/inject-wasm.mjs?')
-  }
-
-  const avatarDataUrl = input.pictureUrl ? await fetchImageAsDataUrl(input.pictureUrl) : null
-
-  const markup = {
+// "No avatar" design: a centered card on a navy gradient background with
+// large decorative quotation-mark glyphs in the corners — matches legacy
+// row 394698b0-0174-4624-a803-f36e07afae12 (quote_text="名言", author="なの").
+// This is the design used whenever we don't have a usable profile photo
+// (pictureUrl is null, or fetching it failed).
+function buildNoAvatarCard(quoteText: string, authorName: string) {
+  return {
     type: 'div',
     props: {
       style: {
         display: 'flex',
         width: `${CARD_WIDTH}px`,
         height: `${CARD_HEIGHT}px`,
-        backgroundColor: '#111111',
+        backgroundImage: 'linear-gradient(135deg, #171a30 0%, #0c0d18 100%)',
+        position: 'relative',
+        justifyContent: 'center',
+        alignItems: 'center',
       },
       children: [
-        // Left half: avatar photo (or a plain dark-grey placeholder panel).
         {
           type: 'div',
           props: {
-            // NOTE: do NOT set `backgroundImage: undefined` when there's no
-            // avatar — satori's CSS property resolver crashes with "Cannot
-            // read properties of undefined (reading 'trim')" on any style
-            // key whose value is explicitly `undefined` (as opposed to the
-            // key being absent). Always build a plain object with only the
-            // keys we actually want.
-            style: avatarDataUrl
-              ? {
-                  display: 'flex',
-                  width: `${CARD_WIDTH / 2}px`,
-                  height: `${CARD_HEIGHT}px`,
-                  backgroundColor: '#2a2a2a',
-                  backgroundImage: `url(${avatarDataUrl})`,
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                }
-              : {
-                  display: 'flex',
-                  width: `${CARD_WIDTH / 2}px`,
-                  height: `${CARD_HEIGHT}px`,
-                  backgroundColor: '#2a2a2a',
+            style: {
+              display: 'flex',
+              position: 'absolute',
+              top: '18px',
+              left: '38px',
+              fontSize: '100px',
+              fontWeight: 400,
+              color: 'rgba(255, 255, 255, 0.12)',
+            },
+            children: '\u201C',
+          },
+        },
+        {
+          type: 'div',
+          props: {
+            style: {
+              display: 'flex',
+              position: 'absolute',
+              bottom: '-30px',
+              right: '38px',
+              fontSize: '100px',
+              fontWeight: 400,
+              color: 'rgba(255, 255, 255, 0.12)',
+            },
+            children: '\u201D',
+          },
+        },
+        {
+          type: 'div',
+          props: {
+            style: {
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              maxWidth: '900px',
+            },
+            children: [
+              {
+                type: 'div',
+                props: {
+                  style: {
+                    display: 'flex',
+                    color: '#ffffff',
+                    fontSize: `${quoteFontSize(quoteText)}px`,
+                    fontWeight: 400,
+                    lineHeight: 1.4,
+                    textAlign: 'center',
+                    justifyContent: 'center',
+                    wordBreak: 'break-word',
+                  },
+                  children: quoteText,
                 },
+              },
+              {
+                type: 'div',
+                props: {
+                  style: {
+                    display: 'flex',
+                    color: '#8a91ad',
+                    fontSize: '20px',
+                    fontWeight: 400,
+                    marginTop: '40px',
+                  },
+                  children: `— ${authorName}`,
+                },
+              },
+            ],
+          },
+        },
+      ],
+    },
+  }
+}
+
+// "With avatar" design: a real profile photo filling the left half (with a
+// soft fade into the dark panel), a near-black panel on the right with the
+// quote text / author / userId, and a "HappaMochi Bot" watermark bottom
+// right — matches legacy rows b340a8cc-...-df016 and a1fa3dba-...-e1aa.
+function buildAvatarCard(
+  quoteText: string,
+  authorName: string,
+  userId: string,
+  avatarDataUrl: string
+) {
+  const halfWidth = CARD_WIDTH / 2
+  return {
+    type: 'div',
+    props: {
+      style: {
+        display: 'flex',
+        width: `${CARD_WIDTH}px`,
+        height: `${CARD_HEIGHT}px`,
+        backgroundColor: '#050505',
+      },
+      children: [
+        // Left half: the real profile photo, cover-cropped, with a soft
+        // fade on its right edge into the dark panel (no hard divider line).
+        {
+          type: 'div',
+          props: {
+            style: {
+              display: 'flex',
+              width: `${halfWidth}px`,
+              height: `${CARD_HEIGHT}px`,
+              position: 'relative',
+              backgroundColor: '#050505',
+              backgroundImage: `url(${avatarDataUrl})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+            },
+            children: [
+              {
+                type: 'div',
+                props: {
+                  style: {
+                    display: 'flex',
+                    position: 'absolute',
+                    top: 0,
+                    right: 0,
+                    width: '150px',
+                    height: `${CARD_HEIGHT}px`,
+                    backgroundImage:
+                      'linear-gradient(to right, rgba(5,5,5,0) 0%, rgba(5,5,5,1) 100%)',
+                  },
+                },
+              },
+            ],
           },
         },
         // Right half: quote text + author + userId, watermark bottom-right.
@@ -187,9 +299,9 @@ export async function generateQuoteCardPng(input: QuoteCardInput): Promise<Uint8
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'center',
-              width: `${CARD_WIDTH / 2}px`,
+              width: `${halfWidth}px`,
               height: `${CARD_HEIGHT}px`,
-              backgroundColor: '#111111',
+              backgroundColor: '#050505',
               padding: '60px',
               position: 'relative',
             },
@@ -200,12 +312,12 @@ export async function generateQuoteCardPng(input: QuoteCardInput): Promise<Uint8
                   style: {
                     display: 'flex',
                     color: '#ffffff',
-                    fontSize: '48px',
-                    fontWeight: 700,
+                    fontSize: `${quoteFontSize(quoteText)}px`,
+                    fontWeight: 400,
                     lineHeight: 1.4,
                     wordBreak: 'break-word',
                   },
-                  children: input.quoteText,
+                  children: quoteText,
                 },
               },
               {
@@ -213,11 +325,12 @@ export async function generateQuoteCardPng(input: QuoteCardInput): Promise<Uint8
                 props: {
                   style: {
                     display: 'flex',
-                    color: '#cccccc',
-                    fontSize: '32px',
+                    color: '#ffffff',
+                    fontSize: '24px',
+                    fontWeight: 400,
                     marginTop: '40px',
                   },
-                  children: `@${input.authorName}`,
+                  children: `@${authorName}`,
                 },
               },
               {
@@ -225,11 +338,12 @@ export async function generateQuoteCardPng(input: QuoteCardInput): Promise<Uint8
                 props: {
                   style: {
                     display: 'flex',
-                    color: '#777777',
-                    fontSize: '22px',
+                    color: '#555555',
+                    fontSize: '16px',
+                    fontWeight: 400,
                     marginTop: '8px',
                   },
-                  children: input.userId,
+                  children: userId,
                 },
               },
               {
@@ -238,12 +352,13 @@ export async function generateQuoteCardPng(input: QuoteCardInput): Promise<Uint8
                   style: {
                     display: 'flex',
                     position: 'absolute',
-                    right: '30px',
-                    bottom: '20px',
+                    right: '25px',
+                    bottom: '18px',
                     color: '#666666',
-                    fontSize: '20px',
+                    fontSize: '18px',
+                    fontWeight: 400,
                   },
-                  children: 'HappaMochiBot',
+                  children: 'HappaMochi Bot',
                 },
               },
             ],
@@ -252,6 +367,29 @@ export async function generateQuoteCardPng(input: QuoteCardInput): Promise<Uint8
       ],
     },
   }
+}
+
+// Renders the "meigen card" (quote card). Which of the two legacy designs
+// gets used depends on whether we have a real profile photo: with one, we
+// use the photo-left/dark-panel-right layout; without one (pictureUrl was
+// null, or fetching/decoding it failed), we fall back to the centered
+// navy-gradient design with decorative quotation marks. Both layouts were
+// reverse-engineered from real rows in the production `quote_images` table
+// per the user's explicit "make it identical to the old one" request.
+export async function generateQuoteCardPng(input: QuoteCardInput): Promise<Uint8Array> {
+  await ensureInit()
+
+  const fontDataBold = globalThis.__HAPPAMOCHI_FONT_TTF__
+  const fontDataRegular = globalThis.__HAPPAMOCHI_FONT_TTF_REGULAR__
+  if (!fontDataBold || !fontDataRegular) {
+    throw new Error('font data not found on globalThis — did the build run scripts/inject-wasm.mjs?')
+  }
+
+  const avatarDataUrl = input.pictureUrl ? await fetchImageAsDataUrl(input.pictureUrl) : null
+
+  const markup = avatarDataUrl
+    ? buildAvatarCard(input.quoteText, input.authorName, input.userId, avatarDataUrl)
+    : buildNoAvatarCard(input.quoteText, input.authorName)
 
   const svg = await satori(markup as any, {
     width: CARD_WIDTH,
@@ -259,7 +397,13 @@ export async function generateQuoteCardPng(input: QuoteCardInput): Promise<Uint8
     fonts: [
       {
         name: 'Noto Sans JP',
-        data: fontData,
+        data: fontDataRegular,
+        weight: 400,
+        style: 'normal',
+      },
+      {
+        name: 'Noto Sans JP',
+        data: fontDataBold,
         weight: 700,
         style: 'normal',
       },
