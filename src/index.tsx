@@ -11,7 +11,7 @@ import {
   type LineMessage,
 } from './lib/line'
 import { handleUnsend } from './features/unsend'
-import { cacheGroupMessage, touchGroupMember, ensureGroupMetadata } from './features/groupTracking'
+import { cacheGroupMessage, touchGroupMember, ensureGroupMetadata, markGroupLeft } from './features/groupTracking'
 import { buildWelcomeMessages } from './features/welcome'
 import { registerBirthday, checkAndQueueBirthdays } from './features/birthday'
 import {
@@ -169,6 +169,16 @@ async function handleEvent(env: Bindings, event: any, baseUrl: string) {
     case 'join':
       if (event.source.type === 'group') {
         await ensureGroupMetadata(env, event.source.groupId, null)
+      }
+      return
+
+    case 'leave':
+      // Previously unhandled (fell through to default/no-op): group_metadata
+      // never recorded that the bot was removed from a group, so old rows
+      // looked identical to currently-joined groups. Record left_at so we
+      // can tell "currently joined" apart from "invited once, since removed".
+      if (event.source.type === 'group') {
+        await markGroupLeft(env, event.source.groupId)
       }
       return
 

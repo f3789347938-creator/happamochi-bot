@@ -52,8 +52,22 @@ export async function ensureGroupMetadata(env: LineEnv, groupId: string, groupNa
     `INSERT INTO group_metadata (group_id, group_name) VALUES (?, ?)
      ON CONFLICT(group_id) DO UPDATE SET
        group_name = COALESCE(excluded.group_name, group_metadata.group_name),
+       left_at = NULL,
        updated_at = CURRENT_TIMESTAMP`
   )
     .bind(groupId, groupName)
+    .run()
+}
+
+// Marks a group as "left" when LINE sends a `leave` event (bot removed from
+// the group). Previously this event was silently dropped (fell through to
+// `default: return` in the webhook switch), so group_metadata never reflected
+// that the bot was no longer a member — rows just went stale forever.
+export async function markGroupLeft(env: LineEnv, groupId: string) {
+  await env.DB.prepare(
+    `UPDATE group_metadata SET left_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+     WHERE group_id = ?`
+  )
+    .bind(groupId)
     .run()
 }
