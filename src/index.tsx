@@ -368,7 +368,7 @@ async function routeCommand(env: Bindings, ctx: CommandCtx): Promise<LineMessage
     return [{ type: 'text', text: 'ウェルカムメッセージを設定しました' }]
   }
 
-  const quoteMatch = text.match(/^名言[:：]\s*(.+)$/s)
+  const quoteMatch = text.match(/^めいく[:：]\s*(.+)$/s)
   if (quoteMatch && ctx.isGroup && ctx.groupId && ctx.userId) {
     const quoteText = quoteMatch[1].trim()
     const imageId = await saveQuote(env, ctx.groupId, ctx.userId, ctx.displayName ?? '不明', ctx.pictureUrl, quoteText)
@@ -437,7 +437,7 @@ const HELP_TEXT = `葉っぱもち Bot ヘルプ
 ウェルカムメッセージ設定 [本文] - カスタム歓迎文を設定
 
 【名言カード】
-名言:[テキスト] - 名言カードを生成
+めいく:[テキスト] - 名言カードを生成
 
 【タグ】
 タグ追加/削除/一覧 [タグ名]
