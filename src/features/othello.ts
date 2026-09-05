@@ -549,7 +549,7 @@ function statusMessage(game: OthelloGame): string | null {
   if (game.status === 'finished') {
     const { black, white } = countPieces(game.board)
     if (black === white) return '引き分けでした！'
-    return `${black > white ? '黒' : '白'}の勝ちです！`
+    return `${black > white ? '⚫ 黒' : '⚪ 白'}の勝ちです！`
   }
   return null
 }
@@ -587,7 +587,7 @@ export function buildOthelloMessage(game: OthelloGame, note?: string): LineMessa
         backgroundColor: HEADER_BG,
         paddingAll: 'md',
         contents: [
-          { type: 'text', text: 'オセロ', color: '#ffffff', weight: 'bold', size: 'md', align: 'center' },
+          { type: 'text', text: '🎲 オセロ', color: '#ffffff', weight: 'bold', size: 'md', align: 'center' },
         ],
       },
       body: {
