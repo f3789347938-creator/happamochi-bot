@@ -71,25 +71,27 @@ export const ANNOUNCEMENTS: AnnouncementContent[] = [
     targetGroupIds: [BOT_TEST_GROUP_ID],
   },
   {
-    id: 'notice_2026_09_05_openchat',
-    title: 'オープンチャット開設のお知らせ！',
+    id: 'notice_2026_09_05_tag',
+    title: 'タグ機能のお知らせ！',
     body:
-      '・雑談用の「オープンチャット」を試験的に開設\n' +
-      '・誰でも自由に参加OK、気軽に顔を出してね\n' +
-      '・荒らし対策のため運営が随時ようすを見てます',
-    highlightWord: 'オープンチャット',
-    button: { label: 'ヘルプを見る', action: { type: 'message', label: 'ヘルプを見る', text: 'ヘルプ' } },
+      '・グループに自由にタグを付けられる機能があります\n' +
+      '「タグ追加 ○○」でタグを追加\n' +
+      '「タグ削除 ○○」でタグを削除\n' +
+      '「タグ一覧」で今設定されているタグを確認できます',
+    highlightWord: 'タグ',
+    button: { label: 'タグ一覧を見る', action: { type: 'message', label: 'タグ一覧を見る', text: 'タグ一覧' } },
     targetGroupIds: [BOT_TEST_GROUP_ID],
   },
   {
-    id: 'notice_2026_09_05_ranking',
-    title: '月間ランキングのお知らせ！',
+    id: 'notice_2026_09_05_title',
+    title: '称号機能のお知らせ！',
     body:
-      '・今月のオセロ対戦数ランキングを集計中\n' +
-      '・上位入賞者はヘッダーでお祝い予定\n' +
-      '・エントリー方法は特になし、遊べば自動集計',
-    highlightWord: 'ランキング',
-    button: { label: 'ヘルプを見る', action: { type: 'message', label: 'ヘルプを見る', text: 'ヘルプ' } },
+      '・遊んでいると「称号」を獲得できることがあります\n' +
+      '「称号一覧」で持っている称号を確認\n' +
+      '「称号装備 ○○」で好きな称号を装備\n' +
+      '「称号確認」で今装備している称号を確認できます',
+    highlightWord: '称号',
+    button: { label: '称号一覧を見る', action: { type: 'message', label: '称号一覧を見る', text: '称号一覧' } },
     targetGroupIds: [BOT_TEST_GROUP_ID],
   },
 ]
