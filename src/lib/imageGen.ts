@@ -283,19 +283,25 @@ function buildAvatarCard(
 ) {
   // 以下の数値はすべて本番D1に残るレガシー画像(2026-02〜03の9枚)を
   // ピクセル実測して合わせたもの。推測値は無い。
-  //   ・写真幅 PHOTO_WIDTH=519 → 右パネルの中心が x=899.5 になる。
-  //     レガシー9枚のテキスト中心は 898〜901.5 で一致。従来の 640
-  //     (画面ちょうど半分) では中心が 959.5 になりズレていた。
-  //   ・背景は純黒 #000000。従来の #050505 はレガシーと不一致
-  //     (レガシー実測 rgb(0,0,0)、従来 rgb(5,5,5))。
-  //   ・引用文/著者/userId はレガシーでは文字数に依らず縦位置が完全固定
-  //     (引用文 y=265、著者 y=393、userId y=430)。従来の
-  //     justifyContent:'center' による縦センタリングでは文字数で
-  //     位置が動いてしまうため、絶対配置(top指定)に変更した。
-  const PHOTO_WIDTH = 519
-  const PANEL_WIDTH = CARD_WIDTH - PHOTO_WIDTH
-  const PANEL_PADDING = 40
-  const TEXT_WIDTH = PANEL_WIDTH - PANEL_PADDING * 2
+  //
+  //   ・写真領域はレガシー実測で x=0〜636、フェードは x=454〜636
+  //     (幅182px)。つまり写真の描画幅は従来どおり 640 が正しい。
+  //     一度 519 に縮めたことがあるが、それはテキスト中心を合わせる
+  //     ための帳尻合わせで、写真が削れてフェードが急に見える原因に
+  //     なったので撤回した。写真幅は 640、フェード幅は 182 が実測値。
+  //   ・テキストの中心はレガシー9枚とも x=898〜901.5(=899.5)。
+  //     写真幅640のままだと単純な右半分の中心は959.5でズレるため、
+  //     テキストは右パネルではなくカード全体に対する絶対配置にし、
+  //     中心が899.5になるよう left/width を直接指定する。
+  //   ・背景は純黒 #000000(レガシー実測 rgb(0,0,0))。
+  //   ・引用文/著者/userId はレガシーでは文字数に依らず縦位置が固定
+  //     (引用文 y=265、著者 y=393、userId y=430)。
+  const PHOTO_WIDTH = 640
+  const FADE_WIDTH = 182
+  // テキストブロックの中心を x=899.5 にする。左端と幅から中心が決まる:
+  // center = TEXT_LEFT + TEXT_WIDTH / 2
+  const TEXT_LEFT = 559
+  const TEXT_WIDTH = 681
   return {
     type: 'div',
     props: {
@@ -304,6 +310,7 @@ function buildAvatarCard(
         width: `${CARD_WIDTH}px`,
         height: `${CARD_HEIGHT}px`,
         backgroundColor: '#000000',
+        position: 'relative',
       },
       children: [
         // 左: プロフィール写真。右端を黒へソフトフェードさせる。
@@ -312,9 +319,11 @@ function buildAvatarCard(
           props: {
             style: {
               display: 'flex',
+              position: 'absolute',
+              top: 0,
+              left: 0,
               width: `${PHOTO_WIDTH}px`,
               height: `${CARD_HEIGHT}px`,
-              position: 'relative',
               backgroundColor: '#000000',
               backgroundImage: `url(${avatarDataUrl})`,
               backgroundSize: 'cover',
@@ -329,7 +338,7 @@ function buildAvatarCard(
                     position: 'absolute',
                     top: 0,
                     right: 0,
-                    width: '150px',
+                    width: `${FADE_WIDTH}px`,
                     height: `${CARD_HEIGHT}px`,
                     backgroundImage:
                       'linear-gradient(to right, rgba(0,0,0,0) 0%, rgba(0,0,0,1) 100%)',
@@ -339,93 +348,78 @@ function buildAvatarCard(
             ],
           },
         },
-        // 右: 引用文 / @表示名 / userId / 右下に透かし。
-        // レガシーに合わせ、3要素とも絶対配置で固定位置に置く。
+        // 右: 引用文 / @表示名 / userId。レガシーに合わせ縦位置は固定。
         {
           type: 'div',
           props: {
             style: {
               display: 'flex',
-              width: `${PANEL_WIDTH}px`,
-              height: `${CARD_HEIGHT}px`,
-              backgroundColor: '#000000',
-              position: 'relative',
+              position: 'absolute',
+              top: '249px',
+              left: `${TEXT_LEFT}px`,
+              width: `${TEXT_WIDTH}px`,
+              color: '#ffffff',
+              fontSize: `${quoteFontSize(quoteText)}px`,
+              fontWeight: 400,
+              lineHeight: 1.4,
+              textAlign: 'center',
+              justifyContent: 'center',
+              wordBreak: 'break-word',
             },
-            children: [
-              {
-                type: 'div',
-                props: {
-                  style: {
-                    display: 'flex',
-                    position: 'absolute',
-                    top: '249px',
-                    left: `${PANEL_PADDING}px`,
-                    width: `${TEXT_WIDTH}px`,
-                    color: '#ffffff',
-                    fontSize: `${quoteFontSize(quoteText)}px`,
-                    fontWeight: 400,
-                    lineHeight: 1.4,
-                    textAlign: 'center',
-                    justifyContent: 'center',
-                    wordBreak: 'break-word',
-                  },
-                  children: quoteText,
-                },
-              },
-              {
-                type: 'div',
-                props: {
-                  style: {
-                    display: 'flex',
-                    position: 'absolute',
-                    top: '385px',
-                    left: `${PANEL_PADDING}px`,
-                    width: `${TEXT_WIDTH}px`,
-                    color: '#ffffff',
-                    fontSize: '24px',
-                    fontWeight: 400,
-                    textAlign: 'center',
-                    justifyContent: 'center',
-                  },
-                  children: `@${authorName}`,
-                },
-              },
-              {
-                type: 'div',
-                props: {
-                  style: {
-                    display: 'flex',
-                    position: 'absolute',
-                    top: '424px',
-                    left: `${PANEL_PADDING}px`,
-                    width: `${TEXT_WIDTH}px`,
-                    // レガシー実測: userId の描画幅は x=747..1051(305px)。
-                    // 15px では 268px と細く、17px で 303px となり一致する。
-                    color: '#aaaaaa',
-                    fontSize: '17px',
-                    fontWeight: 400,
-                    textAlign: 'center',
-                    justifyContent: 'center',
-                  },
-                  children: userId,
-                },
-              },
-              {
-                type: 'div',
-                props: {
-                  style: {
-                    display: 'flex',
-                    position: 'absolute',
-                    right: '13px',
-                    bottom: '8px',
-                    color: '#777777',
-                    fontSize: '14px',
-                    fontWeight: 400,
-                  },
-                  children: 'HappaMochi Bot',
-                },
-              },
-            ],
+            children: quoteText,
+          },
+        },
+        {
+          type: 'div',
+          props: {
+            style: {
+              display: 'flex',
+              position: 'absolute',
+              top: '385px',
+              left: `${TEXT_LEFT}px`,
+              width: `${TEXT_WIDTH}px`,
+              color: '#ffffff',
+              fontSize: '24px',
+              fontWeight: 400,
+              textAlign: 'center',
+              justifyContent: 'center',
+            },
+            children: `@${authorName}`,
+          },
+        },
+        {
+          type: 'div',
+          props: {
+            style: {
+              display: 'flex',
+              position: 'absolute',
+              top: '424px',
+              left: `${TEXT_LEFT}px`,
+              width: `${TEXT_WIDTH}px`,
+              // レガシー実測: userId の描画幅は x=747..1051(305px)。
+              // 15px では 268px と細く、17px で 303px となり一致する。
+              color: '#aaaaaa',
+              fontSize: '17px',
+              fontWeight: 400,
+              textAlign: 'center',
+              justifyContent: 'center',
+            },
+            children: userId,
+          },
+        },
+        {
+          type: 'div',
+          props: {
+            style: {
+              display: 'flex',
+              position: 'absolute',
+              right: '13px',
+              bottom: '8px',
+              color: '#777777',
+              fontSize: '14px',
+              fontWeight: 400,
+            },
+            children: 'HappaMochi Bot',
           },
         },
       ],
