@@ -84,13 +84,15 @@ const DATE_COLOR = '#a0aab5'
 const BUTTON_BG = '#3b4a5a'
 const FOOTER_BG = '#1f2937'
 const HIGHLIGHT_COLOR = '#2b6cb0'
-// Cards must always render at the SAME size, whether the body is short or
-// long — otherwise a Carousel's bubbles end up visibly different heights
-// (the exact problem being fixed here). Two things make that possible:
-//   1. The white card box has a fixed pixel height (CARD_HEIGHT_PX).
-//   2. A flex:1 filler sits between the body text and the date, so the
-//      date is always pinned to the bottom of that fixed height no matter
-//      how much (or little) text is above it.
+// When an announcement is split into a multi-card Carousel, every card
+// must render at the SAME size, or the bubbles end up visibly different
+// heights depending on how much text landed on each page. Two things make
+// that possible (applied ONLY in the Carousel case — a lone card is left
+// to size naturally to its content instead):
+//   1. The white card box gets a fixed pixel height (CARD_HEIGHT_PX).
+//   2. A filler sits between the body text and the date, so the date is
+//      always pinned to the bottom of that fixed height no matter how
+//      much (or little) text is above it.
 // Splitting is done by LINE COUNT (not character count) and evenly
 // balanced across pages (e.g. 10 lines -> 5+5, never 6+4), so multi-card
 // announcements don't have one near-empty trailing card either.
@@ -129,7 +131,7 @@ function splitBody(body: string): string[] {
 // Renders the body text as a single `text` component, splitting out
 // `highlightWord` (if present) into its own colored `span` for emphasis.
 function renderBodyText(bodyPage: string, highlightWord?: string): Record<string, any> {
-  const base = { wrap: true, size: 'sm', margin: 'md' }
+  const base = { wrap: true, size: 'xs', margin: 'md' }
   if (!highlightWord) {
     return { type: 'text', text: bodyPage, color: BODY_COLOR, ...base }
   }
@@ -159,7 +161,14 @@ function buildBubble(
     action: { type: 'message' as const, label: 'ヘルプを見る', text: 'ヘルプ' },
   }
 
-  const card = {
+  // Fixed height (+ bottom-pinned date via filler) is only needed when this
+  // bubble is part of a multi-card Carousel — that's the only situation
+  // where mismatched heights between cards would actually be visible. For
+  // a lone card (the common case), let it size naturally to its content;
+  // forcing a fixed height there just stretches it out with empty space.
+  const isCarousel = pageCount > 1
+
+  const card: Record<string, any> = {
     type: 'box',
     layout: 'vertical',
     backgroundColor: CARD_BG,
@@ -167,20 +176,18 @@ function buildBubble(
     borderColor: CARD_BORDER,
     borderWidth: '1px',
     paddingAll: 'lg',
-    // Fixed height, regardless of how much body text this page has — this
-    // (plus the flex:1 filler below) is what keeps every card in a
-    // Carousel exactly the same size.
-    height: `${CARD_HEIGHT_PX}px`,
     contents: [
-      { type: 'text', text: titleText, weight: 'bold', size: 'lg', align: 'center', color: TITLE_COLOR, wrap: true },
+      { type: 'text', text: titleText, weight: 'bold', size: 'md', align: 'center', color: TITLE_COLOR, wrap: true },
       { type: 'separator', margin: 'md', color: CARD_BORDER },
       renderBodyText(bodyPage, content.highlightWord),
-      // Filler that absorbs all leftover space so the date below always
-      // sits pinned to the bottom of the fixed-height card, whether the
-      // body text is one line or six.
-      { type: 'filler' },
-      { type: 'text', text: dateText, size: 'xs', color: DATE_COLOR, align: 'end' },
+      ...(isCarousel ? [{ type: 'filler' }] : []),
+      { type: 'text', text: dateText, size: 'xs', color: DATE_COLOR, align: 'end', margin: isCarousel ? undefined : 'md' },
     ],
+  }
+  if (isCarousel) {
+    // Only fix the height (and rely on the filler above) when there are
+    // multiple cards that need to visually match.
+    card.height = `${CARD_HEIGHT_PX}px`
   }
 
   const buttonBox = {
@@ -193,12 +200,11 @@ function buildBubble(
 
   return {
     type: 'bubble',
-    // Without an explicit size, LINE renders a narrow default-width
-    // bubble ("kilo"), which forces the same font sizes to wrap awkwardly
-    // (only a few characters per line) and look proportionally larger and
-    // cramped. 'giga' matches the wide bubble used by the reference
-    // design (and by the Othello board bubble elsewhere in this bot).
-    size: 'giga',
+    // No explicit size -> LINE uses its default, 'mega' (~300px), which is
+    // what the reference design uses too. (An earlier attempt added
+    // size: 'giga' thinking the default was a narrow 'kilo' — that was
+    // wrong: per the official reference the default is 'mega', and 'giga'
+    // over-widened the card compared to the reference.)
     header: {
       type: 'box',
       layout: 'vertical',
