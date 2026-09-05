@@ -26,6 +26,15 @@ export async function registerBirthday(
     .run()
 }
 
+export async function unregisterBirthday(env: LineEnv, groupId: string, userId: string): Promise<boolean> {
+  const res = await env.DB.prepare(
+    `DELETE FROM member_birthdays WHERE group_id = ? AND user_id = ?`
+  )
+    .bind(groupId, userId)
+    .run()
+  return (res.meta.rows_written ?? 0) > 0
+}
+
 export async function checkAndQueueBirthdays(env: LineEnv, groupId: string) {
   const now = new Date()
   const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000)

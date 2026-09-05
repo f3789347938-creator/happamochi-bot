@@ -34,3 +34,16 @@ export async function setWelcomeSetting(env: LineEnv, groupId: string, enabled: 
     .bind(groupId, enabled ? 1 : 0, customMessage ?? null)
     .run()
 }
+
+// Explicitly clears a previously-set custom_message back to the default
+// welcome text. setWelcomeSetting()'s COALESCE only ever PRESERVES the
+// existing custom_message when none is passed in — there was previously no
+// way to actually clear it back to null once set.
+export async function clearWelcomeMessage(env: LineEnv, groupId: string): Promise<boolean> {
+  const res = await env.DB.prepare(
+    `UPDATE group_welcome_settings SET custom_message = NULL, updated_at = CURRENT_TIMESTAMP WHERE group_id = ?`
+  )
+    .bind(groupId)
+    .run()
+  return (res.meta.rows_written ?? 0) > 0
+}

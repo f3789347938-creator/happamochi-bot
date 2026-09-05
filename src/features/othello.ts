@@ -10,6 +10,7 @@
 //
 // One active game per group (group_id is the primary key of othello_games).
 import { enqueueBroadcast, type LineEnv, type LineMessage } from '../lib/line'
+import { grantTitle } from './titles'
 
 const SIZE = 8
 type Cell = '.' | 'B' | 'W'
@@ -263,6 +264,76 @@ export async function joinGame(
   return { ok: true, game }
 }
 
+// Records the final win/loss/draw result for both players once a game
+// reaches `status: 'finished'`. Previously endGame() just deleted the row
+// with zero history kept anywhere (Phase-5 Fix #7). Called once from
+// applyMove()'s finish branch below — never from endGame() itself, since a
+// player-initiated "オセロ終了" is an abandonment, not a completed match.
+//
+// Also doubles as the real trigger for grantTitle() (Phase-5 Fix #1): the
+// first time a player's wins in a group reach WIN_TITLE_THRESHOLD, they're
+// granted a title. grantTitle() itself is idempotent (INSERT OR IGNORE), so
+// this is safe to call every time the threshold check passes.
+const WIN_TITLE_THRESHOLD = 3
+const WIN_TITLE_NAME = '絶対王者' // one of the 5 SSR titles already seeded by migration 0003
+
+async function bumpRecord(
+  env: LineEnv,
+  groupId: string,
+  userId: string,
+  displayName: string | null,
+  result: 'win' | 'loss' | 'draw'
+) {
+  const column = result === 'win' ? 'wins' : result === 'loss' ? 'losses' : 'draws'
+  await env.DB.prepare(
+    `INSERT INTO othello_records (group_id, user_id, display_name, wins, losses, draws)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(group_id, user_id) DO UPDATE SET
+       display_name = excluded.display_name,
+       ${column} = ${column} + 1,
+       updated_at = CURRENT_TIMESTAMP`
+  )
+    .bind(groupId, userId, displayName, result === 'win' ? 1 : 0, result === 'loss' ? 1 : 0, result === 'draw' ? 1 : 0)
+    .run()
+
+  if (result === 'win') {
+    const row = await env.DB.prepare(`SELECT wins FROM othello_records WHERE group_id = ? AND user_id = ?`)
+      .bind(groupId, userId)
+      .first<{ wins: number }>()
+    if (row && row.wins >= WIN_TITLE_THRESHOLD) {
+      await grantTitle(env, userId, groupId, WIN_TITLE_NAME)
+    }
+  }
+}
+
+async function recordGameResult(env: LineEnv, game: OthelloGame) {
+  if (!game.white_user_id) return // game never got a second player, nothing to record
+  const { black, white } = countPieces(game.board)
+  if (black === white) {
+    await bumpRecord(env, game.group_id, game.black_user_id, game.black_name, 'draw')
+    await bumpRecord(env, game.group_id, game.white_user_id, game.white_name, 'draw')
+  } else if (black > white) {
+    await bumpRecord(env, game.group_id, game.black_user_id, game.black_name, 'win')
+    await bumpRecord(env, game.group_id, game.white_user_id, game.white_name, 'loss')
+  } else {
+    await bumpRecord(env, game.group_id, game.white_user_id, game.white_name, 'win')
+    await bumpRecord(env, game.group_id, game.black_user_id, game.black_name, 'loss')
+  }
+}
+
+export async function getOthelloRecord(
+  env: LineEnv,
+  groupId: string,
+  userId: string
+): Promise<{ wins: number; losses: number; draws: number } | null> {
+  const row = await env.DB.prepare(
+    `SELECT wins, losses, draws FROM othello_records WHERE group_id = ? AND user_id = ?`
+  )
+    .bind(groupId, userId)
+    .first<{ wins: number; losses: number; draws: number }>()
+  return row ?? null
+}
+
 export async function endGame(
   env: LineEnv,
   groupId: string,
@@ -371,6 +442,9 @@ export async function applyMove(
   game.board = board
   game.turn = turn
   game.status = status
+  if (status === 'finished') {
+    await recordGameResult(env, game)
+  }
   return { ok: true, game, note }
 }
 

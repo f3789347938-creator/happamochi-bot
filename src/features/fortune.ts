@@ -81,6 +81,13 @@ export async function registerZodiacSign(env: LineEnv, userId: string, sign: str
     .run()
 }
 
+export async function unregisterZodiacSign(env: LineEnv, userId: string): Promise<boolean> {
+  const res = await env.DB.prepare(`DELETE FROM user_zodiac_signs WHERE user_id = ?`)
+    .bind(userId)
+    .run()
+  return (res.meta.rows_written ?? 0) > 0
+}
+
 export function formatFortuneText(f: any): string {
   return (
     `${f.zodiac_sign}の今日の運勢 (第${f.ranking}位)\n\n` +

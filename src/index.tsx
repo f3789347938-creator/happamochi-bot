@@ -13,11 +13,12 @@ import {
 import { handleUnsend } from './features/unsend'
 import { cacheGroupMessage, touchGroupMember, ensureGroupMetadata, markGroupLeft, getGroupMessage } from './features/groupTracking'
 import { buildWelcomeMessages } from './features/welcome'
-import { registerBirthday, checkAndQueueBirthdays } from './features/birthday'
+import { registerBirthday, unregisterBirthday, checkAndQueueBirthdays } from './features/birthday'
 import {
   getOrCreateDailyFortune,
   formatFortuneText,
   registerZodiacSign,
+  unregisterZodiacSign,
   todayJst,
   ZODIAC_SIGNS,
   checkAndQueueGroupFortune,
@@ -25,9 +26,9 @@ import {
 import { checkAndQueueWeeklyRanking } from './features/ranking'
 import { saveQuote, buildQuoteImageMessage } from './features/quote'
 import { addTagToGroup, listGroupTags, removeTagFromGroup } from './features/tags'
-import { setWelcomeSetting } from './features/welcome'
+import { setWelcomeSetting, clearWelcomeMessage } from './features/welcome'
 import { equipTitle, getEquippedTitle, listUserTitles } from './features/titles'
-import { startGame as startOthello, joinGame as joinOthello, endGame as endOthello, applyMove as applyOthelloMove, buildOthelloMessage, checkAndQueueOthelloTimeout } from './features/othello'
+import { startGame as startOthello, joinGame as joinOthello, endGame as endOthello, applyMove as applyOthelloMove, buildOthelloMessage, checkAndQueueOthelloTimeout, getOthelloRecord } from './features/othello'
 import { getLatestAnnouncementMessages } from './features/announcements'
 import {
   listThreads,
@@ -249,7 +250,9 @@ async function handleEvent(env: Bindings, event: any, baseUrl: string) {
 
     case 'join':
       if (event.source.type === 'group') {
-        await ensureGroupMetadata(env, event.source.groupId, null)
+        const groupId = event.source.groupId
+        const summary = await getGroupSummary(env, groupId)
+        await ensureGroupMetadata(env, groupId, summary?.groupName ?? null)
       }
       return
 
@@ -301,7 +304,18 @@ async function handleMessageEvent(env: Bindings, event: any, baseUrl: string) {
   }
 
   if (isGroup) {
-    await ensureGroupMetadata(env, groupId, null)
+    // Only call the LINE Group Summary API when we don't have a name yet
+    // for this group — avoids hitting that endpoint on every single
+    // message once group_name is populated.
+    const existingMeta = await env.DB.prepare(`SELECT group_name FROM group_metadata WHERE group_id = ?`)
+      .bind(groupId)
+      .first<{ group_name: string | null }>()
+    let groupName = existingMeta?.group_name ?? null
+    if (!groupName) {
+      const summary = await getGroupSummary(env, groupId)
+      groupName = summary?.groupName ?? null
+    }
+    await ensureGroupMetadata(env, groupId, groupName)
     await touchGroupMember(env, groupId, userId, displayName)
 
     if (message.type === 'text') {
@@ -436,6 +450,11 @@ async function routeCommand(env: Bindings, ctx: CommandCtx): Promise<LineMessage
     return f ? [{ type: 'text', text: formatFortuneText(f) }] : []
   }
 
+  if (text === '星座登録解除' && ctx.userId) {
+    const removed = await unregisterZodiacSign(env, ctx.userId)
+    return [{ type: 'text', text: removed ? '星座の登録を解除しました' : '星座は登録されていません' }]
+  }
+
   const zodiacMatch = text.match(/^星座登録\s*(.+)$/)
   if (zodiacMatch && ctx.userId) {
     const sign = zodiacMatch[1].trim()
@@ -455,6 +474,11 @@ async function routeCommand(env: Bindings, ctx: CommandCtx): Promise<LineMessage
       return [{ type: 'text', text: `誕生日を${month}/${day}として登録しました` }]
     }
     return [{ type: 'text', text: '日付の形式が正しくありません。例: 誕生日登録 4/1' }]
+  }
+
+  if (text === '誕生日登録解除' && ctx.isGroup && ctx.groupId && ctx.userId) {
+    const removed = await unregisterBirthday(env, ctx.groupId, ctx.userId)
+    return [{ type: 'text', text: removed ? '誕生日の登録を解除しました' : '誕生日は登録されていません' }]
   }
 
   if (text === '取り消し通知オフ' && ctx.isGroup && ctx.groupId) {
@@ -489,6 +513,10 @@ async function routeCommand(env: Bindings, ctx: CommandCtx): Promise<LineMessage
   if (welcomeMsgMatch && ctx.isGroup && ctx.groupId) {
     await setWelcomeSetting(env, ctx.groupId, true, welcomeMsgMatch[1].trim())
     return [{ type: 'text', text: 'ウェルカムメッセージを設定しました' }]
+  }
+  if (text === 'ウェルカムメッセージ解除' && ctx.isGroup && ctx.groupId) {
+    await clearWelcomeMessage(env, ctx.groupId)
+    return [{ type: 'text', text: 'カスタムウェルカムメッセージを解除しました(デフォルトの歓迎文に戻ります)' }]
   }
 
   // Reply mode: bare "めいく" (no colon/text) sent as a LINE reply to someone
@@ -539,6 +567,12 @@ async function routeCommand(env: Bindings, ctx: CommandCtx): Promise<LineMessage
     return [{ type: 'text', text: result.ok ? 'オセロを終了しました' : result.reason }]
   }
 
+  if (text === 'オセロ戦績' && ctx.isGroup && ctx.groupId && ctx.userId) {
+    const record = await getOthelloRecord(env, ctx.groupId, ctx.userId)
+    if (!record) return [{ type: 'text', text: 'まだ対局結果がありません' }]
+    return [{ type: 'text', text: `オセロ戦績\n勝ち: ${record.wins}\n負け: ${record.losses}\n引き分け: ${record.draws}` }]
+  }
+
   const tagAddMatch = text.match(/^タグ追加\s*(.+)$/)
   if (tagAddMatch && ctx.isGroup && ctx.groupId) {
     await addTagToGroup(env, ctx.groupId, tagAddMatch[1].trim())
@@ -585,13 +619,16 @@ const HELP_TEXT = `葉っぱもち Bot ヘルプ
 
 【基本】
 ヘルプ - このメッセージを表示
+お知らせ - 最新のお知らせを確認
 
 【占い】
 星座登録 [星座名] - 星座を登録
+星座登録解除 - 星座の登録を解除
 運勢 - 今日の運勢を確認
 
 【誕生日】
 誕生日登録 [月]/[日] - 誕生日を登録(自動でお祝い通知)
+誕生日登録解除 - 誕生日の登録を解除
 
 【取り消し通知】
 メッセージが削除されると自動で通知(取り消し通知オフ/オンで切替)
@@ -599,6 +636,7 @@ const HELP_TEXT = `葉っぱもち Bot ヘルプ
 【ウェルカム】
 ウェルカムオン/オフ - 新メンバー歓迎メッセージの切替
 ウェルカムメッセージ設定 [本文] - カスタム歓迎文を設定
+ウェルカムメッセージ解除 - カスタム歓迎文を解除してデフォルトに戻す
 
 【名言カード】
 めいく:[テキスト] - 名言カードを生成
@@ -608,6 +646,7 @@ const HELP_TEXT = `葉っぱもち Bot ヘルプ
 オセロ開始 - オセロを開始(自分が黒番になる)
 オセロ参加 - 白番として参加
 オセロ終了 - 対局を終了
+オセロ戦績 - 自分の勝敗数を確認
 盤面のマスをタップして石を置く
 
 【タグ】
