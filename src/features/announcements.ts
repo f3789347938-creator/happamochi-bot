@@ -200,11 +200,24 @@ function buildBubble(
 
   return {
     type: 'bubble',
-    // No explicit size -> LINE uses its default, 'mega' (~300px), which is
-    // what the reference design uses too. (An earlier attempt added
-    // size: 'giga' thinking the default was a narrow 'kilo' — that was
-    // wrong: per the official reference the default is 'mega', and 'giga'
-    // over-widened the card compared to the reference.)
+    // size: 'kilo' -- determined by actual pixel measurement, not guessing.
+    // Both the reference screenshot and our rendered screenshot were
+    // downloaded and measured with Python/PIL (both images are the same
+    // 461x1024px, so a direct pixel comparison is valid): the reference
+    // card's header bar measured ~321px wide, ours (at the previous
+    // default 'mega') measured ~371px wide -- 16% too wide, not a match.
+    // LINE's bubble size scale is not evenly spaced in pixels; a LINE API
+    // expert's conference-measured "block count" per size (nano=7, micro=9,
+    // deca=12, hecto=13, kilo=14, mega=16, giga=26 -- see
+    // https://taichunmin.idv.tw/blog/2021-09-10-line-flex-width.html) lets
+    // us predict each size's rendered width from our own measured mega
+    // width (371px * blocks/16): nano=162px, micro=209px, deca=278px,
+    // hecto=301px, kilo=325px, giga=603px. Comparing those predictions to
+    // the measured reference width (321px), 'kilo' (325px) is off by only
+    // ~1%, while every other size (including the previous 'mega') is off
+    // by 6% or more. So the reference bubble is almost certainly 'kilo',
+    // not the default 'mega'.
+    size: 'kilo',
     header: {
       type: 'box',
       layout: 'vertical',
