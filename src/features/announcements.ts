@@ -193,6 +193,12 @@ function buildBubble(
 
   return {
     type: 'bubble',
+    // Without an explicit size, LINE renders a narrow default-width
+    // bubble ("kilo"), which forces the same font sizes to wrap awkwardly
+    // (only a few characters per line) and look proportionally larger and
+    // cramped. 'giga' matches the wide bubble used by the reference
+    // design (and by the Othello board bubble elsewhere in this bot).
+    size: 'giga',
     header: {
       type: 'box',
       layout: 'vertical',
