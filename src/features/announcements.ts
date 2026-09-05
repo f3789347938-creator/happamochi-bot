@@ -13,33 +13,45 @@
 // regardless of how many more messages arrive in that group.
 //
 // To add a NEW announcement in the future: just append an entry to the
-// ANNOUNCEMENTS array below (new unique `id`, title, items, optional
-// footer). No other code changes are needed — delivery, dedup, Flex
-// design (incl. automatic Carousel split if the item list is long), and
-// group targeting are all handled generically by this file.
+// ANNOUNCEMENTS array below (new unique `id`, title, body, optional
+// button/date/highlightWord). No other code changes are needed — the
+// "notice card" Flex design, automatic Carousel split when the body text
+// is too long for one card, dedup, and group targeting are all handled
+// generically by this file.
 import type { LineEnv, LineMessage } from '../lib/line'
 import { enqueueBroadcast } from '../lib/line'
 
 // --- Content model -------------------------------------------------------
+
+export type FlexAction =
+  | { type: 'message'; label: string; text: string }
+  | { type: 'uri'; label: string; uri: string }
+  | { type: 'postback'; label: string; data: string; displayText?: string }
 
 export interface AnnouncementContent {
   /** Unique, stable ID — becomes part of the dedup key. Never reuse/change
    *  an existing id once it has been deployed, or groups that already saw
    *  it could see it again under a "new" id. */
   id: string
-  /** Short title shown in the header, e.g. "アップデートのお知らせ". */
+  /** Card title, e.g. "アップデートのお知らせ！". */
   title: string
-  /** Emoji shown above the title in the header. Defaults to "📢". */
-  icon?: string
-  /** Bullet items making up the body. Long lists are automatically split
-   *  across multiple bubbles (Carousel) so nothing gets visually cramped. */
-  items: string[]
-  /** Optional closing note shown once, on the last bubble only
-   *  (e.g. "コマンド一覧は「ヘルプ」と送ると確認できます"). */
-  footer?: string
+  /** Card description. Use \n for line breaks (each line becomes a bullet-
+   *  ish row). If this is too long for one card, it's automatically split
+   *  into a Carousel of "(1/2)" / "(2/2)" ... cards. */
+  body: string
+  /** A word inside `body` to visually highlight (bold accent color), e.g.
+   *  a feature name or mention — purely cosmetic. */
+  highlightWord?: string
+  /** Date string shown bottom-right of the card, e.g. "2026/09/05".
+   *  Defaults to today's date (JST) if omitted. */
+  date?: string
+  /** Button shown below the card. Defaults to a "ヘルプを見る" button that
+   *  sends "ヘルプ" as a message (safe Reply-API-only default: a `message`
+   *  action fires its own ordinary message event with its own replyToken,
+   *  never Push). */
+  button?: { label: string; action: FlexAction }
   /** Restrict delivery to only these group IDs. Omit for "all groups"
-   *  (the normal case once a feature is confirmed working). Used here to
-   *  scope the very first test run to just "botテスト". */
+   *  (the normal case once a feature is confirmed working). */
   targetGroupIds?: string[]
 }
 
@@ -51,104 +63,163 @@ const BOT_TEST_GROUP_ID = 'C69deb597234d891abaf8b643b186476c' // "botテスト"
 export const ANNOUNCEMENTS: AnnouncementContent[] = [
   {
     id: 'update_2026_09_05_othello',
-    title: 'アップデートのお知らせ',
-    icon: '📢',
-    items: [
-      'オセロ：誰も参加しないまま5分放置された場合も、待機中からタイムアウトするようになりました',
-      'オセロ：タイムアウト通知のメッセージを少し見やすく調整しました',
-      'オセロ：「相手の番です」→ 手番の人の名前が表示されるようになりました',
-      'オセロ：対局に参加していない人がタップした時のエラーに、その人の名前が表示されるようになりました',
-      'オセロ：対局中はヘッダーに「〇〇さんの番です」と手番が表示されるようになりました',
-      'オセロ：タップできるマスの色が、手番（黒・白）に応じて変わるようになりました',
-    ],
-    footer: 'コマンド一覧は「ヘルプ」と送ると確認できます🍵',
+    title: 'アップデートのお知らせ！',
+    body:
+      '・オセロが5分放置でタイムアウトするように改善\n' +
+      '・タイムアウト通知のメッセージを見やすく調整\n' +
+      '・「相手の番です」が手番の人の名前入りに変更\n' +
+      '・参加していない人のタップエラーに名前を追加\n' +
+      '・対局中はヘッダーに手番の人を表示するように変更\n' +
+      '・タップできるマスの色が手番（黒・白）ごとに変化',
+    button: { label: 'ヘルプを見る', action: { type: 'message', label: 'ヘルプを見る', text: 'ヘルプ' } },
     // Test run: only send in "botテスト" for now. Remove targetGroupIds
     // (or list more group IDs) once the user confirms it looks good.
     targetGroupIds: [BOT_TEST_GROUP_ID],
   },
 ]
 
-// --- Flex rendering ----------------------------------------------------
+// --- Flex rendering ("notice card" design) ------------------------------
 
-const HEADER_BG = '#37474f'
-const ACCENT = '#26a69a'
-const MAX_ITEMS_PER_BUBBLE = 6
+const HEADER_BG = '#2a323d'
+const CARD_BG_OUTER = '#eef1f4'
+const CARD_BG = '#ffffff'
+const CARD_BORDER = '#d5dbe3'
+const TITLE_COLOR = '#1a1a2e'
+const BODY_COLOR = '#4a5568'
+const DATE_COLOR = '#a0aab5'
+const BUTTON_BG = '#3b4a5a'
+const FOOTER_BG = '#1f2937'
+const HIGHLIGHT_COLOR = '#2b6cb0'
+const MAX_BODY_CHARS_PER_CARD = 220
 
-function chunk<T>(arr: T[], size: number): T[][] {
-  const out: T[][] = []
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
-  return out
+function todayJst(): string {
+  const jst = new Date(Date.now() + 9 * 60 * 60 * 1000)
+  const y = jst.getUTCFullYear()
+  const m = String(jst.getUTCMonth() + 1).padStart(2, '0')
+  const d = String(jst.getUTCDate()).padStart(2, '0')
+  return `${y}/${m}/${d}`
+}
+
+function jstYear(): number {
+  return new Date(Date.now() + 9 * 60 * 60 * 1000).getUTCFullYear()
+}
+
+// Splits `body` into <= MAX_BODY_CHARS_PER_CARD-sized chunks along \n
+// boundaries, so a long announcement automatically becomes a Carousel of
+// multiple "notice cards" instead of one cramped card.
+function splitBody(body: string): string[] {
+  const lines = body.split('\n')
+  const pages: string[] = []
+  let current: string[] = []
+  let currentLen = 0
+  for (const line of lines) {
+    const lineLen = line.length + 1
+    if (current.length > 0 && currentLen + lineLen > MAX_BODY_CHARS_PER_CARD) {
+      pages.push(current.join('\n'))
+      current = []
+      currentLen = 0
+    }
+    current.push(line)
+    currentLen += lineLen
+  }
+  if (current.length > 0) pages.push(current.join('\n'))
+  return pages.length > 0 ? pages : ['']
+}
+
+// Renders the body text as a single `text` component, splitting out
+// `highlightWord` (if present) into its own colored `span` for emphasis.
+function renderBodyText(bodyPage: string, highlightWord?: string): Record<string, any> {
+  const base = { wrap: true, size: 'sm', margin: 'md' }
+  if (!highlightWord) {
+    return { type: 'text', text: bodyPage, color: BODY_COLOR, ...base }
+  }
+  const idx = bodyPage.indexOf(highlightWord)
+  if (idx === -1) {
+    return { type: 'text', text: bodyPage, color: BODY_COLOR, ...base }
+  }
+  const before = bodyPage.slice(0, idx)
+  const after = bodyPage.slice(idx + highlightWord.length)
+  const spans: Record<string, any>[] = []
+  if (before) spans.push({ type: 'span', text: before, color: BODY_COLOR })
+  spans.push({ type: 'span', text: highlightWord, color: HIGHLIGHT_COLOR, weight: 'bold' })
+  if (after) spans.push({ type: 'span', text: after, color: BODY_COLOR })
+  return { type: 'text', contents: spans, ...base }
 }
 
 function buildBubble(
   content: AnnouncementContent,
-  items: string[],
+  bodyPage: string,
   pageIndex: number,
-  pageCount: number,
-  isLast: boolean
+  pageCount: number
 ): Record<string, any> {
-  const bodyContents: Record<string, any>[] = items.map((item) => ({
-    type: 'box',
-    layout: 'baseline',
-    spacing: 'sm',
-    contents: [
-      { type: 'text', text: '✅', flex: 0, size: 'sm', color: ACCENT },
-      { type: 'text', text: item, flex: 1, size: 'sm', color: '#333333', wrap: true },
-    ],
-  }))
-
-  if (isLast && content.footer) {
-    bodyContents.push({ type: 'separator', margin: 'md' })
-    bodyContents.push({
-      type: 'text',
-      text: content.footer,
-      wrap: true,
-      size: 'xs',
-      color: '#888888',
-      margin: 'md',
-    })
+  const titleText = pageCount > 1 ? `${content.title}（${pageIndex + 1}/${pageCount}）` : content.title
+  const dateText = content.date ?? todayJst()
+  const button = content.button ?? {
+    label: 'ヘルプを見る',
+    action: { type: 'message' as const, label: 'ヘルプを見る', text: 'ヘルプ' },
   }
 
-  const headerContents: Record<string, any>[] = [
-    { type: 'text', text: content.icon ?? '📢', size: 'xxl', align: 'center' },
-    { type: 'text', text: content.title, color: '#ffffff', weight: 'bold', size: 'lg', align: 'center', margin: 'sm' },
-  ]
-  if (pageCount > 1) {
-    headerContents.push({
-      type: 'text',
-      text: `${pageIndex + 1} / ${pageCount}`,
-      color: '#ffffffb0',
-      size: 'xs',
-      align: 'center',
-    })
+  const card = {
+    type: 'box',
+    layout: 'vertical',
+    backgroundColor: CARD_BG,
+    cornerRadius: 'md',
+    borderColor: CARD_BORDER,
+    borderWidth: '1px',
+    paddingAll: 'lg',
+    contents: [
+      { type: 'text', text: titleText, weight: 'bold', size: 'lg', align: 'center', color: TITLE_COLOR, wrap: true },
+      { type: 'separator', margin: 'md', color: CARD_BORDER },
+      renderBodyText(bodyPage, content.highlightWord),
+      { type: 'text', text: dateText, size: 'xs', color: DATE_COLOR, align: 'end', margin: 'md' },
+    ],
+  }
+
+  const buttonBox = {
+    type: 'button',
+    style: 'primary',
+    color: BUTTON_BG,
+    height: 'sm',
+    action: { type: button.action.type, label: button.label, ...omitLabelAndType(button.action) },
   }
 
   return {
     type: 'bubble',
-    size: 'mega',
     header: {
       type: 'box',
       layout: 'vertical',
       backgroundColor: HEADER_BG,
       paddingAll: 'lg',
-      contents: headerContents,
+      contents: [{ type: 'text', text: 'お知らせ', color: '#ffffff', weight: 'bold', size: 'md', align: 'center' }],
     },
     body: {
       type: 'box',
       layout: 'vertical',
-      spacing: 'md',
+      backgroundColor: CARD_BG_OUTER,
       paddingAll: 'lg',
-      contents: bodyContents,
+      spacing: 'lg',
+      contents: [card, buttonBox],
+    },
+    footer: {
+      type: 'box',
+      layout: 'vertical',
+      backgroundColor: FOOTER_BG,
+      paddingAll: 'md',
+      contents: [
+        { type: 'text', text: `© ${jstYear()} 葉っぱもち`, color: '#ffffff', size: 'xs', align: 'center' },
+      ],
     },
   }
 }
 
-export function buildAnnouncementMessage(content: AnnouncementContent): LineMessage {
-  const pages = chunk(content.items, MAX_ITEMS_PER_BUBBLE)
-  const bubbles = pages.map((items, idx) =>
-    buildBubble(content, items, idx, pages.length, idx === pages.length - 1)
-  )
+function omitLabelAndType(action: FlexAction): Record<string, any> {
+  const { type, label, ...rest } = action
+  return rest
+}
 
+export function buildAnnouncementMessage(content: AnnouncementContent): LineMessage {
+  const pages = splitBody(content.body)
+  const bubbles = pages.map((page, idx) => buildBubble(content, page, idx, pages.length))
   const contents = bubbles.length === 1 ? bubbles[0] : { type: 'carousel', contents: bubbles }
 
   return {
