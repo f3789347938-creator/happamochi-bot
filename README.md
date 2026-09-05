@@ -148,17 +148,16 @@ Cloudflare Workers上で本物のPNG画像を動的生成する仕組み。「Wo
 ## デプロイ状況
 - **Platform**: Cloudflare Pages (プロジェクト `line-group-bbs`)
 - **Production URL**: https://line-group-bbs.pages.dev
-- **Status**: ✅ 本番デプロイ済み。名言カードの実PNG画像生成(レガシーデザイン再現版)を含む
-  全機能を本番D1に接続した状態でローカル・本番の両方で動作確認済み(`/quote-image/:id`が
-  本番でも正しく新デザインの`PNG image data`を返すことを確認済み。デプロイID
-  `33911a30-867d-4536-8ac5-4e5571fb3a38`、コミット`f248b4f`)。
+- **Status**: ✅ 本番デプロイ済み(2026-09-05)。BBS再構築(threads/chat_messages公開サイト化)
+  とPhase5監査Fix#1/3/4/5/6/7/8を含む全機能を本番D1に接続した状態で動作確認済み。
+  デプロイID `37e4a9d3-793f-4c16-86d5-ecf490c733fd`、コミット `beb6b2f`。
+  マイグレーション`0008_bbs.sql`・`0009_othello_stats_and_title_trigger.sql`を
+  本番D1(`--remote`)に適用済みで、既存データ(threads 40件、chat_messages 35件)が
+  破壊されていないことを確認済み。本番の`/bbs`一覧ページ・`/bbs/:id`詳細ページで、
+  過去に投稿されたXSSペイロード(`<script>alert(...)</script>`)入りスレッドが
+  正しく`&lt;script&gt;...`とエスケープ表示されることも確認済み(生の`<script>`タグは
+  0件、実際に危険を及ぼさない形で表示されている)。
 - **Tech Stack**: Hono + TypeScript + Cloudflare D1 + Cloudflare Workers + satori + @resvg/resvg-wasm
-- **⚠️ 2026-09-05時点の状態**: 上記のBBS再構築とPhase5監査Fix#1/3/4/5/6/7はローカルで実装・
-  動作確認・コミット済みだが、**本番(Cloudflare Pages)へのデプロイはまだ実施していない**。
-  上記「Production URL」の内容は前回デプロイ時点(コミット`f248b4f`)のものを指しており、
-  BBSやオセロ戦績・各種解除コマンドはまだ本番に反映されていない。次回作業時は
-  `npx wrangler d1 migrations apply line-group-bbs-db`(本番, `--remote`なし=リモート実行)→
-  `npm run build`→`wrangler pages deploy dist --project-name line-group-bbs`の順で反映すること。
 - **Local dev**: `npm run build && pm2 start ecosystem.config.cjs` → `curl http://localhost:3000/`
 - **注意**: `wrangler.jsonc`に`rules`フィールドを追加してはいけない。Cloudflare Pagesの設定は
   `rules`フィールドを一切サポートしておらず、`wrangler pages deploy`自体が即座に失敗する
