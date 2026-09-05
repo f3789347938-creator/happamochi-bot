@@ -84,7 +84,18 @@ const DATE_COLOR = '#a0aab5'
 const BUTTON_BG = '#3b4a5a'
 const FOOTER_BG = '#1f2937'
 const HIGHLIGHT_COLOR = '#2b6cb0'
-const MAX_BODY_CHARS_PER_CARD = 220
+// Cards must always render at the SAME size, whether the body is short or
+// long — otherwise a Carousel's bubbles end up visibly different heights
+// (the exact problem being fixed here). Two things make that possible:
+//   1. The white card box has a fixed pixel height (CARD_HEIGHT_PX).
+//   2. A flex:1 filler sits between the body text and the date, so the
+//      date is always pinned to the bottom of that fixed height no matter
+//      how much (or little) text is above it.
+// Splitting is done by LINE COUNT (not character count) and evenly
+// balanced across pages (e.g. 10 lines -> 5+5, never 6+4), so multi-card
+// announcements don't have one near-empty trailing card either.
+const CARD_HEIGHT_PX = 300
+const MAX_LINES_PER_CARD = 6
 
 function todayJst(): string {
   const jst = new Date(Date.now() + 9 * 60 * 60 * 1000)
@@ -98,26 +109,21 @@ function jstYear(): number {
   return new Date(Date.now() + 9 * 60 * 60 * 1000).getUTCFullYear()
 }
 
-// Splits `body` into <= MAX_BODY_CHARS_PER_CARD-sized chunks along \n
-// boundaries, so a long announcement automatically becomes a Carousel of
-// multiple "notice cards" instead of one cramped card.
+// Splits `body` into an even number of lines per page (never a short
+// trailing page) so every card in a Carousel has a similar amount of
+// content — combined with the fixed CARD_HEIGHT_PX + bottom-pinned date,
+// this guarantees all cards render at identical size.
 function splitBody(body: string): string[] {
   const lines = body.split('\n')
+  if (lines.length <= MAX_LINES_PER_CARD) return [body]
+
+  const pageCount = Math.ceil(lines.length / MAX_LINES_PER_CARD)
+  const perPage = Math.ceil(lines.length / pageCount)
   const pages: string[] = []
-  let current: string[] = []
-  let currentLen = 0
-  for (const line of lines) {
-    const lineLen = line.length + 1
-    if (current.length > 0 && currentLen + lineLen > MAX_BODY_CHARS_PER_CARD) {
-      pages.push(current.join('\n'))
-      current = []
-      currentLen = 0
-    }
-    current.push(line)
-    currentLen += lineLen
+  for (let i = 0; i < lines.length; i += perPage) {
+    pages.push(lines.slice(i, i + perPage).join('\n'))
   }
-  if (current.length > 0) pages.push(current.join('\n'))
-  return pages.length > 0 ? pages : ['']
+  return pages
 }
 
 // Renders the body text as a single `text` component, splitting out
@@ -161,11 +167,19 @@ function buildBubble(
     borderColor: CARD_BORDER,
     borderWidth: '1px',
     paddingAll: 'lg',
+    // Fixed height, regardless of how much body text this page has — this
+    // (plus the flex:1 filler below) is what keeps every card in a
+    // Carousel exactly the same size.
+    height: `${CARD_HEIGHT_PX}px`,
     contents: [
       { type: 'text', text: titleText, weight: 'bold', size: 'lg', align: 'center', color: TITLE_COLOR, wrap: true },
       { type: 'separator', margin: 'md', color: CARD_BORDER },
       renderBodyText(bodyPage, content.highlightWord),
-      { type: 'text', text: dateText, size: 'xs', color: DATE_COLOR, align: 'end', margin: 'md' },
+      // Filler that absorbs all leftover space so the date below always
+      // sits pinned to the bottom of the fixed-height card, whether the
+      // body text is one line or six.
+      { type: 'filler' },
+      { type: 'text', text: dateText, size: 'xs', color: DATE_COLOR, align: 'end' },
     ],
   }
 
