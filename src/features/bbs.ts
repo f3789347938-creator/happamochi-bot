@@ -78,6 +78,10 @@ export function escapeHtml(input: string | null | undefined): string {
 }
 
 // meta description / JSON-LD などダブルクオート内に埋め込む用途の追加エスケープ
+export function escapeAttrPublic(input: string | null | undefined): string {
+  return escapeAttr(input)
+}
+
 function escapeAttr(input: string | null | undefined): string {
   return escapeHtml(input).replace(/\n/g, ' ')
 }
@@ -385,10 +389,18 @@ function renderJsonLd(jsonLd: Record<string, unknown> | Record<string, unknown>[
     .join('\n')
 }
 
+export function renderWithLayout(
+  meta: PageMeta,
+  bodyHtml: string,
+  activeNav: 'bbs' | 'chat' | 'guide' | 'gallery' | 'ranking' | 'other' = 'other'
+): string {
+  return pageLayout(meta, bodyHtml, activeNav)
+}
+
 function pageLayout(
   meta: PageMeta,
   bodyHtml: string,
-  activeNav: 'bbs' | 'chat' | 'guide' | 'gallery' | 'other' = 'other'
+  activeNav: 'bbs' | 'chat' | 'guide' | 'gallery' | 'ranking' | 'other' = 'other'
 ): string {
   const canonical = `${SITE_URL}${meta.path}`
   const robots = meta.noindex ? 'noindex, nofollow' : 'index, follow'
@@ -439,6 +451,7 @@ ${renderJsonLd(meta.jsonLd)}
     </a>
     <nav class="bbs-nav" aria-label="メインナビゲーション">
       <a href="/bbs" class="bbs-nav-link ${activeNav === 'bbs' ? 'is-active' : ''}" ${activeNav === 'bbs' ? 'aria-current="page"' : ''}><i class="fa-solid fa-list-ul" aria-hidden="true"></i><span>掲示板</span></a>
+      <a href="/ranking" class="bbs-nav-link ${activeNav === 'ranking' ? 'is-active' : ''}" ${activeNav === 'ranking' ? 'aria-current="page"' : ''}><i class="fa-solid fa-ranking-star" aria-hidden="true"></i><span>ランキング</span></a>
       <a href="/bbs/chat" class="bbs-nav-link ${activeNav === 'chat' ? 'is-active' : ''}" ${activeNav === 'chat' ? 'aria-current="page"' : ''}><i class="fa-solid fa-comments" aria-hidden="true"></i><span>チャット</span></a>
       <a href="/gallery" class="bbs-nav-link ${activeNav === 'gallery' ? 'is-active' : ''}" ${activeNav === 'gallery' ? 'aria-current="page"' : ''}><i class="fa-solid fa-images" aria-hidden="true"></i><span>ギャラリー</span></a>
       <a href="/bbs/guide" class="bbs-nav-link ${activeNav === 'guide' ? 'is-active' : ''}" ${activeNav === 'guide' ? 'aria-current="page"' : ''}><i class="fa-solid fa-circle-question" aria-hidden="true"></i><span>ガイド</span></a>
@@ -455,6 +468,7 @@ ${bodyHtml}
     <p class="bbs-footer-desc">LINEグループ・オープンチャットの参加者募集ができる無料の掲示板サービス。</p>
     <nav class="bbs-footer-nav" aria-label="フッターナビゲーション">
       <a href="/bbs">掲示板一覧</a>
+      <a href="/ranking">グループランキング</a>
       <a href="/bbs/chat">オープンチャット</a>
       <a href="/gallery">名言カードギャラリー</a>
       <a href="/bbs/guide">利用ガイド</a>

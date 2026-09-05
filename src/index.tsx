@@ -63,6 +63,17 @@ import {
   SITE_URL,
 } from './features/bbs'
 import { isAdminRequest, createSessionToken, buildSessionCookie, buildLogoutCookie, isAdminConfigured } from './features/galleryAdmin'
+// グループ発言数ランキング(追加機能)。既存の週間個人ランキング
+// (features/ranking.ts)とは別モジュールで、そちらには一切触れていない。
+import {
+  getGroupRanking,
+  getGroupDetail,
+  recordHourlyActivity,
+  buildGroupRankingReply,
+  type RankingPeriod,
+  type SizeFilter,
+} from './features/groupRanking'
+import { renderRankingPage, renderRankingRulesPage } from './features/rankingPage'
 
 type Bindings = LineEnv
 
@@ -99,6 +110,36 @@ app.get('/quote-image/:id', async (c) => {
     },
   })
 })
+
+// ─── グループ発言数ランキング ───
+// LINE Botが集計した group_activities を集計源にした公開ページ。
+// 読み取り専用で、Bot本体(webhook・コマンド処理)には一切関与しない。
+// 集計に失敗した場合も 500 にせず、ページ内でエラー表示に切り替える。
+app.get('/ranking', async (c) => {
+  const rawPeriod = c.req.query('period')
+  const period: RankingPeriod =
+    rawPeriod === 'today' || rawPeriod === 'month' ? rawPeriod : 'week'
+  const rawSize = c.req.query('size')
+  const size: SizeFilter =
+    rawSize === 'small' || rawSize === 'medium' || rawSize === 'large' ? rawSize : 'all'
+  const q = (c.req.query('q') || '').slice(0, 60)
+  const page = Math.max(1, parseInt(c.req.query('page') || '1', 10) || 1)
+  const groupId = c.req.query('group') || null
+
+  const result = await getGroupRanking(c.env, { period, size, q, page })
+  const detail = groupId ? await getGroupDetail(c.env, groupId, period) : null
+
+  const generatedAt = new Date(Date.now() + 9 * 60 * 60 * 1000)
+    .toISOString()
+    .replace('T', ' ')
+    .slice(0, 16)
+
+  return c.html(
+    renderRankingPage({ result, detail, period, size, q, generatedAt: `${generatedAt} JST` })
+  )
+})
+
+app.get('/ranking/rules', (c) => c.html(renderRankingRulesPage()))
 
 // ─── 名言カードギャラリー ───
 // 「めいく」コマンドで生成された名言カード(quote_images)を一覧表示する
@@ -345,7 +386,7 @@ app.get('/robots.txt', (c) => {
 
 app.get('/sitemap.xml', async (c) => {
   const threadRows = await listAllThreadIds(c.env)
-  const staticUrls = ['/bbs', '/bbs/new', '/bbs/chat', '/bbs/guide', '/gallery']
+  const staticUrls = ['/bbs', '/bbs/new', '/bbs/chat', '/bbs/guide', '/gallery', '/ranking', '/ranking/rules']
   const urls = [
     ...staticUrls.map((path) => `<url><loc>${SITE_URL}${path}</loc><changefreq>hourly</changefreq></url>`),
     ...threadRows.map(
@@ -532,6 +573,16 @@ async function handleMessageEvent(env: Bindings, event: any, baseUrl: string) {
     await ensureGroupMetadata(env, groupId, groupName)
     await touchGroupMember(env, groupId, userId, displayName)
 
+    // ランキングの「主な活動時間帯」用の時間帯別集計(追加機能)。
+    // 既存の touchGroupMember には一切手を入れず、新テーブルにだけ積む。
+    // recordHourlyActivity は内部で例外を飲むが、万一に備えてここでも
+    // 囲い、この集計の失敗が Bot 本体の処理を止めないようにする。
+    try {
+      await recordHourlyActivity(env, groupId)
+    } catch {
+      /* ranking の集計失敗は既存機能に影響させない */
+    }
+
     if (message.type === 'text') {
       await cacheGroupMessage(env, groupId, message.id, userId, displayName, pictureUrl, message.text)
     }
@@ -644,6 +695,18 @@ async function routeCommand(env: Bindings, ctx: CommandCtx): Promise<LineMessage
 
   if (text === 'ヘルプ' || text.toLowerCase() === 'help') {
     return [{ type: 'text', text: HELP_TEXT }]
+  }
+
+  // グループ発言数ランキング。既存に同名コマンドは存在しない
+  // (週間個人ランキングは自動配信で、コマンドは未実装だった)ので
+  // 新規追加している。失敗しても他の応答を巫がないよう try/catch で囲う。
+  if ((text === 'ランキング' || text === '順位') && ctx.isGroup && ctx.groupId) {
+    try {
+      const reply = await buildGroupRankingReply(env, ctx.groupId, SITE_URL)
+      return [{ type: 'text', text: reply }]
+    } catch {
+      return [{ type: 'text', text: 'ランキングの取得に失敗しました。' }]
+    }
   }
 
   if (text === 'お知らせ') {
@@ -834,6 +897,9 @@ const HELP_TEXT = `葉っぱもち Bot ヘルプ
 【基本】
 ヘルプ - このメッセージを表示
 お知らせ - 最新のお知らせを確認
+
+【ランキング】
+ランキング - このグループの今週の順位と発言数を確認
 
 【占い】
 星座登録 [星座名] - 星座を登録

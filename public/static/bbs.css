@@ -978,7 +978,24 @@ select:focus-visible {
 
 @media (max-width: 740px) {
   .bbs-header-inner { height: 64px; padding: 0 16px; gap: 14px; }
-  .bbs-nav { gap: 13px; font-size: 12px; }
+  /* ナビ項目が5つ(掲示板/ランキング/チャット/ギャラリー/ガイド)に増えたため、
+     幅の狭い端末では縦に潰れて読めなくなる。折り返しを禁止して横スクロール
+     させ、各項目のラベルは1行に保つ。 */
+  .bbs-nav {
+    gap: 13px;
+    font-size: 12px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .bbs-nav::-webkit-scrollbar { display: none; }
+  .bbs-nav-link { white-space: nowrap; flex-shrink: 0; }
+  /* flexアイテムは既定で min-width:auto のため、中身の幅で押し広げられて
+     ロゴやCTAを圧迫する。0にしてスクロール領域として振る舞わせる。 */
+  .bbs-header-inner > .bbs-nav { min-width: 0; }
+  .bbs-logo { flex-shrink: 0; }
+  .bbs-nav-cta { flex-shrink: 0; }
   .bbs-nav-cta span { display: none; }
   .bbs-main { padding: 26px 16px 60px; }
   .bbs-hero { display: block; }
@@ -1007,4 +1024,424 @@ select:focus-visible {
   .bbs-chat-message,
   .bbs-chat-message-own { max-width: 100%; }
   .bbs-footer-inner { padding: 0; }
+}
+
+/* ============================================================
+   グループ発言数ランキング (/ranking)
+   ------------------------------------------------------------
+   既存の配色トークン(深緑 --bbs-green / ミント --bbs-mint / 白)を
+   そのまま使い、掲示板・ギャラリーと同じ見た目に揃える。
+   派手なグラデーションや大きな装飾は使わない。
+   ============================================================ */
+
+.rk-hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+.rk-eyebrow {
+  margin: 0 0 6px;
+  font: 600 11px/1 var(--bbs-font-num);
+  letter-spacing: 0.14em;
+  color: var(--bbs-green);
+  text-transform: uppercase;
+}
+.rk-title {
+  margin: 0 0 6px;
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--bbs-ink);
+  letter-spacing: -0.01em;
+}
+.rk-lead { margin: 0; color: var(--bbs-muted); font-size: 14px; }
+
+/* --- 3カラムレイアウト --- */
+.rk-layout {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr) 320px;
+  gap: 22px;
+  align-items: start;
+}
+
+/* --- 左サイド --- */
+.rk-side { position: sticky; top: 84px; }
+.rk-side-block { margin-bottom: 22px; }
+.rk-side-title {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--bbs-muted);
+}
+.rk-side-links { display: flex; flex-direction: column; gap: 2px; }
+.rk-side-link {
+  display: block;
+  padding: 8px 12px;
+  border-radius: var(--bbs-radius-sm);
+  color: var(--bbs-ink);
+  text-decoration: none;
+  font-size: 13px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.rk-side-link:hover { background: var(--bbs-mint); color: var(--bbs-green-dark); }
+.rk-side-link.is-active {
+  background: var(--bbs-mint);
+  color: var(--bbs-green-dark);
+  font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--bbs-green);
+}
+.rk-side-note { margin: 8px 2px 0; font-size: 11px; color: var(--bbs-muted); line-height: 1.6; }
+.rk-rules-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--bbs-muted);
+  text-decoration: none;
+}
+.rk-rules-link:hover { color: var(--bbs-green); }
+
+/* --- 中央: 検索 --- */
+.rk-main { min-width: 0; }
+.rk-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bbs-white);
+  border: 1px solid var(--bbs-line);
+  border-radius: var(--bbs-radius-md);
+  padding: 6px 6px 6px 38px;
+  box-shadow: var(--bbs-shadow-sm);
+  margin-bottom: 16px;
+}
+.rk-search-icon {
+  position: absolute;
+  left: 14px;
+  color: var(--bbs-muted);
+  font-size: 13px;
+}
+.rk-search-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font: 14px var(--bbs-font-jp);
+  color: var(--bbs-ink);
+  padding: 6px 0;
+}
+.rk-search-btn {
+  flex-shrink: 0;
+  border: none;
+  background: var(--bbs-green);
+  color: #fff;
+  border-radius: var(--bbs-radius-sm);
+  padding: 8px 16px;
+  font: 600 13px var(--bbs-font-jp);
+  cursor: pointer;
+}
+.rk-search-btn:hover { background: var(--bbs-green-dark); }
+.rk-visually-hidden {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* --- 中央: 一覧ヘッダ --- */
+.rk-listhead {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.rk-range { margin: 0; font: 600 13px var(--bbs-font-num); color: var(--bbs-ink); }
+.rk-updated { margin: 2px 0 0; font-size: 11px; color: var(--bbs-muted); }
+.rk-total { margin: 0; font-size: 12px; color: var(--bbs-muted); }
+
+.rk-tablehead {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr) 108px 84px 22px;
+  gap: 10px;
+  padding: 0 14px 8px;
+  font-size: 11px;
+  color: var(--bbs-muted);
+  border-bottom: 1px solid var(--bbs-line);
+}
+.rk-th-num { text-align: right; }
+
+/* --- 中央: 行 --- */
+.rk-rows {
+  background: var(--bbs-white);
+  border: 1px solid var(--bbs-line);
+  border-top: none;
+  border-radius: 0 0 var(--bbs-radius-md) var(--bbs-radius-md);
+  overflow: hidden;
+}
+.rk-row {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr) 108px 84px 22px;
+  gap: 10px;
+  align-items: center;
+  padding: 14px;
+  text-decoration: none;
+  color: var(--bbs-ink);
+  border-bottom: 1px solid var(--bbs-line);
+  transition: background 0.15s ease;
+}
+.rk-row:last-child { border-bottom: none; }
+.rk-row:hover { background: var(--bbs-paper); }
+.rk-row.is-selected {
+  background: var(--bbs-mint);
+  box-shadow: inset 3px 0 0 var(--bbs-green);
+}
+.rk-rank {
+  font: 600 16px var(--bbs-font-num);
+  color: var(--bbs-ink);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.rk-crown { color: var(--bbs-gold); font-size: 11px; }
+.rk-group { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.rk-avatar {
+  flex-shrink: 0;
+  width: 34px; height: 34px;
+  border-radius: 10px;
+  background: var(--bbs-mint);
+  color: var(--bbs-green-dark);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 600; font-size: 14px;
+}
+.rk-group-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.rk-group-name {
+  font-size: 14px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.rk-noname { color: var(--bbs-muted); font-weight: 400; font-style: italic; }
+.rk-group-sub { font-size: 11px; color: var(--bbs-muted); }
+.rk-count { text-align: right; font-family: var(--bbs-font-num); }
+.rk-count strong { font-size: 17px; font-weight: 600; }
+.rk-unit { font-size: 11px; color: var(--bbs-muted); margin-left: 2px; }
+.rk-delta-cell { text-align: right; }
+.rk-delta { font: 600 12px var(--bbs-font-num); display: inline-flex; align-items: center; gap: 3px; }
+.rk-delta-up { color: var(--bbs-green); }
+.rk-delta-down { color: var(--bbs-pink-ink); }
+.rk-delta-flat { color: var(--bbs-muted); }
+.rk-delta-new {
+  color: var(--bbs-green-dark);
+  background: var(--bbs-mint);
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+}
+.rk-chevron { color: var(--bbs-muted); font-size: 11px; text-align: right; }
+
+/* --- 空状態 / エラー --- */
+.rk-empty {
+  background: var(--bbs-white);
+  border: 1px solid var(--bbs-line);
+  border-top: none;
+  border-radius: 0 0 var(--bbs-radius-md) var(--bbs-radius-md);
+  padding: 46px 24px;
+  text-align: center;
+  color: var(--bbs-muted);
+}
+.rk-empty i { font-size: 26px; color: var(--bbs-line); display: block; margin-bottom: 12px; }
+.rk-empty p { margin: 0; font-size: 13px; line-height: 1.8; }
+.rk-empty-error i { color: var(--bbs-amber-ink); }
+
+/* --- 右: 詳細 --- */
+.rk-detail { position: sticky; top: 84px; display: flex; flex-direction: column; gap: 12px; }
+.rk-detail-card {
+  background: var(--bbs-white);
+  border: 1px solid var(--bbs-line);
+  border-radius: var(--bbs-radius-md);
+  padding: 18px;
+  box-shadow: var(--bbs-shadow-sm);
+}
+.rk-detail-empty { text-align: center; color: var(--bbs-muted); padding: 44px 18px; }
+.rk-detail-empty i { font-size: 24px; color: var(--bbs-line); display: block; margin-bottom: 12px; }
+.rk-detail-empty p { margin: 0; font-size: 13px; line-height: 1.8; }
+.rk-detail-heading {
+  margin: 0 0 14px;
+  font-size: 12px; font-weight: 600; color: var(--bbs-muted);
+}
+.rk-detail-id { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.rk-detail-avatar {
+  flex-shrink: 0;
+  width: 46px; height: 46px;
+  border-radius: 12px;
+  background: var(--bbs-mint);
+  color: var(--bbs-green-dark);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 600; font-size: 18px;
+}
+.rk-detail-name {
+  margin: 0 0 4px; font-size: 15px; font-weight: 700; color: var(--bbs-ink);
+  word-break: break-word;
+}
+.rk-detail-rank {
+  display: inline-block;
+  background: var(--bbs-mint);
+  color: var(--bbs-green-dark);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 11px; font-weight: 600;
+}
+.rk-detail-rank-none { background: var(--bbs-paper); color: var(--bbs-muted); }
+
+.rk-detail-stats {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  padding: 14px 0; margin-bottom: 4px;
+  border-top: 1px solid var(--bbs-line);
+  border-bottom: 1px solid var(--bbs-line);
+}
+.rk-detail-stat-label { margin: 0 0 4px; font-size: 11px; color: var(--bbs-muted); }
+.rk-detail-stat-value {
+  margin: 0; font: 700 22px var(--bbs-font-num); color: var(--bbs-ink);
+}
+.rk-detail-block { padding: 14px 0; border-bottom: 1px solid var(--bbs-line); }
+.rk-detail-block-title {
+  margin: 0 0 12px;
+  font-size: 12px; font-weight: 600; color: var(--bbs-ink);
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+}
+.rk-detail-sum { font: 400 11px var(--bbs-font-num); color: var(--bbs-muted); }
+
+/* 日別グラフ */
+.rk-chart {
+  display: flex; align-items: flex-end; gap: 5px;
+  height: 108px;
+}
+.rk-bar-col {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  height: 100%;
+}
+.rk-bar-track {
+  flex: 1; width: 100%;
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.rk-bar {
+  width: 100%;
+  max-width: 22px;
+  background: var(--bbs-green);
+  border-radius: 3px 3px 0 0;
+  min-height: 0;
+}
+.rk-bar-label { font-size: 10px; color: var(--bbs-muted); }
+.rk-bar-value { font: 10px var(--bbs-font-num); color: var(--bbs-muted); }
+
+.rk-detail-peak-value { margin: 0; font: 700 18px var(--bbs-font-num); color: var(--bbs-ink); }
+.rk-detail-peak-none { margin: 0; font-size: 11px; color: var(--bbs-muted); line-height: 1.7; }
+
+.rk-detail-cta {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  margin-top: 16px;
+  background: var(--bbs-green); color: #fff;
+  border-radius: var(--bbs-radius-sm);
+  padding: 12px; text-decoration: none;
+  font-size: 13px; font-weight: 600;
+}
+.rk-detail-cta:hover { background: var(--bbs-green-dark); }
+.rk-detail-cta-alt { background: var(--bbs-white); color: var(--bbs-green); border: 1px solid var(--bbs-line); }
+.rk-detail-cta-alt:hover { background: var(--bbs-mint); }
+
+.rk-line-card {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--bbs-ink); color: #eaf3ee;
+  border-radius: var(--bbs-radius-md);
+  padding: 14px 16px;
+}
+.rk-line-card i { font-size: 20px; color: #7fd9a6; }
+.rk-line-title { margin: 0 0 2px; font-size: 13px; font-weight: 600; }
+.rk-line-sub { margin: 0; font-size: 11px; opacity: 0.75; }
+
+.rk-footnote {
+  margin: 24px 0 0;
+  text-align: center;
+  font-size: 11px;
+  color: var(--bbs-muted);
+  line-height: 1.8;
+}
+
+/* --- 集計ルールページ --- */
+.rk-rules {
+  background: var(--bbs-white);
+  border: 1px solid var(--bbs-line);
+  border-radius: var(--bbs-radius-md);
+  padding: 8px 24px 24px;
+  box-shadow: var(--bbs-shadow-sm);
+}
+.rk-rules section { padding: 18px 0; border-bottom: 1px solid var(--bbs-line); }
+.rk-rules section:last-child { border-bottom: none; }
+.rk-rules h2 { margin: 0 0 10px; font-size: 15px; color: var(--bbs-ink); }
+.rk-rules ul { margin: 0; padding-left: 20px; }
+.rk-rules li { margin-bottom: 7px; font-size: 13px; line-height: 1.85; color: var(--bbs-ink); }
+.rk-rules strong { color: var(--bbs-green-dark); }
+
+/* ============================================================
+   レスポンシブ: タブレット / スマートフォン
+   ============================================================ */
+@media (max-width: 1040px) {
+  .rk-layout { grid-template-columns: 150px minmax(0, 1fr); }
+  .rk-detail { grid-column: 1 / -1; position: static; }
+  .rk-detail-card { padding: 16px; }
+}
+
+@media (max-width: 720px) {
+  .rk-title { font-size: 23px; }
+  .rk-layout { grid-template-columns: 1fr; gap: 16px; }
+
+  /* 左サイドは横スクロールのチップ列にする */
+  .rk-side {
+    position: static;
+    display: flex; gap: 18px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .rk-side::-webkit-scrollbar { display: none; }
+  .rk-side-block { margin-bottom: 0; flex-shrink: 0; }
+  .rk-side-links { flex-direction: row; gap: 6px; }
+  .rk-side-link {
+    white-space: nowrap;
+    border: 1px solid var(--bbs-line);
+    padding: 7px 13px;
+    font-size: 12px;
+  }
+  .rk-side-link.is-active { box-shadow: none; border-color: var(--bbs-green); }
+  .rk-side-note { display: none; }
+
+  /* 一覧はカード状に積む(数値の桁は右揃えを維持) */
+  .rk-tablehead { display: none; }
+  .rk-rows { border-top: 1px solid var(--bbs-line); border-radius: var(--bbs-radius-md); }
+  .rk-row {
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "rank group count"
+      "rank group delta";
+    row-gap: 2px;
+    padding: 13px 12px;
+  }
+  .rk-rank { grid-area: rank; font-size: 15px; }
+  .rk-group { grid-area: group; }
+  .rk-count { grid-area: count; }
+  .rk-count strong { font-size: 16px; }
+  .rk-delta-cell { grid-area: delta; }
+  .rk-chevron { display: none; }
+  .rk-avatar { width: 30px; height: 30px; font-size: 13px; }
+  .rk-group-name { font-size: 13px; }
+
+  .rk-search { padding-left: 34px; }
+  .rk-search-btn { padding: 8px 12px; }
+  .rk-listhead { flex-direction: column; align-items: flex-start; gap: 2px; }
+
+  .rk-chart { height: 92px; gap: 3px; }
+  .rk-bar-value { display: none; }
+  .rk-detail-stat-value { font-size: 19px; }
+  .rk-rules { padding: 4px 16px 16px; }
 }
