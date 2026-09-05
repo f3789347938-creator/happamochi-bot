@@ -29,7 +29,7 @@ export interface OthelloGame {
   last_reject_at: string | null
 }
 
-const TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes of inactivity while "playing"
+const TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes of inactivity, whether "waiting" or "playing"
 const REJECT_SUPPRESS_MS = 5 * 1000 // suppress repeated rejection replies for 5s
 
 // SQLite CURRENT_TIMESTAMP is "YYYY-MM-DD HH:MM:SS" (UTC, no timezone
@@ -137,16 +137,19 @@ export async function getGame(env: LineEnv, groupId: string): Promise<OthelloGam
   return row ?? null
 }
 
-// Checks whether `game` (assumed status === 'playing') has been inactive for
-// 5+ minutes since the last move. If so, deletes it and returns a
-// user-facing timeout message. Callers should run this before treating an
-// existing "playing" game as still alive, so a stale game never blocks
-// starting a new one or accepting moves forever.
+// Checks whether `game` has been inactive for 5+ minutes since the last
+// real action (either "waiting" for a second player since オセロ開始, or
+// "playing" since the last stone was placed). If so, deletes it and returns
+// a user-facing timeout message. Callers should run this before treating an
+// existing game as still alive, so a stale game never blocks starting a new
+// one or accepting moves forever — this covers BOTH:
+//   - someone says オセロ開始 and nobody ever joins (still "waiting")
+//   - a game is "playing" but neither side moves/ends it
 async function timeoutIfStale(
   env: LineEnv,
   game: OthelloGame
 ): Promise<{ timedOut: true; message: string } | { timedOut: false }> {
-  if (game.status !== 'playing') return { timedOut: false }
+  if (game.status !== 'playing' && game.status !== 'waiting') return { timedOut: false }
   const elapsed = msSince(game.last_move_at)
   if (elapsed === null || elapsed < TIMEOUT_MS) return { timedOut: false }
 
@@ -159,9 +162,10 @@ async function timeoutIfStale(
 
 // Lazily called whenever ANY message arrives in a group (not just othello
 // commands, and not just a tap on the board) — no cron / push available, so
-// this is how we notice a long-abandoned "playing" game and announce it.
-// Queues the timeout notice via the push-free broadcast queue so it rides
-// along on whatever reply this same incoming message triggers next.
+// this is how we notice a long-abandoned game (either stuck "waiting" for a
+// second player, or stuck mid-"playing") and announce it. Queues the
+// timeout notice via the push-free broadcast queue so it rides along on
+// whatever reply this same incoming message triggers next.
 export async function checkAndQueueOthelloTimeout(env: LineEnv, groupId: string) {
   const game = await getGame(env, groupId)
   if (!game) return
@@ -189,6 +193,10 @@ export async function startGame(
     return { ok: false, reason: '既にオセロが進行中です。「オセロ終了」で終了できます。' }
   }
 
+  // last_move_at doubles as "last real action" here: for a freshly-started
+  // "waiting" game (オセロ開始 said, nobody has joined yet), it starts the
+  // 5-min clock from THIS moment, so a game nobody ever joins still times
+  // out — not just games that are already "playing".
   const game: OthelloGame = {
     group_id: groupId,
     board: initialBoard(),
@@ -205,7 +213,7 @@ export async function startGame(
 
   await env.DB.prepare(
     `INSERT INTO othello_games (group_id, board, turn, black_user_id, black_name, white_user_id, white_name, status, last_move_at, last_reject_user_id, last_reject_at)
-     VALUES (?, ?, ?, ?, ?, NULL, NULL, 'waiting', NULL, NULL, NULL)
+     VALUES (?, ?, ?, ?, ?, NULL, NULL, 'waiting', CURRENT_TIMESTAMP, NULL, NULL)
      ON CONFLICT(group_id) DO UPDATE SET
        board = excluded.board,
        turn = excluded.turn,
@@ -214,7 +222,7 @@ export async function startGame(
        white_user_id = NULL,
        white_name = NULL,
        status = 'waiting',
-       last_move_at = NULL,
+       last_move_at = CURRENT_TIMESTAMP,
        last_reject_user_id = NULL,
        last_reject_at = NULL,
        updated_at = CURRENT_TIMESTAMP`
@@ -231,10 +239,14 @@ export async function joinGame(
   userId: string,
   displayName: string | null
 ): Promise<{ ok: true; game: OthelloGame } | { ok: false; reason: string }> {
-  const game = await getGame(env, groupId)
+  let game = await getGame(env, groupId)
   if (!game) return { ok: false, reason: '進行中のオセロがありません。「オセロ開始」で開始できます。' }
-  // "waiting" games are never subject to the 5-min timeout (see
-  // timeoutIfStale), so no staleness check is needed here.
+
+  const timeoutResult = await timeoutIfStale(env, game)
+  if (timeoutResult.timedOut) {
+    return { ok: false, reason: timeoutResult.message }
+  }
+
   if (game.status !== 'waiting') return { ok: false, reason: '今は参加を受け付けていません。' }
   if (game.black_user_id === userId) return { ok: false, reason: '自分自身とは対局できません。他の人が「オセロ参加」と送ってください。' }
 
