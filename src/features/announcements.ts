@@ -239,7 +239,7 @@ function buildBubble(
       backgroundColor: FOOTER_BG,
       paddingAll: 'md',
       contents: [
-        { type: 'text', text: `© ${jstYear()} 葉っぱもち`, color: '#ffffff', size: 'xs', align: 'center' },
+        { type: 'text', text: `© ${jstYear()} 葉っぱもち nano-bot`, color: '#ffffff', size: 'xs', align: 'center' },
       ],
     },
   }
