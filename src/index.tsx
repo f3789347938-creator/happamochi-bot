@@ -283,7 +283,8 @@ async function handlePostback(env: Bindings, event: any) {
   if (othelloMatch) {
     const row = Number(othelloMatch[1])
     const col = Number(othelloMatch[2])
-    const result = await applyOthelloMove(env, groupId, userId, row, col)
+    const profile = await getProfile(env, userId, groupId)
+    const result = await applyOthelloMove(env, groupId, userId, row, col, profile?.displayName ?? null)
     // "silent" rejections (same user re-tapping within 5s of their last
     // rejected tap, e.g. "相手の番です。" spam) intentionally send NOTHING —
     // not even to flush the broadcast queue, since a tap isn't a real

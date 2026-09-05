@@ -307,7 +307,8 @@ export async function applyMove(
   groupId: string,
   userId: string,
   row: number,
-  col: number
+  col: number,
+  displayName: string | null
 ): Promise<
   | { ok: true; game: OthelloGame; note?: string }
   | { ok: false; reason: string; silent?: boolean }
@@ -333,8 +334,14 @@ export async function applyMove(
     return { ok: false as const, reason }
   }
 
-  if (!myColor) return reject('この対局の参加者ではありません。')
-  if (myColor !== game.turn) return reject('相手の番です。')
+  if (!myColor) {
+    const who = displayName ?? 'あなた'
+    return reject(`${who}はこの対局の参加者ではありません。`)
+  }
+  if (myColor !== game.turn) {
+    const turnName = (game.turn === 'B' ? game.black_name : game.white_name) ?? (game.turn === 'B' ? '黒番' : '白番')
+    return reject(`${turnName}の番です。`)
+  }
 
   const flips = flipsForMove(game.board, myColor, row, col)
   if (!flips) return reject('そこには置けません。')
