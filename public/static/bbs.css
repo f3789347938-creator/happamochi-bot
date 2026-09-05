@@ -484,6 +484,12 @@ select:focus-visible {
 .bbs-gallery-img {
   display: block;
   width: 100%;
+  /* <img>のheight="720"属性は presentational hint として height:720px を
+     効かせてしまう。幅と高さが両方確定すると aspect-ratio は無視されるため、
+     必ず height:auto で属性由来の高さを打ち消す(これが無いとカードが
+     276px×720px の極端な縦長になり、object-fit:cover で画像中央の細い
+     縦スライスだけが表示される)。width/height属性自体は CLS 対策として残す。 */
+  height: auto;
   aspect-ratio: 16 / 9;
   object-fit: cover;
   background: #000;

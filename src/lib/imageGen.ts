@@ -128,16 +128,42 @@ export interface QuoteCardInput {
   pictureUrl: string | null
 }
 
-// Quote text gets smaller as it gets longer, so long posts still fit —
-// matches the legacy bot's behavior (a one-line quote like "だった" renders
-// huge; a multi-line URL-laden post renders much smaller).
+// レガシー(〜2026年6月)の名言カードは、引用文のフォントサイズを文字数で
+// 変えていなかった。本番D1に残るレガシー画像9枚(2026-02〜03)を実測した
+// ところ、文字数 2/3/4/5/6/7/12/13 のいずれでも 1文字あたりの送り幅が
+// 48〜50px、字高が 42〜45px でほぼ一定であり、縦位置(引用文 y=265、
+// 著者 y=393、userId y=430)も文字数に依らず完全固定だった。
+//   len= 2 "ああ"                幅 90px → 45.0px/字
+//   len= 5 "あいうえお"           幅242px → 48.4px/字
+//   len= 7 "タマタマだよ…"        幅337px → 48.1px/字
+//   len=13 "僕は太ももに挟まれたいです" 幅645px → 49.6px/字
+// つまりレガシーは 50px 固定。文字数で 54/44/32/24/18px と切り替える
+// 実装はリビルド時に入った差異なので、固定サイズに戻す。
+// (ただし極端な長文は右パネルからはみ出すため、レガシーに実例が無い
+//  長さについてのみ、はみ出し防止の縮小を残す。レガシー実物の最長は
+//  13文字であり、それ以下では必ず 50px になる。)
+const QUOTE_FONT_SIZE_LEGACY = 50
+
 function quoteFontSize(text: string): number {
   const len = text.length
-  if (len <= 8) return 54
-  if (len <= 20) return 44
-  if (len <= 50) return 32
-  if (len <= 100) return 24
-  return 18
+  // レガシー実測レンジ(13文字以下)は必ず50px固定。
+  if (len <= 24) return QUOTE_FONT_SIZE_LEGACY
+  // 以降はレガシーに実例が無い領域。はみ出しを防ぐためだけの縮小。
+  if (len <= 50) return 36
+  if (len <= 100) return 26
+  return 20
+}
+
+// アバター無しカード(フォールバック)側の引用文サイズ。こちらは右パネルが
+// 無く画面中央に組むため、アバター有りカードとは別系統。レガシー実物
+// (394698b0 / quote_text="名言")の実測は 字高41px・幅84px で、
+// fontWeight 700 + fontSize 44px の描画結果(字高41px・幅84px)と一致した。
+function noAvatarQuoteFontSize(text: string): number {
+  const len = text.length
+  if (len <= 24) return 44
+  if (len <= 50) return 34
+  if (len <= 100) return 26
+  return 20
 }
 
 // "No avatar" design: a centered card on a navy gradient background with
@@ -153,7 +179,11 @@ function buildNoAvatarCard(quoteText: string, authorName: string) {
         display: 'flex',
         width: `${CARD_WIDTH}px`,
         height: `${CARD_HEIGHT}px`,
-        backgroundImage: 'linear-gradient(135deg, #171a30 0%, #0c0d18 100%)',
+        // レガシー実物(394698b0)の実測ピクセル値と厳密一致するグラデーション。
+        // 左上/右下 = rgb(15,15,35) = #0f0f23、中央 = rgb(26,26,62) = #1a1a3e。
+        // 以前の '#171a30 → #0c0d18' の2色版は左上(23,26,48)/右下(12,13,24)と
+        // なりレガシーと一致しなかった。
+        backgroundImage: 'linear-gradient(135deg, #0f0f23 0%, #1a1a3e 50%, #0f0f23 100%)',
         position: 'relative',
         justifyContent: 'center',
         alignItems: 'center',
@@ -168,8 +198,8 @@ function buildNoAvatarCard(quoteText: string, authorName: string) {
               top: '18px',
               left: '38px',
               fontSize: '100px',
-              fontWeight: 400,
-              color: 'rgba(255, 255, 255, 0.12)',
+              fontWeight: 700,
+              color: 'rgba(255, 255, 255, 0.1)',
             },
             children: '\u201C',
           },
@@ -183,8 +213,8 @@ function buildNoAvatarCard(quoteText: string, authorName: string) {
               bottom: '-30px',
               right: '38px',
               fontSize: '100px',
-              fontWeight: 400,
-              color: 'rgba(255, 255, 255, 0.12)',
+              fontWeight: 700,
+              color: 'rgba(255, 255, 255, 0.1)',
             },
             children: '\u201D',
           },
@@ -197,6 +227,9 @@ function buildNoAvatarCard(quoteText: string, authorName: string) {
               flexDirection: 'column',
               alignItems: 'center',
               maxWidth: '900px',
+              // レガシー実物は引用文ベースラインが y=311..351。中央揃えのみ
+              // だと y=308..348 と上に出るため、実測差分だけ下げる。
+              marginTop: '5px',
             },
             children: [
               {
@@ -205,8 +238,9 @@ function buildNoAvatarCard(quoteText: string, authorName: string) {
                   style: {
                     display: 'flex',
                     color: '#ffffff',
-                    fontSize: `${quoteFontSize(quoteText)}px`,
-                    fontWeight: 400,
+                    fontSize: `${noAvatarQuoteFontSize(quoteText)}px`,
+                    // レガシー実物は太字(700)。400だと字幅が合わない。
+                    fontWeight: 700,
                     lineHeight: 1.4,
                     textAlign: 'center',
                     justifyContent: 'center',
@@ -220,9 +254,10 @@ function buildNoAvatarCard(quoteText: string, authorName: string) {
                 props: {
                   style: {
                     display: 'flex',
-                    color: '#8a91ad',
+                    // レガシー実測の著者名色は rgb(170,170,204) = #aaaacc。
+                    color: '#aaaacc',
                     fontSize: '20px',
-                    fontWeight: 400,
+                    fontWeight: 700,
                     marginTop: '40px',
                   },
                   children: `— ${authorName}`,
@@ -246,7 +281,21 @@ function buildAvatarCard(
   userId: string,
   avatarDataUrl: string
 ) {
-  const halfWidth = CARD_WIDTH / 2
+  // 以下の数値はすべて本番D1に残るレガシー画像(2026-02〜03の9枚)を
+  // ピクセル実測して合わせたもの。推測値は無い。
+  //   ・写真幅 PHOTO_WIDTH=519 → 右パネルの中心が x=899.5 になる。
+  //     レガシー9枚のテキスト中心は 898〜901.5 で一致。従来の 640
+  //     (画面ちょうど半分) では中心が 959.5 になりズレていた。
+  //   ・背景は純黒 #000000。従来の #050505 はレガシーと不一致
+  //     (レガシー実測 rgb(0,0,0)、従来 rgb(5,5,5))。
+  //   ・引用文/著者/userId はレガシーでは文字数に依らず縦位置が完全固定
+  //     (引用文 y=265、著者 y=393、userId y=430)。従来の
+  //     justifyContent:'center' による縦センタリングでは文字数で
+  //     位置が動いてしまうため、絶対配置(top指定)に変更した。
+  const PHOTO_WIDTH = 519
+  const PANEL_WIDTH = CARD_WIDTH - PHOTO_WIDTH
+  const PANEL_PADDING = 40
+  const TEXT_WIDTH = PANEL_WIDTH - PANEL_PADDING * 2
   return {
     type: 'div',
     props: {
@@ -254,20 +303,19 @@ function buildAvatarCard(
         display: 'flex',
         width: `${CARD_WIDTH}px`,
         height: `${CARD_HEIGHT}px`,
-        backgroundColor: '#050505',
+        backgroundColor: '#000000',
       },
       children: [
-        // Left half: the real profile photo, cover-cropped, with a soft
-        // fade on its right edge into the dark panel (no hard divider line).
+        // 左: プロフィール写真。右端を黒へソフトフェードさせる。
         {
           type: 'div',
           props: {
             style: {
               display: 'flex',
-              width: `${halfWidth}px`,
+              width: `${PHOTO_WIDTH}px`,
               height: `${CARD_HEIGHT}px`,
               position: 'relative',
-              backgroundColor: '#050505',
+              backgroundColor: '#000000',
               backgroundImage: `url(${avatarDataUrl})`,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
@@ -284,26 +332,23 @@ function buildAvatarCard(
                     width: '150px',
                     height: `${CARD_HEIGHT}px`,
                     backgroundImage:
-                      'linear-gradient(to right, rgba(5,5,5,0) 0%, rgba(5,5,5,1) 100%)',
+                      'linear-gradient(to right, rgba(0,0,0,0) 0%, rgba(0,0,0,1) 100%)',
                   },
                 },
               },
             ],
           },
         },
-        // Right half: quote text + author + userId, watermark bottom-right.
+        // 右: 引用文 / @表示名 / userId / 右下に透かし。
+        // レガシーに合わせ、3要素とも絶対配置で固定位置に置く。
         {
           type: 'div',
           props: {
             style: {
               display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              alignItems: 'center',
-              width: `${halfWidth}px`,
+              width: `${PANEL_WIDTH}px`,
               height: `${CARD_HEIGHT}px`,
-              backgroundColor: '#050505',
-              padding: '60px',
+              backgroundColor: '#000000',
               position: 'relative',
             },
             children: [
@@ -312,6 +357,10 @@ function buildAvatarCard(
                 props: {
                   style: {
                     display: 'flex',
+                    position: 'absolute',
+                    top: '249px',
+                    left: `${PANEL_PADDING}px`,
+                    width: `${TEXT_WIDTH}px`,
                     color: '#ffffff',
                     fontSize: `${quoteFontSize(quoteText)}px`,
                     fontWeight: 400,
@@ -328,12 +377,15 @@ function buildAvatarCard(
                 props: {
                   style: {
                     display: 'flex',
+                    position: 'absolute',
+                    top: '385px',
+                    left: `${PANEL_PADDING}px`,
+                    width: `${TEXT_WIDTH}px`,
                     color: '#ffffff',
                     fontSize: '24px',
                     fontWeight: 400,
                     textAlign: 'center',
                     justifyContent: 'center',
-                    marginTop: '40px',
                   },
                   children: `@${authorName}`,
                 },
@@ -343,12 +395,17 @@ function buildAvatarCard(
                 props: {
                   style: {
                     display: 'flex',
+                    position: 'absolute',
+                    top: '424px',
+                    left: `${PANEL_PADDING}px`,
+                    width: `${TEXT_WIDTH}px`,
+                    // レガシー実測: userId の描画幅は x=747..1051(305px)。
+                    // 15px では 268px と細く、17px で 303px となり一致する。
                     color: '#aaaaaa',
-                    fontSize: '15px',
+                    fontSize: '17px',
                     fontWeight: 400,
                     textAlign: 'center',
                     justifyContent: 'center',
-                    marginTop: '8px',
                   },
                   children: userId,
                 },
@@ -359,10 +416,10 @@ function buildAvatarCard(
                   style: {
                     display: 'flex',
                     position: 'absolute',
-                    right: '25px',
-                    bottom: '18px',
+                    right: '13px',
+                    bottom: '8px',
                     color: '#777777',
-                    fontSize: '13px',
+                    fontSize: '14px',
                     fontWeight: 400,
                   },
                   children: 'HappaMochi Bot',
