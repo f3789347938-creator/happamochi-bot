@@ -32,18 +32,37 @@ import { startGame as startOthello, joinGame as joinOthello, endGame as endOthel
 import { getLatestAnnouncementMessages } from './features/announcements'
 import {
   listThreads,
+  listAllThreadIds,
   getThread,
   incrementThreadViews,
   likeThread,
   createThread,
   listChatMessages,
   postChatMessage,
+  listChatMessagesAfter,
+  chatMessageToJson,
+  listComments,
+  postComment,
+  isRateLimited,
+  touchRateLimit,
+  getStats,
+  saveContactMessage,
+  listGalleryImages,
+  deleteGalleryImage,
   renderThreadsListPage,
   renderThreadDetailPage,
   renderNewThreadPage,
   renderChatPage,
+  renderGuidePage,
+  renderGalleryPage,
+  renderGalleryAdminLoginPage,
+  renderErrorPage,
+  renderRssFeed,
   CATEGORIES,
+  SORT_OPTIONS,
+  SITE_URL,
 } from './features/bbs'
+import { isAdminRequest, createSessionToken, buildSessionCookie, buildLogoutCookie, isAdminConfigured } from './features/galleryAdmin'
 
 type Bindings = LineEnv
 
@@ -81,15 +100,93 @@ app.get('/quote-image/:id', async (c) => {
   })
 })
 
+// ─── 名言カードギャラリー ───
+// 「めいく」コマンドで生成された名言カード(quote_images)を一覧表示する
+// 公開ページ。画像本体は上の /quote-image/:id を<img src>としてそのまま
+// 使うだけで、新しい画像配信経路は追加しない。LINE Bot側のコマンド処理
+// (index.tsx内のmeイクcommand handler / features/quote.ts)には一切触れない。
+app.get('/gallery', async (c) => {
+  const page = Math.max(1, parseInt(c.req.query('page') || '1', 10) || 1)
+  const result = await listGalleryImages(c.env, page)
+  const admin = await isAdminRequest(c.env, c.req.header('Cookie'))
+  return c.html(renderGalleryPage(result, admin))
+})
+
+// ─── ギャラリー管理者ログイン/ログアウト/削除 ───
+// LINE Bot本体(webhook, quote.ts, imageGen.ts)には一切関与しない、
+// /gallery/admin* 専用の独立した認証・削除フロー。パスワードは
+// Cloudflare のシークレット GALLERY_ADMIN_PASSWORD にのみ保存される。
+app.get('/gallery/admin', async (c) => {
+  const admin = await isAdminRequest(c.env, c.req.header('Cookie'))
+  if (admin) return c.redirect('/gallery')
+  if (!isAdminConfigured(c.env)) {
+    return c.html(renderGalleryAdminLoginPage('管理者ログインは現在設定されていません。'), 503)
+  }
+  return c.html(renderGalleryAdminLoginPage())
+})
+
+app.post('/gallery/admin', async (c) => {
+  const key = await clientKeyFor(c, 'gallery-admin-login')
+  if (await isRateLimited(c.env, key)) {
+    return c.html(renderGalleryAdminLoginPage('試行間隔が短すぎます。しばらく待ってから再度お試しください。'), 429)
+  }
+  await touchRateLimit(c.env, key)
+
+  const body = await c.req.parseBody()
+  const password = String(body.password ?? '')
+  const token = await createSessionToken(c.env, password)
+  if (!token) {
+    return c.html(renderGalleryAdminLoginPage('パスワードが正しくありません。'), 401)
+  }
+  c.header('Set-Cookie', buildSessionCookie(token))
+  return c.redirect('/gallery')
+})
+
+app.post('/gallery/admin/logout', async (c) => {
+  c.header('Set-Cookie', buildLogoutCookie())
+  return c.redirect('/gallery')
+})
+
+app.post('/gallery/admin/delete/:id', async (c) => {
+  const admin = await isAdminRequest(c.env, c.req.header('Cookie'))
+  if (!admin) return c.json({ error: 'unauthorized' }, 401)
+  const id = c.req.param('id')
+  const deleted = await deleteGalleryImage(c.env, id)
+  if (!deleted) return c.json({ error: 'not found' }, 404)
+  return c.json({ ok: true })
+})
+
 // ─── LINEグループ募集掲示板 (BBS) + オープンチャット ───
 // Public, unauthenticated GET/POST website reading from (and preserving)
 // the historical `threads` / `chat_messages` tables — see features/bbs.ts.
 // This is a real website, NOT a LINE command; no Reply/Push API involved.
+
+// 簡易レート制限用のクライアントキー(IPアドレスをそのまま保存しない = ハッシュ化)
+async function clientKeyFor(c: { req: { header: (k: string) => string | undefined } }, scope: string): Promise<string> {
+  const ip = c.req.header('CF-Connecting-IP') || c.req.header('x-forwarded-for') || 'unknown'
+  const raw = `${scope}:${ip}`
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw))
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
 app.get('/bbs', async (c) => {
   const category = c.req.query('category') || null
   const validCategory = category && CATEGORIES.some((x) => x.value === category) ? category : null
-  const threads = await listThreads(c.env, validCategory)
-  return c.html(renderThreadsListPage(threads, validCategory))
+  const sortParam = c.req.query('sort') || 'new'
+  const sort = SORT_OPTIONS.some((s) => s.value === sortParam) ? sortParam : 'new'
+  const q = (c.req.query('q') || '').slice(0, 100)
+  const page = Math.max(1, parseInt(c.req.query('page') || '1', 10) || 1)
+
+  const [result, stats] = await Promise.all([
+    listThreads(c.env, { category: validCategory, sort, q, page }),
+    getStats(c.env),
+  ])
+  return c.html(renderThreadsListPage({ result, activeCategory: validCategory, sort, q, stats }))
+})
+
+app.get('/bbs/feed.xml', async (c) => {
+  const { threads } = await listThreads(c.env, { sort: 'new', page: 1 })
+  return c.text(renderRssFeed(threads), 200, { 'Content-Type': 'application/rss+xml; charset=utf-8' })
 })
 
 app.get('/bbs/new', (c) => {
@@ -98,6 +195,11 @@ app.get('/bbs/new', (c) => {
 })
 
 app.post('/bbs/new', async (c) => {
+  const key = await clientKeyFor(c, 'new-thread')
+  if (await isRateLimited(c.env, key)) {
+    return c.html(renderNewThreadPage(null, '投稿間隔が短すぎます。しばらく待ってから再度お試しください。'), 429)
+  }
+
   const body = await c.req.parseBody()
   const category = String(body.category ?? '').trim()
   const title = String(body.title ?? '').trim()
@@ -109,6 +211,7 @@ app.post('/bbs/new', async (c) => {
   }
 
   const id = await createThread(c.env, { category, title, content, author })
+  await touchRateLimit(c.env, key)
   return c.redirect(`/bbs/${encodeURIComponent(id)}`)
 })
 
@@ -118,28 +221,139 @@ app.get('/bbs/chat', async (c) => {
 })
 
 app.post('/bbs/chat', async (c) => {
+  const key = await clientKeyFor(c, 'chat')
+  if (await isRateLimited(c.env, key)) {
+    const messages = await listChatMessages(c.env)
+    return c.html(renderChatPage(messages), 429)
+  }
+
   const body = await c.req.parseBody()
   const content = String(body.content ?? '').trim()
   const author = String(body.author ?? '').trim()
   if (content && author) {
     await postChatMessage(c.env, content, author)
+    await touchRateLimit(c.env, key)
   }
   return c.redirect('/bbs/chat')
+})
+
+// 疑似リアルタイム用ポーリングAPI: 指定した created_at より新しいメッセージのみ返す。
+// JavaScriptが有効なブラウザから3秒おきに呼ばれる。JSONのみ返し、HTMLは含まない。
+app.get('/bbs/chat/messages', async (c) => {
+  const after = c.req.query('after') || new Date(0).toISOString()
+  const messages = await listChatMessagesAfter(c.env, after)
+  return c.json({ messages: messages.map(chatMessageToJson) })
+})
+
+// Ajax投稿API: フォームのsubmitをpreventDefaultしてこちらへfetchする。
+// 通常の /bbs/chat (フルページPOST) はJavaScript無効時のフォールバックとして残す。
+app.post('/bbs/chat/messages', async (c) => {
+  const key = await clientKeyFor(c, 'chat')
+  if (await isRateLimited(c.env, key)) {
+    return c.json({ error: '投稿間隔が短すぎます。少し待ってから再度お試しください。' }, 429)
+  }
+
+  const body = await c.req.parseBody()
+  const content = String(body.content ?? '').trim()
+  const author = String(body.author ?? '').trim()
+  if (!content || !author) {
+    return c.json({ error: '入力内容を確認してください。' }, 400)
+  }
+
+  const message = await postChatMessage(c.env, content, author)
+  await touchRateLimit(c.env, key)
+  return c.json({ message: chatMessageToJson(message) })
+})
+
+// 利用ガイドページ(はじめ方/利用ルール/安全のために/よくある質問/お問い合わせ)。
+// お問い合わせフォームは実際にD1へ保存する(フェイクの「受け付けました」表示は禁止)。
+// 注意: '/bbs/:id' より前に定義しないと 'guide' がスレッドIDとして誤認識されるため、
+// 動的ルートより先に固定パスのガイドルートを登録する。
+app.get('/bbs/guide', (c) => {
+  return c.html(renderGuidePage())
+})
+
+app.post('/bbs/guide/contact', async (c) => {
+  const key = await clientKeyFor(c, 'contact')
+  const isFetch = c.req.header('X-Requested-With') === 'fetch'
+  if (await isRateLimited(c.env, key)) {
+    const msg = '送信間隔が短すぎます。しばらく待ってから再度お試しください。'
+    if (isFetch) return c.json({ error: msg }, 429)
+    return c.html(renderGuidePage({ error: msg }), 429)
+  }
+
+  const body = await c.req.parseBody()
+  const content = String(body.content ?? '').trim()
+  if (!content) {
+    const msg = '内容を入力してください。'
+    if (isFetch) return c.json({ error: msg }, 400)
+    return c.html(renderGuidePage({ error: msg }), 400)
+  }
+
+  await saveContactMessage(c.env, content)
+  await touchRateLimit(c.env, key)
+
+  if (isFetch) return c.json({ ok: true })
+  return c.html(renderGuidePage({ sent: true }))
 })
 
 app.get('/bbs/:id', async (c) => {
   const id = c.req.param('id')
   const thread = await getThread(c.env, id)
-  if (!thread) return c.notFound()
+  if (!thread) return c.html(renderErrorPage(404, 'お探しの投稿は見つかりませんでした'), 404)
   await incrementThreadViews(c.env, id)
-  return c.html(renderThreadDetailPage(thread))
+  const comments = await listComments(c.env, id)
+  return c.html(renderThreadDetailPage(thread, comments))
 })
 
 app.post('/bbs/:id/like', async (c) => {
   const id = c.req.param('id')
   const likes = await likeThread(c.env, id)
-  if (likes === null) return c.notFound()
+  if (likes === null) return c.html(renderErrorPage(404, 'お探しの投稿は見つかりませんでした'), 404)
   return c.redirect(`/bbs/${encodeURIComponent(id)}`)
+})
+
+app.post('/bbs/:id/comment', async (c) => {
+  const id = c.req.param('id')
+  const thread = await getThread(c.env, id)
+  if (!thread) return c.html(renderErrorPage(404, 'お探しの投稿は見つかりませんでした'), 404)
+
+  const key = await clientKeyFor(c, 'comment')
+  if (await isRateLimited(c.env, key)) {
+    const comments = await listComments(c.env, id)
+    return c.html(renderThreadDetailPage(thread, comments), 429)
+  }
+
+  const body = await c.req.parseBody()
+  const author = String(body.author ?? '').trim()
+  const content = String(body.content ?? '').trim()
+  if (author && content) {
+    await postComment(c.env, id, author, content)
+    await touchRateLimit(c.env, key)
+  }
+  return c.redirect(`/bbs/${encodeURIComponent(id)}#comments-heading`)
+})
+
+// ─── SEO: robots.txt / sitemap.xml ───
+app.get('/robots.txt', (c) => {
+  return c.text(
+    `User-agent: *\nAllow: /\nSitemap: ${SITE_URL}/sitemap.xml\n`,
+    200,
+    { 'Content-Type': 'text/plain; charset=utf-8' }
+  )
+})
+
+app.get('/sitemap.xml', async (c) => {
+  const threadRows = await listAllThreadIds(c.env)
+  const staticUrls = ['/bbs', '/bbs/new', '/bbs/chat', '/bbs/guide', '/gallery']
+  const urls = [
+    ...staticUrls.map((path) => `<url><loc>${SITE_URL}${path}</loc><changefreq>hourly</changefreq></url>`),
+    ...threadRows.map(
+      (t) => `<url><loc>${SITE_URL}/bbs/${t.id}</loc><lastmod>${new Date(t.created_at).toISOString()}</lastmod><changefreq>weekly</changefreq></url>`
+    ),
+  ].join('\n')
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>`
+  return c.text(xml, 200, { 'Content-Type': 'application/xml; charset=utf-8' })
 })
 
 // ─── Debug: simulate a text command WITHOUT touching LINE ───

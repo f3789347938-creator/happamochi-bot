@@ -1,0 +1,1004 @@
+/* ============================================================
+   LINEグループ募集掲示板 (BBS) — "Circle Board" デザイン
+   ============================================================
+   デザイン提供元: circle-board-design-handoff.zip
+   (design/bbs-pro.html, bbs-chat.html, bbs-guide.html,
+    bbs-thread-*.html, bbs-thread.css の配色・フォント・レイアウト・
+    アニメーションを、実データ駆動の本番テンプレート(bbs.ts)向けに
+    bbs-* クラス命名規則へ落とし込んだもの)
+
+   注意: これはBBS(公開Webサイト機能)専用のCSSです。LINE Botの
+   コマンド処理・Webhook・署名検証等には一切関係しません。
+   ============================================================ */
+
+:root {
+  --bbs-ink: #17241d;
+  --bbs-muted: #68766e;
+  --bbs-paper: #f5f7f4;
+  --bbs-white: #fff;
+  --bbs-line: #dce4dd;
+  --bbs-green: #197c4c;
+  --bbs-green-dark: #105e38;
+  --bbs-mint: #e8f5eb;
+  --bbs-gold: #ba7f2b;
+  --bbs-pink: #fff0f4;
+  --bbs-pink-ink: #ca5a79;
+  --bbs-blue: #eef3ff;
+  --bbs-blue-ink: #5373b6;
+  --bbs-amber: #fff7e9;
+  --bbs-amber-ink: #af7a28;
+  --bbs-shadow: 0 16px 42px rgba(20, 41, 29, 0.07);
+  --bbs-shadow-sm: 0 10px 22px rgba(21, 37, 26, 0.05);
+  --bbs-radius-lg: 14px;
+  --bbs-radius-md: 12px;
+  --bbs-radius-sm: 8px;
+  --bbs-font-jp: "Noto Sans JP", sans-serif;
+  --bbs-font-num: "DM Sans", sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html {
+  background: var(--bbs-paper);
+  scroll-behavior: smooth;
+}
+
+body.bbs-body {
+  min-height: 100vh;
+  margin: 0;
+  color: var(--bbs-ink);
+  font: 15px/1.75 var(--bbs-font-jp);
+  background: var(--bbs-paper);
+}
+
+a { color: inherit; }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.skip-link {
+  position: absolute;
+  left: -999px;
+  top: 0;
+  z-index: 200;
+  padding: 10px 16px;
+  background: var(--bbs-green);
+  color: #fff;
+  border-radius: 0 0 8px 0;
+  text-decoration: none;
+}
+.skip-link:focus {
+  left: 0;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 3px solid #92d2a9;
+  outline-offset: 3px;
+}
+
+/* ---------------------------------------------------------------
+   トップライン + ヘッダー / フッター (全ページ共通)
+   --------------------------------------------------------------- */
+.bbs-topline { height: 4px; background: var(--bbs-green); }
+
+.bbs-header {
+  height: 72px;
+  background: var(--bbs-white);
+  border-bottom: 1px solid var(--bbs-line);
+}
+.bbs-header-inner {
+  height: 100%;
+  max-width: 1230px;
+  margin: 0 auto;
+  padding: 0 max(24px, 5vw);
+  display: flex;
+  align-items: center;
+  gap: 44px;
+}
+.bbs-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--bbs-ink);
+  text-decoration: none;
+  font: 700 18px var(--bbs-font-num);
+  letter-spacing: -0.02em;
+}
+.bbs-logo-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--bbs-green);
+  color: #fff;
+  font-size: 15px;
+  transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.bbs-logo:hover .bbs-logo-icon { transform: rotate(20deg) scale(1.08); }
+.bbs-nav {
+  display: flex;
+  align-items: center;
+  gap: 25px;
+  font-size: 14px;
+}
+.bbs-nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #536158;
+  text-decoration: none;
+}
+.bbs-nav-link.is-active { color: var(--bbs-green); font-weight: 700; }
+.bbs-nav-cta {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 15px;
+  border-radius: var(--bbs-radius-sm);
+  background: var(--bbs-green);
+  color: #fff;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(25, 124, 76, 0.15);
+  transition: transform 0.2s, background 0.2s;
+}
+.bbs-nav-cta:hover { transform: translateY(-2px); background: var(--bbs-green-dark); }
+
+.bbs-main {
+  max-width: 1230px;
+  margin: 0 auto;
+  padding: 38px 28px 80px;
+}
+
+.bbs-footer {
+  padding: 25px max(24px, 5vw);
+  border-top: 1px solid var(--bbs-line);
+  background: var(--bbs-white);
+  color: #758078;
+  font-size: 12px;
+}
+.bbs-footer-inner { max-width: 1230px; margin: 0 auto; }
+.bbs-footer-brand { margin: 0 0 4px; font-weight: 700; color: var(--bbs-ink); }
+.bbs-footer-desc { margin: 0 0 12px; }
+.bbs-footer-nav { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 10px; }
+.bbs-footer-nav a { text-decoration: none; color: #526057; }
+.bbs-footer-nav a:hover { color: var(--bbs-green); }
+.bbs-footer-copy { margin: 0; }
+
+/* ---------------------------------------------------------------
+   一覧ページ: ヒーロー / 検索パネル
+   --------------------------------------------------------------- */
+.bbs-hero {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 30px;
+  margin-bottom: 30px;
+  flex-wrap: wrap;
+}
+.bbs-hero-title {
+  margin: 0;
+  font-size: 29px;
+  letter-spacing: -0.03em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.bbs-hero-title i { color: var(--bbs-green); }
+.bbs-hero-desc { margin: 8px 0 0; color: var(--bbs-muted); font-size: 14px; max-width: 560px; }
+.bbs-stats {
+  display: flex;
+  gap: 18px;
+  color: var(--bbs-muted);
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+.bbs-stats strong { color: var(--bbs-ink); font: 700 13px var(--bbs-font-num); margin-right: 3px; }
+
+.bbs-search-form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  padding: 12px;
+  background: var(--bbs-white);
+  border: 1px solid var(--bbs-line);
+  border-radius: var(--bbs-radius-md);
+  box-shadow: var(--bbs-shadow-sm);
+  margin-bottom: 25px;
+}
+.bbs-search-input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--bbs-ink);
+  font: 15px var(--bbs-font-jp);
+  padding: 0 10px;
+}
+.bbs-search-input::placeholder { color: #9aa49e; }
+.bbs-search-button {
+  border: 0;
+  border-radius: var(--bbs-radius-sm);
+  background: var(--bbs-ink);
+  color: #fff;
+  padding: 12px 23px;
+  font: 13px var(--bbs-font-jp);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.bbs-search-button:hover { background: var(--bbs-green-dark); }
+
+/* ---------------------------------------------------------------
+   3カラムレイアウト: サイドバー / スレッド一覧 / 右カラム
+   --------------------------------------------------------------- */
+.bbs-layout {
+  display: grid;
+  grid-template-columns: 218px minmax(0, 1fr) 235px;
+  gap: 23px;
+}
+.bbs-panel {
+  background: var(--bbs-white);
+  border: 1px solid var(--bbs-line);
+  border-radius: var(--bbs-radius-md);
+}
+.bbs-side { height: max-content; padding: 18px; }
+.bbs-side h2 { margin: 0 0 12px; font-size: 12px; color: var(--bbs-muted); font-weight: 600; letter-spacing: 0.06em; }
+.bbs-tabs { display: flex; flex-direction: column; gap: 2px; }
+.bbs-tab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 10px 9px;
+  border-radius: 7px;
+  text-align: left;
+  color: #435047;
+  font: 14px var(--bbs-font-jp);
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.18s, background 0.18s, transform 0.18s;
+}
+.bbs-tab i { width: 16px; text-align: center; color: inherit; opacity: 0.8; }
+.bbs-tab:hover { transform: translateX(3px); }
+.bbs-tab:hover,
+.bbs-tab.is-active { background: var(--bbs-mint); color: var(--bbs-green); font-weight: 700; }
+.bbs-tab-count { font: 12px var(--bbs-font-num); opacity: 0.75; }
+.bbs-side-rule { height: 1px; background: var(--bbs-line); margin: 17px 0; }
+.bbs-guide-link { display: block; padding: 8px 4px; color: #526057; text-decoration: none; font-size: 13px; }
+.bbs-guide-link:hover { color: var(--bbs-green); }
+
+.bbs-board-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.bbs-list-count { margin: 0; font-size: 16px; }
+.bbs-list-count strong { margin-left: 4px; color: var(--bbs-muted); font: 13px var(--bbs-font-num); font-weight: 400; }
+.bbs-sort { display: flex; gap: 12px; }
+.bbs-sort-link { border: 0; background: transparent; color: var(--bbs-muted); font: 12px var(--bbs-font-jp); text-decoration: none; cursor: pointer; }
+.bbs-sort-link.is-active { color: var(--bbs-green); font-weight: 700; }
+.bbs-list-header { display: none; } /* count/new-button folded into bbs-board-head below */
+
+.bbs-new-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--bbs-green);
+  color: #fff;
+  padding: 9px 15px;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 700;
+  transition: background 0.2s, transform 0.2s;
+}
+.bbs-new-button:hover { background: var(--bbs-green-dark); transform: translateY(-1px); }
+
+.bbs-thread-list { display: grid; gap: 10px; }
+.bbs-thread-card {
+  background: var(--bbs-white);
+  border: 1px solid var(--bbs-line);
+  border-radius: 11px;
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.25s, box-shadow 0.25s;
+}
+.bbs-thread-card:hover { transform: translateY(-3px); border-color: #b8c8bd; box-shadow: var(--bbs-shadow-sm); }
+.bbs-thread-card-link {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 15px;
+  padding: 19px 20px;
+  text-decoration: none;
+  color: var(--bbs-ink);
+}
+.bbs-thread-card-top { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; flex-wrap: wrap; }
+
+.bbs-category-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #edf2ed;
+  color: #546357;
+  font-size: 11px;
+  font-weight: 700;
+}
+.bbs-category-love { background: var(--bbs-pink); color: var(--bbs-pink-ink); }
+.bbs-category-hobby { background: var(--bbs-blue); color: var(--bbs-blue-ink); }
+.bbs-category-life { background: var(--bbs-amber); color: var(--bbs-amber-ink); }
+.bbs-category-other { background: #edf2ed; color: #546357; }
+
+.bbs-pin-badge { font-size: 11px; color: var(--bbs-gold); font-weight: 700; display: inline-flex; align-items: center; gap: 4px; }
+.bbs-thread-time { color: #879188; font: 12px var(--bbs-font-num); margin-left: auto; }
+
+.bbs-thread-title { margin: 0; font-size: 16px; line-height: 1.55; letter-spacing: -0.01em; }
+.bbs-thread-excerpt {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 7px 0 0;
+  color: #657168;
+  font-size: 13px;
+  line-height: 1.65;
+}
+.bbs-thread-card-bottom { display: flex; gap: 13px; margin-top: 11px; color: #879188; font: 12px var(--bbs-font-num); flex-wrap: wrap; }
+.bbs-meta-item { display: inline-flex; align-items: center; gap: 5px; }
+.bbs-meta-author { font-family: var(--bbs-font-jp); }
+.bbs-thread-action {
+  align-self: center;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--bbs-green);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.bbs-empty {
+  padding: 40px;
+  text-align: center;
+  color: var(--bbs-muted);
+  background: var(--bbs-white);
+  border: 1px dashed var(--bbs-line);
+  border-radius: var(--bbs-radius-md);
+  margin-top: 10px;
+}
+.bbs-empty i { display: block; font-size: 26px; margin-bottom: 10px; opacity: 0.6; }
+
+.bbs-pagination { display: flex; gap: 6px; justify-content: center; margin-top: 24px; flex-wrap: wrap; }
+.bbs-page-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 13px;
+  border: 1px solid var(--bbs-line);
+  border-radius: 8px;
+  background: var(--bbs-white);
+  color: #526057;
+  text-decoration: none;
+  font: 13px var(--bbs-font-num);
+}
+.bbs-page-link.is-active { background: var(--bbs-green); border-color: var(--bbs-green); color: #fff; font-weight: 700; }
+.bbs-page-link:hover:not(.is-active) { border-color: #b8c8bd; }
+
+/* ─── 名言カードギャラリー ───
+   参考: miqx.jp/gallery 相当のダークなタイルグリッド。画像自体
+   (quote_images.image_data)にすでに引用文・著者名が描き込まれているため、
+   下にテキストを再掲せず、画像を主役にしたシンプルなタイルにしている。
+   このセクションだけ他のBBSページ(明るいCircle Boardデザイン)と切り離し、
+   ダークステージ(.bbs-gallery-stage)で囲んで見た目の一貫性を保つ。 */
+.bbs-hero-gallery { margin-bottom: 20px; }
+.bbs-gallery-howto {
+  margin: 0 0 16px;
+  padding: 13px 16px;
+  background: var(--bbs-mint);
+  color: #395746;
+  border-radius: var(--bbs-radius-sm);
+  font-size: 13px;
+  line-height: 1.7;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.bbs-gallery-howto i { margin-top: 2px; color: var(--bbs-green-dark); flex-shrink: 0; }
+
+.bbs-gallery-admin-link { text-align: right; margin-bottom: 10px; }
+.bbs-gallery-admin-link a {
+  font-size: 12px;
+  color: var(--bbs-muted);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.bbs-gallery-admin-link a:hover { color: var(--bbs-green); }
+
+.bbs-admin-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  padding: 10px 16px;
+  background: #17241d;
+  color: #d8e6dc;
+  border-radius: var(--bbs-radius-sm);
+  font-size: 13px;
+}
+.bbs-admin-bar i { color: #7fd9a6; margin-right: 6px; }
+.bbs-admin-logout {
+  background: transparent;
+  border: 1px solid #46574c;
+  color: #d8e6dc;
+  border-radius: var(--bbs-radius-sm);
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.bbs-admin-logout:hover { border-color: #7fd9a6; color: #7fd9a6; }
+
+/* ダークステージ: グリッド全体を囲む黒背景パネル */
+.bbs-gallery-stage {
+  background: #0b0b0d;
+  border-radius: var(--bbs-radius-lg);
+  padding: 16px;
+}
+
+.bbs-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 12px;
+}
+.bbs-gallery-card {
+  margin: 0;
+  position: relative;
+  border-radius: var(--bbs-radius-md);
+  overflow: hidden;
+  background: #000;
+  transition: transform 0.18s ease;
+}
+.bbs-gallery-card:hover { transform: translateY(-3px); }
+.bbs-gallery-link { display: block; position: relative; background: #000; }
+.bbs-gallery-img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  background: #000;
+}
+/* 画像下端に薄いグラデーションオーバーレイで日時のみ添える(引用文は
+   画像自体にすでに描かれているため再掲しない) */
+.bbs-gallery-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 18px 10px 8px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.75) 0%, rgba(0, 0, 0, 0) 100%);
+  display: flex;
+  justify-content: flex-end;
+}
+.bbs-gallery-time { font: 11px var(--bbs-font-num); color: rgba(255, 255, 255, 0.75); }
+
+.bbs-gallery-delete {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: #ff8a8a;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  transition: background 0.15s ease;
+}
+.bbs-gallery-delete:hover { background: #c0392b; color: #fff; }
+.bbs-gallery-delete:disabled { opacity: 0.5; cursor: default; }
+
+.bbs-empty-dark {
+  color: #9aa39c;
+  background: transparent;
+  border: 1px dashed #2a2f2c;
+}
+.bbs-empty-dark i { color: #5c655f; }
+
+@media (max-width: 740px) {
+  .bbs-gallery-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .bbs-gallery-stage { padding: 10px; border-radius: var(--bbs-radius-md); }
+}
+
+/* 右カラム: 安心バナー + 投稿CTA */
+.bbs-right { display: flex; flex-direction: column; gap: 15px; }
+.bbs-notice {
+  padding: 17px;
+  border-radius: 10px;
+  background: var(--bbs-mint);
+  color: #395746;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.bbs-notice b { display: block; margin-bottom: 4px; color: var(--bbs-green); font-size: 13px; }
+.bbs-side-post { padding: 17px; }
+.bbs-side-post h3 { color: var(--bbs-ink); font-size: 15px; margin: 0 0 5px; }
+.bbs-side-post p { margin: 0; color: var(--bbs-muted); font-size: 12px; }
+.bbs-side-post .bbs-new-button { width: 100%; justify-content: center; margin-top: 14px; }
+
+/* ---------------------------------------------------------------
+   パンくず / 汎用ページ見出し
+   --------------------------------------------------------------- */
+.bbs-breadcrumb { margin-bottom: 18px; color: #758078; font-size: 12px; }
+.bbs-breadcrumb a { color: #526057; text-decoration: none; }
+.bbs-breadcrumb a:hover { color: var(--bbs-green); }
+
+.bbs-back-link { margin-top: 26px; }
+.bbs-back-link a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #56645b;
+  text-decoration: none;
+  font-size: 13px;
+}
+.bbs-back-link a:hover { color: var(--bbs-green); }
+
+.bbs-page-title { margin: 0 0 10px; font-size: 26px; letter-spacing: -0.03em; }
+.bbs-page-lead { margin: 0 0 24px; color: var(--bbs-muted); font-size: 14px; display: flex; align-items: center; gap: 8px; }
+
+/* ---------------------------------------------------------------
+   投稿詳細ページ: hero + 2カラム(コンテンツ / stickyサイド)
+   --------------------------------------------------------------- */
+.bbs-detail-layout { display: grid; grid-template-columns: minmax(0, 1fr) 284px; gap: 27px; align-items: start; }
+.bbs-detail-content { min-width: 0; display: grid; gap: 25px; }
+
+.bbs-detail-card { padding: 28px; border: 1px solid var(--bbs-line); border-radius: var(--bbs-radius-lg); background: var(--bbs-white); }
+.bbs-detail-head { display: flex; align-items: center; gap: 9px; margin-bottom: 14px; flex-wrap: wrap; }
+.bbs-detail-title { max-width: 690px; margin: 0; font-size: 27px; letter-spacing: -0.03em; line-height: 1.45; }
+.bbs-detail-author { margin: 12px 0 0; color: #56645b; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+.bbs-detail-body { margin: 15px 0 0; color: var(--bbs-ink); font-size: 15px; line-height: 1.85; white-space: pre-wrap; }
+.bbs-detail-image { display: block; max-width: 100%; margin-top: 16px; border-radius: 10px; border: 1px solid var(--bbs-line); }
+.bbs-detail-qr { margin-top: 16px; padding: 14px; border: 1px solid var(--bbs-line); border-radius: 10px; background: var(--bbs-paper); }
+.bbs-detail-qr-label { margin: 0 0 8px; font-size: 12px; color: var(--bbs-muted); font-weight: 700; }
+.bbs-detail-qr img { max-width: 180px; display: block; }
+
+.bbs-detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-top: 22px;
+  padding-top: 17px;
+  border-top: 1px solid var(--bbs-line);
+  flex-wrap: wrap;
+  color: #77847c;
+  font: 12px var(--bbs-font-num);
+}
+.bbs-like-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--bbs-line);
+  border-radius: 999px;
+  background: var(--bbs-white);
+  color: #b24e70;
+  padding: 8px 15px;
+  font: 13px var(--bbs-font-jp);
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+.bbs-like-button:hover { background: var(--bbs-pink); border-color: #f0c3d0; }
+.bbs-like-button.is-liked { background: var(--bbs-pink); border-color: #f0c3d0; }
+.bbs-share { display: flex; gap: 8px; margin-left: auto; }
+.bbs-share-link {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--bbs-line);
+  color: var(--bbs-muted);
+  text-decoration: none;
+  transition: color 0.2s, border-color 0.2s;
+}
+.bbs-share-link:hover { color: var(--bbs-green); border-color: #b8c8bd; }
+
+.bbs-section { padding: 25px 28px; border: 1px solid var(--bbs-line); border-radius: 13px; background: var(--bbs-white); }
+.bbs-section-heading { margin: 0 0 11px; font-size: 18px; letter-spacing: -0.02em; display: flex; align-items: center; gap: 8px; }
+
+.bbs-list { margin: 13px 0 0; padding: 0; list-style: none; }
+.bbs-list li { position: relative; padding: 7px 0 7px 17px; color: #506057; font-size: 14px; }
+.bbs-list li::before { position: absolute; left: 0; top: 12px; width: 6px; height: 6px; border-radius: 50%; background: var(--bbs-green); content: ""; }
+
+/* サイド: 投稿者情報 + 参加リンク */
+.bbs-side-panel { position: sticky; top: 22px; padding: 20px; border: 1px solid var(--bbs-line); border-radius: 13px; background: var(--bbs-white); }
+.bbs-host { display: flex; align-items: center; gap: 10px; padding-bottom: 16px; border-bottom: 1px solid var(--bbs-line); }
+.bbs-avatar { display: grid; place-items: center; width: 37px; height: 37px; border-radius: 50%; background: var(--bbs-mint); color: var(--bbs-green-dark); font: 700 13px var(--bbs-font-num); flex-shrink: 0; }
+.bbs-host-label { margin: 0; color: var(--bbs-muted); font-size: 11px; }
+.bbs-host-name { display: block; font-size: 14px; font-weight: 700; }
+.bbs-join-link {
+  display: block;
+  width: 100%;
+  margin-top: 16px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--bbs-green);
+  color: #fff;
+  padding: 13px;
+  text-align: center;
+  text-decoration: none;
+  font: 700 14px var(--bbs-font-jp);
+  transition: background 0.2s;
+}
+.bbs-join-link:hover { background: var(--bbs-green-dark); }
+.bbs-chat-link {
+  display: block;
+  margin-top: 9px;
+  border: 1px solid var(--bbs-line);
+  border-radius: 8px;
+  padding: 10px;
+  color: #4d6053;
+  text-align: center;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 700;
+  transition: border-color 0.2s, color 0.2s;
+}
+.bbs-chat-link:hover { border-color: #afcbb8; color: var(--bbs-green); }
+.bbs-side-note { margin: 14px 0 0; color: var(--bbs-muted); font-size: 11px; line-height: 1.65; }
+.bbs-report-link { display: inline-block; margin-top: 14px; color: #728078; font-size: 12px; text-decoration: none; }
+.bbs-report-link:hover { color: var(--bbs-green); }
+
+/* ---------------------------------------------------------------
+   コメント / フォーム共通(新規投稿・コメント・チャット入力)
+   --------------------------------------------------------------- */
+.bbs-comments-section { margin-top: 25px; }
+.bbs-comment-list { list-style: none; margin: 0 0 20px; padding: 0; display: grid; gap: 10px; }
+.bbs-comment {
+  padding: 15px 17px;
+  border: 1px solid var(--bbs-line);
+  border-radius: 10px;
+  background: var(--bbs-white);
+}
+.bbs-comment-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.bbs-comment-author { font-size: 13px; font-weight: 700; color: #435047; display: flex; align-items: center; gap: 6px; }
+.bbs-comment-time { color: #98a29c; font: 11px var(--bbs-font-num); }
+.bbs-comment-body { margin: 0; color: #334238; font-size: 14px; line-height: 1.7; white-space: pre-wrap; }
+.bbs-comment-empty { color: var(--bbs-muted); font-size: 13px; padding: 16px 0; }
+
+.bbs-form-card {
+  padding: 22px 24px;
+  border: 1px solid var(--bbs-line);
+  border-radius: var(--bbs-radius-md);
+  background: var(--bbs-white);
+}
+.bbs-form-row { margin-top: 15px; }
+.bbs-form-row:first-child { margin-top: 0; }
+.bbs-form-label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 700; color: var(--bbs-ink); }
+.bbs-required { color: #ca5a79; font-weight: 700; font-size: 11px; margin-left: 4px; }
+.bbs-form-input,
+.bbs-form-textarea,
+.bbs-form-select {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--bbs-line);
+  border-radius: 7px;
+  padding: 10px 12px;
+  background: #fbfcfb;
+  color: var(--bbs-ink);
+  font: 14px var(--bbs-font-jp);
+}
+.bbs-form-textarea { resize: vertical; min-height: 100px; }
+.bbs-form-error {
+  margin: 12px 0;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #fff0f4;
+  color: #b24e70;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bbs-submit-button {
+  margin-top: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--bbs-green);
+  color: #fff;
+  padding: 12px 22px;
+  font: 700 14px var(--bbs-font-jp);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.bbs-submit-button:hover { background: var(--bbs-green-dark); }
+.bbs-submit-button:disabled { opacity: 0.6; cursor: default; }
+.bbs-submit-button-large { width: 100%; justify-content: center; padding: 14px; }
+
+/* ---------------------------------------------------------------
+   オープンチャットページ(吹き出しUI + リアルタイムポーリング)
+   --------------------------------------------------------------- */
+.bbs-live-indicator {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #52b979;
+  box-shadow: 0 0 0 4px #dff3e5;
+  animation: bbs-pulse-dot 1.6s ease-in-out infinite;
+}
+@keyframes bbs-pulse-dot {
+  0%, 100% { box-shadow: 0 0 0 4px #dff3e5; }
+  50% { box-shadow: 0 0 0 7px #dff3e5; }
+}
+
+.bbs-conversation {
+  overflow: hidden;
+  border: 1px solid var(--bbs-line);
+  border-radius: var(--bbs-radius-lg);
+  background: var(--bbs-white);
+  box-shadow: var(--bbs-shadow);
+}
+.bbs-chat-list {
+  list-style: none;
+  margin: 0;
+  padding: 25px;
+  display: flex;
+  flex-direction: column;
+  gap: 19px;
+  min-height: 400px;
+  background: linear-gradient(135deg, #fff 0%, #fbfdfb 100%);
+}
+.bbs-chat-message {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+  max-width: 680px;
+}
+.bbs-chat-avatar {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #dceee3;
+  color: var(--bbs-green-dark);
+  font: 700 11px var(--bbs-font-num);
+  flex-shrink: 0;
+}
+.bbs-chat-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+.bbs-chat-author { color: #536158; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 5px; }
+.bbs-chat-time { color: #98a29c; font: 11px var(--bbs-font-num); }
+.bbs-chat-body {
+  width: max-content;
+  max-width: min(100%, 580px);
+  margin: 0;
+  padding: 10px 13px;
+  border: 1px solid var(--bbs-line);
+  border-radius: 3px 12px 12px 12px;
+  background: #fff;
+  color: #334238;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  box-shadow: 0 3px 10px rgba(20, 41, 29, 0.03);
+}
+.bbs-chat-message-own {
+  grid-template-columns: minmax(0, 1fr) 34px;
+  justify-self: end;
+}
+.bbs-chat-message-own .bbs-chat-avatar { grid-column: 2; grid-row: 1 / 3; }
+.bbs-chat-message-own .bbs-chat-head,
+.bbs-chat-message-own .bbs-chat-body-wrap { grid-column: 1; }
+.bbs-chat-message-own .bbs-chat-head { justify-content: flex-end; }
+.bbs-chat-message-own .bbs-chat-body {
+  margin-left: auto;
+  border-color: #c6e6d0;
+  background: var(--bbs-mint);
+  border-radius: 12px 3px 12px 12px;
+}
+.bbs-chat-message-new { animation: bbs-fade-in 0.35s ease-out both; }
+@keyframes bbs-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+.bbs-chat-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 17px;
+  border-top: 1px solid var(--bbs-line);
+  background: var(--bbs-white);
+}
+.bbs-chat-form .bbs-form-row { margin-top: 0; }
+.bbs-chat-form .bbs-submit-button { margin-top: 0; grid-column: 1 / -1; justify-self: end; }
+.bbs-chat-form .bbs-form-error { grid-column: 1 / -1; margin: 0; }
+
+/* ---------------------------------------------------------------
+   利用ガイドページ: sticky TOC + セクション + FAQ + お問い合わせ
+   --------------------------------------------------------------- */
+.bbs-guide-intro { max-width: 680px; margin-bottom: 30px; }
+.bbs-eyebrow { margin: 0 0 7px; color: var(--bbs-green); font: 700 12px var(--bbs-font-num); letter-spacing: 0.13em; }
+
+.bbs-guide-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 45px; align-items: start; }
+.bbs-toc { position: sticky; top: 22px; padding: 17px; border: 1px solid var(--bbs-line); border-radius: var(--bbs-radius-md); background: var(--bbs-white); }
+.bbs-toc h2 { margin: 0 0 9px; color: var(--bbs-muted); font: 600 11px var(--bbs-font-num); letter-spacing: 0.1em; }
+.bbs-toc a { display: block; padding: 9px 7px; color: #4f5e55; text-decoration: none; font-size: 13px; border-radius: 6px; }
+.bbs-toc a:hover { color: var(--bbs-green); background: var(--bbs-mint); }
+
+.bbs-guide-content { display: grid; gap: 30px; }
+.bbs-guide-section { scroll-margin-top: 24px; padding-bottom: 30px; border-bottom: 1px solid var(--bbs-line); }
+.bbs-guide-section:last-child { border: 0; padding-bottom: 0; }
+.bbs-guide-section h2 { margin: 0 0 11px; font-size: 21px; letter-spacing: -0.02em; }
+.bbs-guide-section > p { margin: 0; color: #56635a; }
+
+.bbs-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 18px; }
+.bbs-step { padding: 17px; border: 1px solid var(--bbs-line); border-radius: 11px; background: var(--bbs-white); }
+.bbs-step-no { display: block; margin-bottom: 9px; color: var(--bbs-green); font: 700 12px var(--bbs-font-num); }
+.bbs-step h3 { margin: 0; font-size: 15px; }
+.bbs-step p { margin: 6px 0 0; color: var(--bbs-muted); font-size: 13px; line-height: 1.65; }
+
+.bbs-rules { display: grid; gap: 9px; margin-top: 17px; }
+.bbs-rule { display: grid; grid-template-columns: 28px 1fr; gap: 11px; align-items: start; padding: 13px 14px; border: 1px solid var(--bbs-line); border-radius: 9px; background: var(--bbs-white); }
+.bbs-rule-mark { display: grid; place-items: center; width: 27px; height: 27px; border-radius: 50%; background: var(--bbs-mint); color: var(--bbs-green); font-weight: 700; }
+.bbs-rule h3 { margin: 0; font-size: 14px; }
+.bbs-rule p { margin: 3px 0 0; color: var(--bbs-muted); font-size: 13px; line-height: 1.65; }
+
+.bbs-safety { padding: 20px; border-left: 3px solid var(--bbs-green); border-radius: 0 10px 10px 0; background: var(--bbs-mint); }
+.bbs-safety h3 { margin: 0 0 6px; font-size: 16px; }
+.bbs-safety p { margin: 0; color: #466050; font-size: 14px; }
+
+.bbs-faq { margin-top: 17px; border-top: 1px solid var(--bbs-line); }
+.bbs-faq details { border-bottom: 1px solid var(--bbs-line); background: var(--bbs-white); }
+.bbs-faq summary {
+  position: relative;
+  padding: 15px 34px 15px 3px;
+  list-style: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+}
+.bbs-faq summary::-webkit-details-marker { display: none; }
+.bbs-faq summary::after { position: absolute; right: 5px; top: 15px; content: "＋"; color: var(--bbs-green); font-size: 19px; font-weight: 400; }
+.bbs-faq details[open] summary::after { content: "−"; }
+.bbs-faq details p { margin: 0; padding: 0 4px 15px; color: var(--bbs-muted); font-size: 13px; }
+
+.bbs-contact-box { padding: 20px; border: 1px solid var(--bbs-line); border-radius: var(--bbs-radius-md); background: var(--bbs-white); }
+.bbs-contact-box p { margin: 0; color: var(--bbs-muted); font-size: 14px; }
+.bbs-contact-form { display: grid; gap: 9px; margin-top: 15px; }
+.bbs-contact-form label { font-size: 13px; font-weight: 700; }
+.bbs-contact-form input,
+.bbs-contact-form textarea {
+  width: 100%;
+  border: 1px solid var(--bbs-line);
+  border-radius: 8px;
+  padding: 10px 11px;
+  background: #fbfcfb;
+  color: var(--bbs-ink);
+  font: 14px var(--bbs-font-jp);
+}
+.bbs-contact-form textarea { min-height: 100px; resize: vertical; }
+.bbs-contact-form button {
+  justify-self: start;
+  border: 0;
+  border-radius: 8px;
+  padding: 11px 17px;
+  background: var(--bbs-green);
+  color: #fff;
+  font: 700 13px var(--bbs-font-jp);
+  cursor: pointer;
+}
+.bbs-contact-form button:hover { background: var(--bbs-green-dark); }
+.bbs-contact-form button:disabled { opacity: 0.6; cursor: default; }
+.bbs-form-status { min-height: 1.65em; margin: 0; color: var(--bbs-green); font-size: 13px; font-weight: 700; }
+.bbs-form-status.is-error { color: #b24e70; }
+
+/* ---------------------------------------------------------------
+   エラーページ
+   --------------------------------------------------------------- */
+.bbs-error-page { text-align: center; padding: 60px 20px; }
+.bbs-error-code { font: 700 56px var(--bbs-font-num); color: var(--bbs-line); margin: 0; }
+
+/* ---------------------------------------------------------------
+   アニメーション(rise/fade) + reduced motion 対応
+   --------------------------------------------------------------- */
+.bbs-hero,
+.bbs-search-form,
+.bbs-layout,
+.bbs-guide-intro,
+.bbs-conversation {
+  animation: bbs-rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.bbs-search-form { animation-delay: 0.06s; }
+.bbs-layout { animation-delay: 0.12s; }
+.bbs-thread-card { animation: bbs-thread-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@keyframes bbs-rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes bbs-thread-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* ---------------------------------------------------------------
+   レスポンシブ
+   --------------------------------------------------------------- */
+@media (max-width: 980px) {
+  .bbs-layout { grid-template-columns: 185px 1fr; }
+  .bbs-right { display: none; }
+  .bbs-detail-layout { grid-template-columns: 1fr; }
+  .bbs-side-panel { position: static; order: -1; }
+}
+
+@media (max-width: 740px) {
+  .bbs-header-inner { height: 64px; padding: 0 16px; gap: 14px; }
+  .bbs-nav { gap: 13px; font-size: 12px; }
+  .bbs-nav-cta span { display: none; }
+  .bbs-main { padding: 26px 16px 60px; }
+  .bbs-hero { display: block; }
+  .bbs-hero-title { font-size: 22px; }
+  .bbs-stats { margin-top: 12px; gap: 10px; font-size: 11px; }
+  .bbs-search-form { grid-template-columns: 1fr; }
+  .bbs-layout { grid-template-columns: 1fr; margin-top: 4px; }
+  .bbs-side { display: flex; align-items: center; gap: 4px; overflow: auto; padding: 9px; }
+  .bbs-side h2,
+  .bbs-side .bbs-side-rule,
+  .bbs-side .bbs-guide-link { display: none; }
+  .bbs-tabs { flex-direction: row; }
+  .bbs-tab { width: auto; white-space: nowrap; padding: 8px 10px; }
+  .bbs-tab-count { display: none; }
+  .bbs-thread-card-link { padding: 16px; grid-template-columns: 1fr; }
+  .bbs-thread-action { display: none; }
+  .bbs-detail-card,
+  .bbs-section { padding: 20px; }
+  .bbs-detail-title { font-size: 22px; }
+  .bbs-detail-actions { gap: 12px; }
+  .bbs-guide-layout { grid-template-columns: 1fr; gap: 20px; }
+  .bbs-toc { position: static; display: flex; gap: 4px; overflow: auto; padding: 8px; white-space: nowrap; }
+  .bbs-toc h2 { display: none; }
+  .bbs-steps { grid-template-columns: 1fr; }
+  .bbs-chat-form { grid-template-columns: 1fr; }
+  .bbs-chat-message,
+  .bbs-chat-message-own { max-width: 100%; }
+  .bbs-footer-inner { padding: 0; }
+}

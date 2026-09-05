@@ -34,6 +34,24 @@
   - 元サイトはXSS対策がなく履歴データに実際の攻撃ペイロードが混入していたため、
     `src/features/bbs.ts`の`escapeHtml()`で全てのユーザー入力(title/content/author)を
     確実にエスケープしてレンダリングしている(元データは一切変更・削除していない)。
+- **名言カードギャラリー**: `/gallery` で公開。LINEグループで「めいく」コマンドによって
+  生成された名言カードPNG(`quote_images`テーブル、グループによる絞り込みなし・全177
+  グループ分を1つのギャラリーとして表示 — ユーザーの明示指示による仕様)を、参考サイト
+  (miqx.jp/gallery相当)に近いダークなタイルグリッドで一覧表示する。
+  - `GET /gallery` — ギャラリー一覧(ページネーションあり)。画像自体(PNG)に引用文・
+    著者名がすでに描き込まれているため、HTML側でテキストキャプションを再掲しない
+    (旧デザインは同じ文言が二重表示されて「見た目的によくない」との指摘を受け、
+    ダークなテーマ + 16:9タイル + 投稿日時のみの薄いオーバーレイに全面リデザイン済み)。
+  - **管理者専用の削除機能**: `GET/POST /gallery/admin` でパスワードログインし、
+    ログイン中のみ各カードに削除ボタンが表示される(`POST /gallery/admin/delete/:id`)。
+    - 認証はCloudflareのシークレット`GALLERY_ADMIN_PASSWORD`と、有効期限付きの
+      HMAC-SHA256署名済みステートレスCookieトークン(`src/features/galleryAdmin.ts`)による
+      自前実装。セッション用のDBテーブルは追加していない(Workersはメモリ状態を
+      保持できないため、署名検証だけで完結する設計)。
+    - ログイン試行にはBBSと同じレート制限(`isRateLimited`/`touchRateLimit`、15秒間隔)を
+      `gallery-admin-login`スコープで再利用している。
+    - LINE Bot本体(`/webhook`・`quote.ts`・`imageGen.ts`)には一切関与しない、
+      `/gallery/admin*` 専用の完全に独立した認証・削除フロー。
 
 ## 実装していない機能(意図的に除外)
 - 危険人物リスト機能
@@ -66,6 +84,12 @@ GET  /bbs/:id          - 投稿詳細
 POST /bbs/:id/like     - いいね
 GET  /bbs/chat         - オープンチャット
 POST /bbs/chat         - オープンチャットへ投稿
+
+GET  /gallery                    - 名言カードギャラリー一覧(?page=N)
+GET  /gallery/admin               - 管理者ログインフォーム
+POST /gallery/admin               - 管理者ログイン(password)
+POST /gallery/admin/logout        - 管理者ログアウト
+POST /gallery/admin/delete/:id    - 名言カード削除(管理者ログイン中のみ、未ログインは401)
 ```
 
 ## アーキテクチャ
@@ -158,6 +182,9 @@ Cloudflare Workers上で本物のPNG画像を動的生成する仕組み。「Wo
   正しく`&lt;script&gt;...`とエスケープ表示されることも確認済み(生の`<script>`タグは
   0件、実際に危険を及ぼさない形で表示されている)。
 - **Tech Stack**: Hono + TypeScript + Cloudflare D1 + Cloudflare Workers + satori + @resvg/resvg-wasm
+- **ギャラリー管理者パスワード**: `GALLERY_ADMIN_PASSWORD`(Cloudflare Pages secret)。
+  ⚠️ 現在本番に設定されている値は動作確認用のテスト値。実運用パスワードにユーザー自身で
+  置き換える必要がある(上記セットアップ手順の5番参照)。
 - **Local dev**: `npm run build && pm2 start ecosystem.config.cjs` → `curl http://localhost:3000/`
 - **注意**: `wrangler.jsonc`に`rules`フィールドを追加してはいけない。Cloudflare Pagesの設定は
   `rules`フィールドを一切サポートしておらず、`wrangler pages deploy`自体が即座に失敗する
@@ -206,6 +233,17 @@ pm2 start ecosystem.config.cjs
 2. `npx wrangler d1 migrations apply line-group-bbs-db --remote` でマイグレーション適用
 3. `npx wrangler pages deploy dist --project-name line-group-bbs` でデプロイ
 4. LINE_CHANNEL_ACCESS_TOKEN / LINE_CHANNEL_SECRET を本番環境のsecretとして設定されているか確認
+5. ギャラリー管理者削除機能を使うには `GALLERY_ADMIN_PASSWORD` をCloudflareのsecretとして
+   設定すること(未設定の場合、`/gallery/admin`はログイン不可の503を返し、削除機能は
+   無効化されるだけで、LINE Bot本体の動作には影響しない)。
+   ```bash
+   printf '%s' 'ここに実際のパスワード' | npx wrangler pages secret put GALLERY_ADMIN_PASSWORD --project-name line-group-bbs
+   ```
+   **重要**: `wrangler pages secret put` はシークレットストアを即時更新するが、
+   **現在稼働中のデプロイには反映されない**。次の `wrangler pages deploy` を実行して
+   初めて新しい値が有効になる。また `echo "$VAR" | wrangler pages secret put ...` のように
+   パイプすると末尾に改行が付与されパスワード不一致の原因になるため、必ず `printf '%s'` を
+   使うこと。
 
 ## 既知の残課題
 - LINE実機での「名言:」コマンド最終確認が未実施(本番の `/debug/simulate` と
