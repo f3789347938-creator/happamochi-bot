@@ -380,9 +380,15 @@ const HEADER_BG = '#1b5e20'
 const FRAME_BG = '#5d4037' // wood-ish frame around the board
 const BOARD_BG = '#1b5e20'
 const CELL_BG = '#2e7d32'
-const CELL_LEGAL_BG = '#43a047'
 const GRID_LINE = '#1b5e20'
-const HINT_DOT = '#ffffffb0'
+// Legal-move highlight color now matches whichever color is about to move,
+// so it's visually obvious whose turn it is just from the board tint —
+// dark/charcoal tiles when black is to move, light tiles when white is to
+// move. The hint dot color is flipped to match (dark dot on light tiles).
+const CELL_LEGAL_BG_BLACK = '#455a64'
+const CELL_LEGAL_BG_WHITE = '#cfd8dc'
+const HINT_DOT_ON_BLACK = '#ffffffb0'
+const HINT_DOT_ON_WHITE = '#333333b0'
 const CELL_PX = 42
 const STONE_PX = 34
 const STONE_PAD = (CELL_PX - STONE_PX) / 2
@@ -390,8 +396,10 @@ const STONE_PAD = (CELL_PX - STONE_PX) / 2
 const BLACK_GRADIENT = { type: 'linearGradient', angle: '135deg', startColor: '#5a5a5a', endColor: '#050505' }
 const WHITE_GRADIENT = { type: 'linearGradient', angle: '135deg', startColor: '#ffffff', endColor: '#cfcfcf' }
 
-function renderCell(cell: Cell, legal: boolean, r: number, c: number): Record<string, any> {
+function renderCell(cell: Cell, legal: boolean, turn: Color, r: number, c: number): Record<string, any> {
   if (cell === '.') {
+    const legalBg = turn === 'B' ? CELL_LEGAL_BG_BLACK : CELL_LEGAL_BG_WHITE
+    const hintDot = turn === 'B' ? HINT_DOT_ON_BLACK : HINT_DOT_ON_WHITE
     const box: Record<string, any> = {
       type: 'box',
       layout: 'vertical',
@@ -404,13 +412,13 @@ function renderCell(cell: Cell, legal: boolean, r: number, c: number): Record<st
               width: '10px',
               height: '10px',
               cornerRadius: '5px',
-              backgroundColor: HINT_DOT,
+              backgroundColor: hintDot,
             },
           ]
         : [],
       width: `${CELL_PX}px`,
       height: `${CELL_PX}px`,
-      backgroundColor: legal ? CELL_LEGAL_BG : CELL_BG,
+      backgroundColor: legal ? legalBg : CELL_BG,
       borderColor: GRID_LINE,
       borderWidth: '1px',
       justifyContent: 'center',
@@ -454,7 +462,7 @@ function renderBoard(game: OthelloGame): Record<string, any> {
     const cells: Record<string, any>[] = []
     for (let c = 0; c < SIZE; c++) {
       const cell = game.board[idx(r, c)] as Cell
-      cells.push(renderCell(cell, legal.has(`${r},${c}`), r, c))
+      cells.push(renderCell(cell, legal.has(`${r},${c}`), game.turn, r, c))
     }
     rows.push({ type: 'box', layout: 'horizontal', contents: cells, spacing: 'none' })
   }
@@ -582,6 +590,15 @@ export function buildOthelloMessage(game: OthelloGame, note?: string): LineMessa
 
   bodyContents.push(renderBoardFrame(game))
 
+  // Header only shows "whose turn" while a game is actually in progress —
+  // for waiting/finished it stays the plain "オセロ" title (the status text
+  // right under the scoreboard already covers those cases).
+  let headerText = '🎲 オセロ'
+  if (game.status === 'playing') {
+    const turnName = (game.turn === 'B' ? game.black_name : game.white_name) ?? (game.turn === 'B' ? '黒番' : '白番')
+    headerText = `${turnName}の番です`
+  }
+
   return {
     type: 'flex',
     altText: 'オセロ',
@@ -594,7 +611,7 @@ export function buildOthelloMessage(game: OthelloGame, note?: string): LineMessa
         backgroundColor: HEADER_BG,
         paddingAll: 'md',
         contents: [
-          { type: 'text', text: '🎲 オセロ', color: '#ffffff', weight: 'bold', size: 'md', align: 'center' },
+          { type: 'text', text: headerText, color: '#ffffff', weight: 'bold', size: 'md', align: 'center' },
         ],
       },
       body: {
