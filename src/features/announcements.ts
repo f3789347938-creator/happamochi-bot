@@ -1,25 +1,19 @@
-// Reusable "one-time announcement" delivery system.
+// Reusable "announcement / notice card" system.
 //
-// Same push-free pattern as birthdays/fortune/ranking/othello-timeout: no
-// cron, no push — instead, every incoming group message triggers a lazy
-// check ("has this group already received announcement X? if not, queue
-// it"), and the queued Flex message rides along on the very next Reply
-// call via `enqueueBroadcast` / `flushQueueOnReply`.
-//
-// Exactly-once-per-group delivery is guaranteed by the UNIQUE `dedup_key`
-// column on `pending_broadcasts` (see migrations/0002_broadcast_queue.sql):
-// `announcement_<announcementId>_<groupId>`. Once a row with that key
-// exists, `enqueueBroadcast`'s `INSERT OR IGNORE` becomes a no-op forever,
-// regardless of how many more messages arrive in that group.
+// Delivered on-demand via a text command (see routeCommand in index.tsx)
+// -- NOT a one-time auto-send. Every time someone sends the command, they
+// get the current announcement again (Reply API only, ordinary message ->
+// reply, exactly like every other command). Intentionally simple: no
+// queue, no dedup, no lazy check -- just render + reply.
 //
 // To add a NEW announcement in the future: just append an entry to the
-// ANNOUNCEMENTS array below (new unique `id`, title, body, optional
-// button/date/highlightWord). No other code changes are needed — the
-// "notice card" Flex design, automatic Carousel split when the body text
-// is too long for one card, dedup, and group targeting are all handled
-// generically by this file.
-import type { LineEnv, LineMessage } from '../lib/line'
-import { enqueueBroadcast } from '../lib/line'
+// ANNOUNCEMENTS array below (new unique id, title, body, optional
+// button/date/highlightWord). No other code changes are needed -- the
+// notice-card Flex design and automatic Carousel split (when the body
+// text is too long for one card) are handled generically by this file.
+// targetGroupIds can still be used to limit which groups the command
+// responds in, e.g. while testing a new announcement.
+import type { LineMessage } from '../lib/line'
 
 // --- Content model -------------------------------------------------------
 
@@ -72,7 +66,7 @@ export const ANNOUNCEMENTS: AnnouncementContent[] = [
       '・対局中はヘッダーに手番の人を表示するように変更\n' +
       '・タップできるマスの色が手番（黒・白）ごとに変化',
     button: { label: 'ヘルプを見る', action: { type: 'message', label: 'ヘルプを見る', text: 'ヘルプ' } },
-    // Test run: only send in "botテスト" for now. Remove targetGroupIds
+    // Test run: only respond in "botテスト" for now. Remove targetGroupIds
     // (or list more group IDs) once the user confirms it looks good.
     targetGroupIds: [BOT_TEST_GROUP_ID],
   },
@@ -229,21 +223,16 @@ export function buildAnnouncementMessage(content: AnnouncementContent): LineMess
   }
 }
 
-// --- Lazy check-and-enqueue (called from handleMessageEvent) -----------
+// --- Command handler (called from routeCommand) -------------------------
 
-export async function checkAndQueueAnnouncements(env: LineEnv, groupId: string) {
-  for (const announcement of ANNOUNCEMENTS) {
-    if (announcement.targetGroupIds && !announcement.targetGroupIds.includes(groupId)) {
-      continue
-    }
-
-    const dedupKey = `announcement_${announcement.id}_${groupId}`
-
-    const already = await env.DB.prepare(`SELECT 1 FROM pending_broadcasts WHERE dedup_key = ?`)
-      .bind(dedupKey)
-      .first()
-    if (already) continue
-
-    await enqueueBroadcast(env, groupId, 'announcement', [buildAnnouncementMessage(announcement)], dedupKey)
-  }
+// Returns the Flex message(s) for the latest announcement targeting this
+// group, or [] if there's nothing to show (no announcements registered,
+// or the only one(s) are restricted to other groups via targetGroupIds).
+export function getLatestAnnouncementMessages(groupId: string | null): LineMessage[] {
+  const visible = ANNOUNCEMENTS.filter(
+    (a) => !a.targetGroupIds || (groupId !== null && a.targetGroupIds.includes(groupId))
+  )
+  if (visible.length === 0) return []
+  const latest = visible[visible.length - 1]
+  return [buildAnnouncementMessage(latest)]
 }
