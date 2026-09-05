@@ -19,7 +19,21 @@
     背景 + 四隅に半透明の装飾引用符 + 中央揃えの引用文 + `— 表示名`。透かしなし。
 - **ウェルカムメッセージ**: 新メンバー参加時の歓迎メッセージ、`ウェルカムオン/オフ`、`ウェルカムメッセージ設定 [本文]` でカスタマイズ
 - **タグ機能**: `タグ追加/削除/一覧 [タグ名]`
-- **称号システム**: `称号一覧`、`称号装備 [称号名]`、`称号確認`(既存の本番データ: 5種のSSR称号、付与済み2件を引き継ぎ)
+- **称号システム**: `称号一覧`、`称号装備 [称号名]`、`称号確認`(既存の本番データ: 5種のSSR称号、付与済み2件を引き継ぎ)。
+  `grantTitle()`の実際のトリガーは「オセロで3勝したら`絶対王者`を自動付与」(下記オセロ戦績と連動)。
+- **オセロ**: `オセロ開始/参加/終了`に加え、`オセロ戦績`で自分の累計勝敗数(勝ち/負け/引き分け)を確認可能。
+  対局が決着した瞬間に`othello_records`テーブルへ記録され、3勝目で称号が付与される。
+- **LINEグループ募集掲示板 (BBS) + オープンチャット**: `/bbs` で公開。かつて存在した(現在は削除された)
+  同名サイトのD1データ(`threads`/`chat_messages`、2025-11-09〜のデータ、40件+35件)をそのまま
+  引き継いで再構築した、認証不要の公開Webページ(LINEのコマンドではない)。
+  - `GET /bbs` — 募集一覧(カテゴリ絞り込み: 恋愛/趣味/その他、固定表示対応)
+  - `GET /bbs/new` / `POST /bbs/new` — 新規投稿フォーム/投稿
+  - `GET /bbs/:id` — 投稿詳細(閲覧数は表示ごとに+1)
+  - `POST /bbs/:id/like` — いいね
+  - `GET /bbs/chat` / `POST /bbs/chat` — オープンチャット一覧/投稿
+  - 元サイトはXSS対策がなく履歴データに実際の攻撃ペイロードが混入していたため、
+    `src/features/bbs.ts`の`escapeHtml()`で全てのユーザー入力(title/content/author)を
+    確実にエスケープしてレンダリングしている(元データは一切変更・削除していない)。
 
 ## 実装していない機能(意図的に除外)
 - 危険人物リスト機能
@@ -30,13 +44,28 @@
 ヘルプ                          - コマンド一覧を表示
 運勢 / 今日の運勢                - 今日の星座運勢を表示
 星座登録 [星座名]                - 星座を登録
+星座登録解除                     - 星座の登録を解除
 誕生日登録 [月]/[日]             - 誕生日を登録
+誕生日登録解除                   - 誕生日の登録を解除
 取り消し通知オン / オフ          - 削除通知の切替
 ウェルカムオン / オフ            - 新メンバー歓迎メッセージの切替
 ウェルカムメッセージ設定 [本文]   - カスタム歓迎文を設定
+ウェルカムメッセージ解除         - カスタム歓迎文を解除してデフォルトに戻す
 名言:[テキスト]                  - 名言カードを生成
 タグ追加/削除/一覧 [タグ名]
 称号一覧 / 称号装備 [称号名] / 称号確認
+オセロ開始 / 参加 / 終了 / 戦績
+```
+
+## 公開Webページ(LINEコマンドではない)
+```
+GET  /bbs              - LINEグループ募集掲示板 一覧(?category=love|hobby|other)
+GET  /bbs/new          - 新規投稿フォーム
+POST /bbs/new          - 新規投稿
+GET  /bbs/:id          - 投稿詳細
+POST /bbs/:id/like     - いいね
+GET  /bbs/chat         - オープンチャット
+POST /bbs/chat         - オープンチャットへ投稿
 ```
 
 ## アーキテクチャ
@@ -106,8 +135,14 @@ Cloudflare Workers上で本物のPNG画像を動的生成する仕組み。「Wo
   unsent_messages, unsend_notification_messages, unsend_restore_settings, unsend_debug_logs,
   push_api_logs, webhook_debug_logs, member_birthdays, daily_fortune_sent, user_zodiac_signs,
   daily_zodiac_fortunes, group_rankings, weekly_ranking_sends, group_welcome_settings, tags,
-  group_tags, quote_images, title_master, user_titles, pending_broadcasts(新規)
-- **除外テーブル(未使用)**: danger_list, user_gacha_count, gacha_history
+  group_tags, quote_images, title_master, user_titles, pending_broadcasts, othello_games,
+  othello_records(新規), threads(新規/BBS), chat_messages(新規/BBS)
+- **除外テーブル(意図的・危険人物リスト/ガチャ機能ごと除外)**: danger_list, user_gacha_count, gacha_history
+- **未使用テーブル(存在するが現行src/では未参照・データは保持のまま放置)**: group_rankings,
+  conversation_states, member_update_progress, line_friends, unsend_notification_messages。
+  いずれも過去の別機能・別実装が使っていた形跡があるテーブルで、削除するとデータが失われるため
+  「データを絶対に破壊しない」方針上ドロップはしない。現時点では休眠のままでよいと判断し、
+  再利用するかどうかはユーザーの今後の指示待ち。
 - 全マイグレーションは `CREATE TABLE IF NOT EXISTS` で記述されており、既存の本番データを破壊しない。
 
 ## デプロイ状況
@@ -118,6 +153,12 @@ Cloudflare Workers上で本物のPNG画像を動的生成する仕組み。「Wo
   本番でも正しく新デザインの`PNG image data`を返すことを確認済み。デプロイID
   `33911a30-867d-4536-8ac5-4e5571fb3a38`、コミット`f248b4f`)。
 - **Tech Stack**: Hono + TypeScript + Cloudflare D1 + Cloudflare Workers + satori + @resvg/resvg-wasm
+- **⚠️ 2026-09-05時点の状態**: 上記のBBS再構築とPhase5監査Fix#1/3/4/5/6/7はローカルで実装・
+  動作確認・コミット済みだが、**本番(Cloudflare Pages)へのデプロイはまだ実施していない**。
+  上記「Production URL」の内容は前回デプロイ時点(コミット`f248b4f`)のものを指しており、
+  BBSやオセロ戦績・各種解除コマンドはまだ本番に反映されていない。次回作業時は
+  `npx wrangler d1 migrations apply line-group-bbs-db`(本番, `--remote`なし=リモート実行)→
+  `npm run build`→`wrangler pages deploy dist --project-name line-group-bbs`の順で反映すること。
 - **Local dev**: `npm run build && pm2 start ecosystem.config.cjs` → `curl http://localhost:3000/`
 - **注意**: `wrangler.jsonc`に`rules`フィールドを追加してはいけない。Cloudflare Pagesの設定は
   `rules`フィールドを一切サポートしておらず、`wrangler pages deploy`自体が即座に失敗する
