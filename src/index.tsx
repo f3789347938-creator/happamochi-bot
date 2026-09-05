@@ -29,6 +29,20 @@ import { setWelcomeSetting } from './features/welcome'
 import { equipTitle, getEquippedTitle, listUserTitles } from './features/titles'
 import { startGame as startOthello, joinGame as joinOthello, endGame as endOthello, applyMove as applyOthelloMove, buildOthelloMessage, checkAndQueueOthelloTimeout } from './features/othello'
 import { getLatestAnnouncementMessages } from './features/announcements'
+import {
+  listThreads,
+  getThread,
+  incrementThreadViews,
+  likeThread,
+  createThread,
+  listChatMessages,
+  postChatMessage,
+  renderThreadsListPage,
+  renderThreadDetailPage,
+  renderNewThreadPage,
+  renderChatPage,
+  CATEGORIES,
+} from './features/bbs'
 
 type Bindings = LineEnv
 
@@ -64,6 +78,67 @@ app.get('/quote-image/:id', async (c) => {
       'Cache-Control': 'public, max-age=31536000, immutable',
     },
   })
+})
+
+// ─── LINEグループ募集掲示板 (BBS) + オープンチャット ───
+// Public, unauthenticated GET/POST website reading from (and preserving)
+// the historical `threads` / `chat_messages` tables — see features/bbs.ts.
+// This is a real website, NOT a LINE command; no Reply/Push API involved.
+app.get('/bbs', async (c) => {
+  const category = c.req.query('category') || null
+  const validCategory = category && CATEGORIES.some((x) => x.value === category) ? category : null
+  const threads = await listThreads(c.env, validCategory)
+  return c.html(renderThreadsListPage(threads, validCategory))
+})
+
+app.get('/bbs/new', (c) => {
+  const category = c.req.query('category') || null
+  return c.html(renderNewThreadPage(category))
+})
+
+app.post('/bbs/new', async (c) => {
+  const body = await c.req.parseBody()
+  const category = String(body.category ?? '').trim()
+  const title = String(body.title ?? '').trim()
+  const content = String(body.content ?? '').trim()
+  const author = String(body.author ?? '').trim()
+
+  if (!CATEGORIES.some((x) => x.value === category) || !title || !content || !author) {
+    return c.html(renderNewThreadPage(category || null, '入力内容を確認してください。'), 400)
+  }
+
+  const id = await createThread(c.env, { category, title, content, author })
+  return c.redirect(`/bbs/${encodeURIComponent(id)}`)
+})
+
+app.get('/bbs/chat', async (c) => {
+  const messages = await listChatMessages(c.env)
+  return c.html(renderChatPage(messages))
+})
+
+app.post('/bbs/chat', async (c) => {
+  const body = await c.req.parseBody()
+  const content = String(body.content ?? '').trim()
+  const author = String(body.author ?? '').trim()
+  if (content && author) {
+    await postChatMessage(c.env, content, author)
+  }
+  return c.redirect('/bbs/chat')
+})
+
+app.get('/bbs/:id', async (c) => {
+  const id = c.req.param('id')
+  const thread = await getThread(c.env, id)
+  if (!thread) return c.notFound()
+  await incrementThreadViews(c.env, id)
+  return c.html(renderThreadDetailPage(thread))
+})
+
+app.post('/bbs/:id/like', async (c) => {
+  const id = c.req.param('id')
+  const likes = await likeThread(c.env, id)
+  if (likes === null) return c.notFound()
+  return c.redirect(`/bbs/${encodeURIComponent(id)}`)
 })
 
 // ─── Debug: simulate a text command WITHOUT touching LINE ───
