@@ -28,6 +28,7 @@ import { addTagToGroup, listGroupTags, removeTagFromGroup } from './features/tag
 import { setWelcomeSetting } from './features/welcome'
 import { equipTitle, getEquippedTitle, listUserTitles } from './features/titles'
 import { startGame as startOthello, joinGame as joinOthello, endGame as endOthello, applyMove as applyOthelloMove, buildOthelloMessage, checkAndQueueOthelloTimeout } from './features/othello'
+import { checkAndQueueAnnouncements } from './features/announcements'
 
 type Bindings = LineEnv
 
@@ -240,6 +241,12 @@ async function handleMessageEvent(env: Bindings, event: any, baseUrl: string) {
     // trigger that notices an abandoned in-progress game and announces its
     // timeout — there's no cron/push to do this proactively.
     await checkAndQueueOthelloTimeout(env, groupId)
+    // One-time announcements (e.g. "here's what changed today") — each
+    // announcement is delivered at most once per group, ever, via the
+    // dedup_key UNIQUE constraint on pending_broadcasts. See
+    // features/announcements.ts to add new announcements or adjust which
+    // groups they target.
+    await checkAndQueueAnnouncements(env, groupId)
   }
 
   if (message.type !== 'text' || !replyToken) {
