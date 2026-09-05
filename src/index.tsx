@@ -27,7 +27,7 @@ import { saveQuote, buildQuoteImageMessage } from './features/quote'
 import { addTagToGroup, listGroupTags, removeTagFromGroup } from './features/tags'
 import { setWelcomeSetting } from './features/welcome'
 import { equipTitle, getEquippedTitle, listUserTitles } from './features/titles'
-import { startGame as startOthello, joinGame as joinOthello, endGame as endOthello, applyMove as applyOthelloMove, buildOthelloMessage } from './features/othello'
+import { startGame as startOthello, joinGame as joinOthello, endGame as endOthello, applyMove as applyOthelloMove, buildOthelloMessage, checkAndQueueOthelloTimeout } from './features/othello'
 
 type Bindings = LineEnv
 
@@ -236,6 +236,10 @@ async function handleMessageEvent(env: Bindings, event: any, baseUrl: string) {
     await checkAndQueueBirthdays(env, groupId)
     await checkAndQueueGroupFortune(env, groupId)
     await checkAndQueueWeeklyRanking(env, groupId)
+    // Any message (not just othello commands or board taps) can be the
+    // trigger that notices an abandoned in-progress game and announces its
+    // timeout — there's no cron/push to do this proactively.
+    await checkAndQueueOthelloTimeout(env, groupId)
   }
 
   if (message.type !== 'text' || !replyToken) {
@@ -280,6 +284,11 @@ async function handlePostback(env: Bindings, event: any) {
     const row = Number(othelloMatch[1])
     const col = Number(othelloMatch[2])
     const result = await applyOthelloMove(env, groupId, userId, row, col)
+    // "silent" rejections (same user re-tapping within 5s of their last
+    // rejected tap, e.g. "相手の番です。" spam) intentionally send NOTHING —
+    // not even to flush the broadcast queue, since a tap isn't a real
+    // message and shouldn't be the trigger for unrelated queued notices.
+    if (!result.ok && result.silent) return
     const message = result.ok
       ? buildOthelloMessage(result.game, result.note)
       : { type: 'text', text: result.reason }
@@ -428,7 +437,12 @@ async function routeCommand(env: Bindings, ctx: CommandCtx): Promise<LineMessage
   if (text === 'オセロ開始' && ctx.isGroup && ctx.groupId && ctx.userId) {
     const result = await startOthello(env, ctx.groupId, ctx.userId, ctx.displayName)
     if (!result.ok) return [{ type: 'text', text: result.reason }]
-    return [buildOthelloMessage(result.game)]
+    // If starting this game just cleaned up a previous game that had timed
+    // out from 5+ minutes of inactivity, mention that before the new board.
+    const messages: LineMessage[] = []
+    if (result.timeoutMessage) messages.push({ type: 'text', text: result.timeoutMessage })
+    messages.push(buildOthelloMessage(result.game))
+    return messages
   }
 
   if (text === 'オセロ参加' && ctx.isGroup && ctx.groupId && ctx.userId) {

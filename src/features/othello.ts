@@ -9,7 +9,7 @@
 // Push API involved anywhere.
 //
 // One active game per group (group_id is the primary key of othello_games).
-import type { LineEnv, LineMessage } from '../lib/line'
+import { enqueueBroadcast, type LineEnv, type LineMessage } from '../lib/line'
 
 const SIZE = 8
 type Cell = '.' | 'B' | 'W'
@@ -24,6 +24,23 @@ export interface OthelloGame {
   white_user_id: string | null
   white_name: string | null
   status: 'waiting' | 'playing' | 'finished'
+  last_move_at: string | null
+  last_reject_user_id: string | null
+  last_reject_at: string | null
+}
+
+const TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes of inactivity while "playing"
+const REJECT_SUPPRESS_MS = 5 * 1000 // suppress repeated rejection replies for 5s
+
+// SQLite CURRENT_TIMESTAMP is "YYYY-MM-DD HH:MM:SS" (UTC, no timezone
+// suffix). The Workers runtime always runs in UTC, so `new Date(str)` /
+// `Date.now()` are directly comparable — same pattern already used in
+// unsend.ts (formatJst).
+function msSince(sqliteTimestamp: string | null): number | null {
+  if (!sqliteTimestamp) return null
+  const then = new Date(sqliteTimestamp).getTime()
+  if (Number.isNaN(then)) return null
+  return Date.now() - then
 }
 
 function idx(r: number, c: number) {
@@ -120,13 +137,54 @@ export async function getGame(env: LineEnv, groupId: string): Promise<OthelloGam
   return row ?? null
 }
 
+// Checks whether `game` (assumed status === 'playing') has been inactive for
+// 5+ minutes since the last move. If so, deletes it and returns a
+// user-facing timeout message. Callers should run this before treating an
+// existing "playing" game as still alive, so a stale game never blocks
+// starting a new one or accepting moves forever.
+async function timeoutIfStale(
+  env: LineEnv,
+  game: OthelloGame
+): Promise<{ timedOut: true; message: string } | { timedOut: false }> {
+  if (game.status !== 'playing') return { timedOut: false }
+  const elapsed = msSince(game.last_move_at)
+  if (elapsed === null || elapsed < TIMEOUT_MS) return { timedOut: false }
+
+  await env.DB.prepare(`DELETE FROM othello_games WHERE group_id = ?`).bind(game.group_id).run()
+  return {
+    timedOut: true,
+    message: '⏱ 5分以上操作がなかったため、オセロはタイムアウトで終了しました。',
+  }
+}
+
+// Lazily called whenever ANY message arrives in a group (not just othello
+// commands, and not just a tap on the board) — no cron / push available, so
+// this is how we notice a long-abandoned "playing" game and announce it.
+// Queues the timeout notice via the push-free broadcast queue so it rides
+// along on whatever reply this same incoming message triggers next.
+export async function checkAndQueueOthelloTimeout(env: LineEnv, groupId: string) {
+  const game = await getGame(env, groupId)
+  if (!game) return
+  const result = await timeoutIfStale(env, game)
+  if (!result.timedOut) return
+  await enqueueBroadcast(env, groupId, 'othello_timeout', [{ type: 'text', text: result.message }])
+}
+
 export async function startGame(
   env: LineEnv,
   groupId: string,
   userId: string,
   displayName: string | null
-): Promise<{ ok: true; game: OthelloGame } | { ok: false; reason: string }> {
-  const existing = await getGame(env, groupId)
+): Promise<{ ok: true; game: OthelloGame; timeoutMessage?: string } | { ok: false; reason: string }> {
+  let existing = await getGame(env, groupId)
+  let timeoutMessage: string | undefined
+  if (existing) {
+    const result = await timeoutIfStale(env, existing)
+    if (result.timedOut) {
+      timeoutMessage = result.message
+      existing = null
+    }
+  }
   if (existing && existing.status !== 'finished') {
     return { ok: false, reason: '既にオセロが進行中です。「オセロ終了」で終了できます。' }
   }
@@ -140,11 +198,14 @@ export async function startGame(
     white_user_id: null,
     white_name: null,
     status: 'waiting',
+    last_move_at: null,
+    last_reject_user_id: null,
+    last_reject_at: null,
   }
 
   await env.DB.prepare(
-    `INSERT INTO othello_games (group_id, board, turn, black_user_id, black_name, white_user_id, white_name, status)
-     VALUES (?, ?, ?, ?, ?, NULL, NULL, 'waiting')
+    `INSERT INTO othello_games (group_id, board, turn, black_user_id, black_name, white_user_id, white_name, status, last_move_at, last_reject_user_id, last_reject_at)
+     VALUES (?, ?, ?, ?, ?, NULL, NULL, 'waiting', NULL, NULL, NULL)
      ON CONFLICT(group_id) DO UPDATE SET
        board = excluded.board,
        turn = excluded.turn,
@@ -153,12 +214,15 @@ export async function startGame(
        white_user_id = NULL,
        white_name = NULL,
        status = 'waiting',
+       last_move_at = NULL,
+       last_reject_user_id = NULL,
+       last_reject_at = NULL,
        updated_at = CURRENT_TIMESTAMP`
   )
     .bind(groupId, game.board, game.turn, userId, displayName)
     .run()
 
-  return { ok: true, game }
+  return { ok: true, game, timeoutMessage }
 }
 
 export async function joinGame(
@@ -169,11 +233,13 @@ export async function joinGame(
 ): Promise<{ ok: true; game: OthelloGame } | { ok: false; reason: string }> {
   const game = await getGame(env, groupId)
   if (!game) return { ok: false, reason: '進行中のオセロがありません。「オセロ開始」で開始できます。' }
+  // "waiting" games are never subject to the 5-min timeout (see
+  // timeoutIfStale), so no staleness check is needed here.
   if (game.status !== 'waiting') return { ok: false, reason: '今は参加を受け付けていません。' }
   if (game.black_user_id === userId) return { ok: false, reason: '自分自身とは対局できません。他の人が「オセロ参加」と送ってください。' }
 
   await env.DB.prepare(
-    `UPDATE othello_games SET white_user_id = ?, white_name = ?, status = 'playing', updated_at = CURRENT_TIMESTAMP
+    `UPDATE othello_games SET white_user_id = ?, white_name = ?, status = 'playing', last_move_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
      WHERE group_id = ?`
   )
     .bind(userId, displayName, groupId)
@@ -199,27 +265,67 @@ export async function endGame(
   return { ok: true }
 }
 
+// Records that `userId` just got a rejection reply, so we can suppress
+// repeats of the SAME kind of noisy tap (wrong turn / not a participant /
+// illegal cell) from the SAME user within REJECT_SUPPRESS_MS. Real progress
+// (a successful move) always clears this via the board update below.
+async function recordReject(env: LineEnv, groupId: string, userId: string) {
+  await env.DB.prepare(
+    `UPDATE othello_games SET last_reject_user_id = ?, last_reject_at = CURRENT_TIMESTAMP WHERE group_id = ?`
+  )
+    .bind(userId, groupId)
+    .run()
+}
+
+function isSuppressed(game: OthelloGame, userId: string): boolean {
+  if (game.last_reject_user_id !== userId) return false
+  const elapsed = msSince(game.last_reject_at)
+  return elapsed !== null && elapsed < REJECT_SUPPRESS_MS
+}
+
 // Applies a move by `userId` at (row, col). Handles turn validation, illegal
 // move rejection, auto-pass when the next player has no legal move, and
 // game-end detection (finished status kept until the next "オセロ開始").
+//
+// `ok: false, silent: true` means: don't send anything back at all — this is
+// the same user re-tapping within 5s of their last rejected tap (e.g. "相手
+// の番です。" spam from someone repeatedly tapping cells that aren't theirs).
 export async function applyMove(
   env: LineEnv,
   groupId: string,
   userId: string,
   row: number,
   col: number
-): Promise<{ ok: true; game: OthelloGame; note?: string } | { ok: false; reason: string }> {
-  const game = await getGame(env, groupId)
-  if (!game) return { ok: false, reason: '進行中のオセロがありません。' }
-  if (game.status !== 'playing') return { ok: false, reason: 'このオセロは対局中ではありません。' }
+): Promise<
+  | { ok: true; game: OthelloGame; note?: string }
+  | { ok: false; reason: string; silent?: boolean }
+> {
+  let game = await getGame(env, groupId)
+  if (!game) return { ok: false, reason: '進行中のオセロがありません。', silent: true }
+
+  const timeoutResult = await timeoutIfStale(env, game)
+  if (timeoutResult.timedOut) {
+    return { ok: false, reason: timeoutResult.message }
+  }
+
+  if (game.status !== 'playing') {
+    return { ok: false, reason: 'このオセロは対局中ではありません。', silent: true }
+  }
 
   const myColor: Color | null =
     userId === game.black_user_id ? 'B' : userId === game.white_user_id ? 'W' : null
-  if (!myColor) return { ok: false, reason: 'この対局の参加者ではありません。' }
-  if (myColor !== game.turn) return { ok: false, reason: '相手の番です。' }
+
+  const reject = async (reason: string) => {
+    if (isSuppressed(game!, userId)) return { ok: false as const, reason, silent: true }
+    await recordReject(env, groupId, userId)
+    return { ok: false as const, reason }
+  }
+
+  if (!myColor) return reject('この対局の参加者ではありません。')
+  if (myColor !== game.turn) return reject('相手の番です。')
 
   const flips = flipsForMove(game.board, myColor, row, col)
-  if (!flips) return { ok: false, reason: 'そこには置けません。' }
+  if (!flips) return reject('そこには置けません。')
 
   let board = applyMoveOnBoard(game.board, myColor, row, col)
   let turn = opponent(myColor)
@@ -236,7 +342,9 @@ export async function applyMove(
   }
 
   await env.DB.prepare(
-    `UPDATE othello_games SET board = ?, turn = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE group_id = ?`
+    `UPDATE othello_games SET board = ?, turn = ?, status = ?, last_move_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP,
+       last_reject_user_id = NULL, last_reject_at = NULL
+     WHERE group_id = ?`
   )
     .bind(board, turn, status, groupId)
     .run()
