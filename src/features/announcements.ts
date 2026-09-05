@@ -70,6 +70,28 @@ export const ANNOUNCEMENTS: AnnouncementContent[] = [
     // (or list more group IDs) once the user confirms it looks good.
     targetGroupIds: [BOT_TEST_GROUP_ID],
   },
+  {
+    id: 'notice_2026_09_05_openchat',
+    title: 'オープンチャット開設のお知らせ！',
+    body:
+      '・雑談用の「オープンチャット」を試験的に開設\n' +
+      '・誰でも自由に参加OK、気軽に顔を出してね\n' +
+      '・荒らし対策のため運営が随時ようすを見てます',
+    highlightWord: 'オープンチャット',
+    button: { label: 'ヘルプを見る', action: { type: 'message', label: 'ヘルプを見る', text: 'ヘルプ' } },
+    targetGroupIds: [BOT_TEST_GROUP_ID],
+  },
+  {
+    id: 'notice_2026_09_05_ranking',
+    title: '月間ランキングのお知らせ！',
+    body:
+      '・今月のオセロ対戦数ランキングを集計中\n' +
+      '・上位入賞者はヘッダーでお祝い予定\n' +
+      '・エントリー方法は特になし、遊べば自動集計',
+    highlightWord: 'ランキング',
+    button: { label: 'ヘルプを見る', action: { type: 'message', label: 'ヘルプを見る', text: 'ヘルプ' } },
+    targetGroupIds: [BOT_TEST_GROUP_ID],
+  },
 ]
 
 // --- Flex rendering ("notice card" design) ------------------------------
@@ -152,8 +174,13 @@ function buildBubble(
   content: AnnouncementContent,
   bodyPage: string,
   pageIndex: number,
-  pageCount: number
+  pageCount: number,
+  forceCardStyle: boolean = false
 ): Record<string, any> {
+  // The "(1/2)" style page suffix only makes sense when THIS announcement's
+  // own body was split into multiple pages -- it's unrelated to whether this
+  // bubble also happens to be riding alongside OTHER announcements' bubbles
+  // in a bundled multi-announcement Carousel (see buildAnnouncementsMessage).
   const titleText = pageCount > 1 ? `${content.title}（${pageIndex + 1}/${pageCount}）` : content.title
   const dateText = content.date ?? todayJst()
   const button = content.button ?? {
@@ -161,12 +188,16 @@ function buildBubble(
     action: { type: 'message' as const, label: 'ヘルプを見る', text: 'ヘルプ' },
   }
 
-  // Fixed height (+ bottom-pinned date via filler) is only needed when this
-  // bubble is part of a multi-card Carousel — that's the only situation
-  // where mismatched heights between cards would actually be visible. For
-  // a lone card (the common case), let it size naturally to its content;
-  // forcing a fixed height there just stretches it out with empty space.
-  const isCarousel = pageCount > 1
+  // Fixed height (+ bottom-pinned date via filler) is needed whenever this
+  // bubble ends up riding in a multi-card Carousel -- whether that's because
+  // ONE long announcement got auto-split into multiple pages (pageCount > 1),
+  // or because MULTIPLE separate announcements are being bundled together
+  // into one Carousel (forceCardStyle, passed in by the caller in that case).
+  // Either way, every card in the same Carousel must match heights, or the
+  // bubbles end up visibly different sizes. For a lone card (the common
+  // case), leave it to size naturally to its content instead; forcing a
+  // fixed height there just stretches it out with empty space.
+  const isCarousel = pageCount > 1 || forceCardStyle
 
   const card: Record<string, any> = {
     type: 'box',
@@ -251,27 +282,58 @@ function omitLabelAndType(action: FlexAction): Record<string, any> {
 }
 
 export function buildAnnouncementMessage(content: AnnouncementContent): LineMessage {
-  const pages = splitBody(content.body)
-  const bubbles = pages.map((page, idx) => buildBubble(content, page, idx, pages.length))
-  const contents = bubbles.length === 1 ? bubbles[0] : { type: 'carousel', contents: bubbles }
+  return buildAnnouncementsMessage([content])
+}
+
+// Bundles ONE OR MORE distinct announcements into a single Flex message.
+//
+// - 1 announcement, body fits on one card -> a lone bubble (unchanged from
+//   before: no page suffix, natural height).
+// - 1 announcement, body too long for one card -> that announcement's own
+//   "(1/2)"/"(2/2)"... auto-split Carousel (unchanged from before).
+// - 2+ announcements -> ALL of their bubbles (including any auto-split
+//   pages) are flattened into ONE Carousel, each still labeled with its own
+//   title (+ "(n/m)" only if that particular announcement itself was split),
+//   so multiple distinct notices can be swiped through together -- matching
+//   how the reference bot bundles multiple different announcements into one
+//   Carousel rather than one announcement's pages.
+//
+// A Carousel can only directly contain `bubble` objects (not nested
+// carousels), so this always flattens to a single flat bubble array.
+export function buildAnnouncementsMessage(contents: AnnouncementContent[]): LineMessage {
+  const perAnnouncementBubbles = contents.map((content) => {
+    const pages = splitBody(content.body)
+    return pages.map((page, idx) => ({ content, page, idx, pageCount: pages.length }))
+  })
+  const flat = perAnnouncementBubbles.flat()
+  // Once there's more than one bubble in the final Carousel -- whether from
+  // multiple announcements, one split announcement, or a mix of both --
+  // every bubble needs the fixed-height "card style" so they all match.
+  const forceCardStyle = flat.length > 1
+  const bubbles = flat.map(({ content, page, idx, pageCount }) =>
+    buildBubble(content, page, idx, pageCount, forceCardStyle)
+  )
+
+  const flexContents = bubbles.length === 1 ? bubbles[0] : { type: 'carousel', contents: bubbles }
+  const altText = contents.length === 1 ? contents[0].title : contents.map((c) => c.title).join(' / ')
 
   return {
     type: 'flex',
-    altText: content.title,
-    contents,
+    altText,
+    contents: flexContents,
   }
 }
 
 // --- Command handler (called from routeCommand) -------------------------
 
-// Returns the Flex message(s) for the latest announcement targeting this
-// group, or [] if there's nothing to show (no announcements registered,
-// or the only one(s) are restricted to other groups via targetGroupIds).
+// Returns the Flex message(s) for the announcement(s) targeting this group,
+// bundled into a single Carousel when there's more than one, or [] if
+// there's nothing to show (no announcements registered, or the only one(s)
+// are restricted to other groups via targetGroupIds).
 export function getLatestAnnouncementMessages(groupId: string | null): LineMessage[] {
   const visible = ANNOUNCEMENTS.filter(
     (a) => !a.targetGroupIds || (groupId !== null && a.targetGroupIds.includes(groupId))
   )
   if (visible.length === 0) return []
-  const latest = visible[visible.length - 1]
-  return [buildAnnouncementMessage(latest)]
+  return [buildAnnouncementsMessage(visible)]
 }
