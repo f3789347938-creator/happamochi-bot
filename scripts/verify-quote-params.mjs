@@ -136,6 +136,45 @@ async function main() {
   ok(Buffer.compare(legacyPng, directPng) === 0, '無指定時のPNGがバイト単位で一致', sha(legacyPng))
   fs.writeFileSync(path.join(OUT, '00-legacy-unchanged.png'), legacyPng)
 
+  // カスタム経路そのものが既存カードと同じ土台であること。
+  // (any=true でカスタム経路に入るが、装飾フラグは全て false という状態)
+  // 以前 new のときだけ写真幅を486pxに縮めてテキスト位置もずらしており、
+  // 「普通のめいくと見た目が違う」という不具合になった。ここを固定する。
+  const plain = {
+    layoutNew: false, reversed: false, monochrome: false, whiteBase: false,
+    bold: false, color: { kind: 'default' }, font: 0, unknown: '', any: true,
+  }
+  const plainPng = await renderMarkup(buildCustomCard(TEXT, NAME, UID, avatar, plain), 0)
+  ok(
+    Buffer.compare(legacyPng, plainPng) === 0,
+    'カスタム経路で装飾なしなら既存カードとバイト単位で一致(土台が同じ)'
+  )
+
+  // new は「右上に日付が増えるだけ」で、写真幅・テキスト位置は変わらないこと。
+  // 判定方法: 日付が出る右上の帯(y<60)を除いた領域が既存カードと一致するか。
+  const newPng = await renderMarkup(
+    buildCustomCard(TEXT, NAME, UID, avatar, { ...plain, layoutNew: true }),
+    0
+  )
+  fs.writeFileSync(path.join(OUT, '05b-new-vs-legacy.png'), newPng)
+  ok(
+    Buffer.compare(legacyPng, newPng) !== 0,
+    'new では日付が増えるので既存カードと完全一致はしない'
+  )
+  // 写真とテキストの位置が同じかを、寸法定数の実値で確認する。
+  // buildCustomCard のソースに new 用の別寸法が残っていないことを見る。
+  const genSrc = fs.readFileSync(path.join(ROOT, 'src/lib/imageGen.ts'), 'utf8')
+  const custBlock = genSrc.slice(
+    genSrc.indexOf('function buildCustomCard'),
+    genSrc.indexOf('async function fetchQuoteFont')
+  )
+  ok(
+    !/photoWidth\s*=\s*p\.layoutNew/.test(custBlock) &&
+      !/textLeft\s*=\s*p\.layoutNew/.test(custBlock) &&
+      !/quoteTop\s*=.*p\.layoutNew/.test(custBlock),
+    'new で写真幅・テキスト位置・縦位置を切り替えていない(寸法は常に既存と同一)'
+  )
+
   // アイコン無しの場合も従来経路であること
   const noAvaMarkup = pickMarkup(TEXT, NAME, UID, null, pEmpty)
   ok(

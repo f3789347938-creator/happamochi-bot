@@ -496,10 +496,15 @@ function buildCustomCard(
   // レイアウト寸法。
   //   standard: 既存カードと同じ 写真640 / フェード182 / テキスト中心899.5
   //   new     : 写真を狭めて(38%)テキスト領域を広く取る。MiqXの実測比率。
-  const photoWidth = p.layoutNew ? 486 : 640
-  const fadeWidth = p.layoutNew ? 150 : 182
-  const textLeft = p.layoutNew ? 470 : 559
-  const textWidth = p.layoutNew ? 790 : 681
+  // レイアウト寸法は new でも変えない。
+  // 以前 new のときだけ写真を486pxに縮めてテキスト位置もずらしていたが、
+  // 「普通のめいくと見た目が違う」という不具合になった。
+  // new が変えるのは「右上に日付を出す」ことだけで、
+  // 写真幅・フェード幅・テキストの位置と大きさは常に既存カードと同一にする。
+  const photoWidth = 640
+  const fadeWidth = 182
+  const textLeft = 559
+  const textWidth = 681
 
   const bg = p.whiteBase ? '#FFFFFF' : '#000000'
   const fadeTo = p.whiteBase ? '255,255,255' : '0,0,0'
@@ -576,7 +581,8 @@ function buildCustomCard(
   }
 
   // --- 引用文 ---
-  const quoteTop = avatarDataUrl ? (p.layoutNew ? 236 : 249) : 250
+  // 縦位置も既存カードと完全に同じ(引用文249 / 著者385 / userId424)。
+  const quoteTop = avatarDataUrl ? 249 : 250
   children.push({
     type: 'div',
     props: {
@@ -601,7 +607,7 @@ function buildCustomCard(
   })
 
   // --- 著者名 ---
-  const authorTop = avatarDataUrl ? (p.layoutNew ? 380 : 385) : 400
+  const authorTop = avatarDataUrl ? 385 : 400
   children.push({
     type: 'div',
     props: {
