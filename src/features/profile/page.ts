@@ -75,6 +75,7 @@ export async function renderPersonalRankingPage(
   <section class="pf-hero" id="personal-ranking-hero">
     <h1 class="pf-hero-title">個人ランキング</h1>
     <p class="pf-hero-sub">累計EXPの多い順です。全${total.toLocaleString('ja-JP')}人。</p>
+    <p class="pf-hero-links"><a class="pf-pager-btn" href="/ranking">グループ別ランキングへ</a></p>
   </section>
 
   <section class="pf-section" id="personal-ranking-list">

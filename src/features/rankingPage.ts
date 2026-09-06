@@ -185,6 +185,10 @@ export function renderRankingPage(state: RankingPageState): string {
         <p class="rk-side-note">発言実績のある人数で判定しています。</p>
       </div>
       <div class="rk-side-block">
+        <a href="/ranking/personal" class="rk-rules-link"><i class="fa-solid fa-user" aria-hidden="true"></i>個人ランキング</a>
+        <p class="rk-side-note">累計EXPの多い順。グループをまたいだ個人の順位です。</p>
+      </div>
+      <div class="rk-side-block">
         <a href="/ranking/rules" class="rk-rules-link"><i class="fa-solid fa-circle-info" aria-hidden="true"></i>集計ルール</a>
       </div>
     </aside>
