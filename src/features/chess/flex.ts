@@ -275,7 +275,16 @@ function header(statusLabel: string, imageBase: string): Record<string, any> {
     paddingAll: 'md',
     alignItems: 'center',
     contents: [
-      { type: 'image', url: `${imageBase}/wn.png`, width: '18px', flex: 0, aspectMode: 'fit' },
+      // image コンポーネントに width は存在しない(LINE側で
+      // 「unknown field /header/contents/0/width」として 400 になる)。
+      // 幅を決めたい場合は box でラップして box に width を持たせる。
+      {
+        type: 'box',
+        layout: 'vertical',
+        width: '18px',
+        flex: 0,
+        contents: [{ type: 'image', url: `${imageBase}/wn.png`, size: 'full', aspectMode: 'fit' }],
+      },
       { type: 'text', text: 'CHESS', color: IVORY, weight: 'bold', size: 'md', flex: 1, margin: 'sm' },
       {
         type: 'box',
@@ -488,7 +497,15 @@ export function buildPromotionCard(
               alignItems: 'center',
               action: { type: 'postback', data: tokenFor(p) },
               contents: [
-                { type: 'image', url: `${imageBase}/${prefix}${p}.png`, width: '28px', aspectMode: 'fit' },
+                // image に width は指定できないので box でラップする
+                {
+                  type: 'box',
+                  layout: 'vertical',
+                  width: '28px',
+                  contents: [
+                    { type: 'image', url: `${imageBase}/${prefix}${p}.png`, size: 'full', aspectMode: 'fit' },
+                  ],
+                },
                 { type: 'text', text: label, size: 'xxs', color: IVORY, align: 'center', margin: 'sm', wrap: true },
               ],
             })),

@@ -12,11 +12,18 @@
       "alignItems": "center",
       "contents": [
         {
-          "type": "image",
-          "url": "http://localhost:3000/static/chess/wn.png",
+          "type": "box",
+          "layout": "vertical",
           "width": "18px",
           "flex": 0,
-          "aspectMode": "fit"
+          "contents": [
+            {
+              "type": "image",
+              "url": "https://line-group-bbs.pages.dev/static/chess/wn.png",
+              "size": "full",
+              "aspectMode": "fit"
+            }
+          ]
         },
         {
           "type": "text",
@@ -95,14 +102,21 @@
               "alignItems": "center",
               "action": {
                 "type": "postback",
-                "data": "cp|badea2222cc945f9|0|139b133a|q"
+                "data": "cp|e8b3e94d8c4446db|0|f7e6e71c|q"
               },
               "contents": [
                 {
-                  "type": "image",
-                  "url": "http://localhost:3000/static/chess/wq.png",
+                  "type": "box",
+                  "layout": "vertical",
                   "width": "28px",
-                  "aspectMode": "fit"
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "https://line-group-bbs.pages.dev/static/chess/wq.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ]
                 },
                 {
                   "type": "text",
@@ -124,14 +138,21 @@
               "alignItems": "center",
               "action": {
                 "type": "postback",
-                "data": "cp|badea2222cc945f9|0|139b133a|r"
+                "data": "cp|e8b3e94d8c4446db|0|f7e6e71c|r"
               },
               "contents": [
                 {
-                  "type": "image",
-                  "url": "http://localhost:3000/static/chess/wr.png",
+                  "type": "box",
+                  "layout": "vertical",
                   "width": "28px",
-                  "aspectMode": "fit"
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "https://line-group-bbs.pages.dev/static/chess/wr.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ]
                 },
                 {
                   "type": "text",
@@ -153,14 +174,21 @@
               "alignItems": "center",
               "action": {
                 "type": "postback",
-                "data": "cp|badea2222cc945f9|0|139b133a|b"
+                "data": "cp|e8b3e94d8c4446db|0|f7e6e71c|b"
               },
               "contents": [
                 {
-                  "type": "image",
-                  "url": "http://localhost:3000/static/chess/wb.png",
+                  "type": "box",
+                  "layout": "vertical",
                   "width": "28px",
-                  "aspectMode": "fit"
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "https://line-group-bbs.pages.dev/static/chess/wb.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ]
                 },
                 {
                   "type": "text",
@@ -182,14 +210,21 @@
               "alignItems": "center",
               "action": {
                 "type": "postback",
-                "data": "cp|badea2222cc945f9|0|139b133a|n"
+                "data": "cp|e8b3e94d8c4446db|0|f7e6e71c|n"
               },
               "contents": [
                 {
-                  "type": "image",
-                  "url": "http://localhost:3000/static/chess/wn.png",
+                  "type": "box",
+                  "layout": "vertical",
                   "width": "28px",
-                  "aspectMode": "fit"
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "https://line-group-bbs.pages.dev/static/chess/wn.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ]
                 },
                 {
                   "type": "text",

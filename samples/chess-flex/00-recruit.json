@@ -12,11 +12,18 @@
       "alignItems": "center",
       "contents": [
         {
-          "type": "image",
-          "url": "http://localhost:3000/static/chess/wn.png",
+          "type": "box",
+          "layout": "vertical",
           "width": "18px",
           "flex": 0,
-          "aspectMode": "fit"
+          "contents": [
+            {
+              "type": "image",
+              "url": "https://line-group-bbs.pages.dev/static/chess/wn.png",
+              "size": "full",
+              "aspectMode": "fit"
+            }
+          ]
         },
         {
           "type": "text",
@@ -94,7 +101,7 @@
               "paddingAll": "md",
               "action": {
                 "type": "postback",
-                "data": "cj|2119498a789a472f"
+                "data": "cj|7ffd5985f1774bcf"
               },
               "contents": [
                 {
@@ -115,7 +122,7 @@
               "paddingAll": "md",
               "action": {
                 "type": "postback",
-                "data": "cx|2119498a789a472f"
+                "data": "cx|7ffd5985f1774bcf"
               },
               "contents": [
                 {

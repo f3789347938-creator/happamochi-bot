@@ -110,7 +110,18 @@ async function move(groupId, to) {
 let fail = 0
 const rows = []
 
-function record(name, file, message, desc) {
+// 駒画像のURLはリクエスト元のオリジンから組み立てるため、ローカル生成では
+// http://localhost:3000 になる。LINEは画像URLにHTTPSしか許可しないので
+// (検証APIが "invalid uri scheme" を返す)、サンプルとしては実機と同じ
+// 本番HTTPSドメインに置き換えて保存する。実機ではWebhookのオリジンが
+// 本番ドメインになるため、この置換後の形が実際に送られる形と一致する。
+const PROD_ORIGIN = process.env.CHESS_PROD_ORIGIN || 'https://line-group-bbs.pages.dev'
+function toProdUrls(message) {
+  return JSON.parse(JSON.stringify(message).split(BASE).join(PROD_ORIGIN))
+}
+
+function record(name, file, rawMessage, desc) {
+  const message = toProdUrls(rawMessage)
   const json = JSON.stringify(message.contents)
   const bytes = Buffer.byteLength(json, 'utf8')
   fs.writeFileSync(path.join(OUT_DIR, file), JSON.stringify(message, null, 2))
