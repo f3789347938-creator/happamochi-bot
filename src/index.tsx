@@ -14,17 +14,7 @@ import { handleUnsend } from './features/unsend'
 import { cacheGroupMessage, touchGroupMember, ensureGroupMetadata, markGroupLeft, getGroupMessage } from './features/groupTracking'
 import { buildWelcomeMessages } from './features/welcome'
 import { registerBirthday, unregisterBirthday, checkAndQueueBirthdays } from './features/birthday'
-import {
-  getOrCreateDailyFortune,
-  formatFortuneText,
-  registerZodiacSign,
-  unregisterZodiacSign,
-  todayJst,
-  ZODIAC_SIGNS,
-  // 自動配信は停止中。関数自体は features/fortune.ts に残してあり、
-  // 呼び出しを1行戻せば再開できる(handleMessageEvent 内のコメント参照)。
-  checkAndQueueGroupFortune,
-} from './features/fortune'
+// 運勢機能は廃止したため features/fortune.ts の import は無い。
 import { checkAndQueueWeeklyRanking } from './features/ranking'
 import { saveQuote, buildQuoteImageMessage } from './features/quote'
 import { parseQuoteParams, describeParams, isPureParamString, FONT_LABELS } from './lib/quoteParams'
@@ -712,12 +702,7 @@ async function handleMessageEvent(env: Bindings, event: any, baseUrl: string) {
 
     // Lazily check push-free scheduled-ish features (no cron available).
     await checkAndQueueBirthdays(env, groupId)
-    // 運勢の自動配信は停止した。毎日グループの発言に勝手に割り込んで
-    // うっとうしいという指摘があったため。
-    // 「運勢」コマンドで自分から見る機能はそのまま残してある
-    // (routeCommand の '運勢' / '今日の運勢' を参照)。
-    // 再開したい場合はこの1行を戻すだけでよい:
-    //   await checkAndQueueGroupFortune(env, groupId)
+    // 運勢の自動配信は廃止した(機能ごと削除)。
     await checkAndQueueWeeklyRanking(env, groupId)
     // 未送信のお知らせをグループごとに1回だけ配信する。
     // キューに積むだけなので Push API は使わず、実送信はこの発言への
@@ -907,32 +892,14 @@ async function routeCommand(env: Bindings, ctx: CommandCtx): Promise<LineMessage
     return messages
   }
 
-  if (text === '運勢' || text === '今日の運勢') {
-    if (!ctx.userId) return []
-    const sign = await env.DB.prepare(`SELECT zodiac_sign FROM user_zodiac_signs WHERE user_id = ?`)
-      .bind(ctx.userId)
-      .first<{ zodiac_sign: string }>()
-    if (!sign) {
-      return [{ type: 'text', text: `星座が未登録です。「星座登録 蟹座」のように送ってください。\n(${ZODIAC_SIGNS.join('/')})` }]
-    }
-    const f = await getOrCreateDailyFortune(env, todayJst(), sign.zodiac_sign)
-    return f ? [{ type: 'text', text: formatFortuneText(f) }] : []
-  }
-
-  if (text === '星座登録解除' && ctx.userId) {
-    const removed = await unregisterZodiacSign(env, ctx.userId)
-    return [{ type: 'text', text: removed ? '星座の登録を解除しました' : '星座は登録されていません' }]
-  }
-
-  const zodiacMatch = text.match(/^星座登録\s*(.+)$/)
-  if (zodiacMatch && ctx.userId) {
-    const sign = zodiacMatch[1].trim()
-    if (!ZODIAC_SIGNS.includes(sign)) {
-      return [{ type: 'text', text: `不明な星座です。次のいずれかを送ってください:\n${ZODIAC_SIGNS.join('/')}` }]
-    }
-    await registerZodiacSign(env, ctx.userId, sign)
-    return [{ type: 'text', text: `${sign}を登録しました` }]
-  }
+  // 運勢機能(「運勢」「今日の運勢」「星座登録」「星座登録解除」)は削除した。
+  // 毎日の自動配信がグループの会話に割り込んでうっとうしいという指摘を受け、
+  // まず自動配信を止め、続いて機能そのものを廃止した。
+  // ・src/features/fortune.ts は削除済み
+  // ・DBのテーブル(user_zodiac_signs / daily_fortunes / daily_fortune_sent)は
+  //   既存データを壊さない方針に従い残してある。特に daily_fortune_sent は
+  //   誕生日機能が「birthday_<groupId>」というキーで流用しているため、
+  //   消すと誕生日のお祝いが毎回重複送信されるようになる。絶対に消さない。
 
   const birthdayMatch = text.match(/^誕生日登録\s*(\d{1,2})\/(\d{1,2})$/)
   if (birthdayMatch && ctx.isGroup && ctx.groupId && ctx.userId) {
@@ -1174,11 +1141,6 @@ const HELP_TEXT = `葉っぱもち Bot ヘルプ
 チェス - 対局相手を募集(グループ内の2人で対局)
 盤面 - 現在の盤面を再送
 チェス ヘルプ - 操作方法と採用ルール
-
-【占い】
-星座登録 [星座名] - 星座を登録
-星座登録解除 - 星座の登録を解除
-運勢 - 今日の運勢を確認
 
 【誕生日】
 誕生日登録 [月]/[日] - 誕生日を登録(自動でお祝い通知)
