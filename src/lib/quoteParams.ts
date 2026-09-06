@@ -260,6 +260,27 @@ export function baseTextColor(p: QuoteParams): string {
   return '#ffffff'
 }
 
+/**
+ * 「装飾指定として丸ごと解釈できたか」を返す。
+ *
+ * なぜ必要か:
+ *   「めいく虹」のようにスペース無しを許すと、返信モードの判定が
+ *   「めいくで作った」「めいくしたい」「めいくって何」といった
+ *   ふつうの会話にも一致してしまう(実測で確認)。
+ *   そこで、めいくの直後に続く文字列が「全て装飾として解釈できた場合」
+ *   だけ装飾付きコマンドと見なし、解釈できない文字が残っていれば
+ *   コマンドではない=無反応にする。
+ *
+ *   空文字列(=「めいく」だけ)は装飾なしのコマンドなので true。
+ */
+export function isPureParamString(raw: string | null | undefined): boolean {
+  const s = (raw ?? '').trim()
+  if (!s) return true
+  const p = parseQuoteParams(s)
+  // 何も認識できなかった、または認識できない文字が残った → 装飾ではない
+  return p.any && p.unknown === ''
+}
+
 /** 解析結果を人が読める形にする(確認メッセージ用) */
 export function describeParams(p: QuoteParams): string {
   const parts: string[] = []

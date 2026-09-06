@@ -25,7 +25,7 @@ import {
 } from './features/fortune'
 import { checkAndQueueWeeklyRanking } from './features/ranking'
 import { saveQuote, buildQuoteImageMessage } from './features/quote'
-import { parseQuoteParams, describeParams, FONT_LABELS } from './lib/quoteParams'
+import { parseQuoteParams, describeParams, isPureParamString, FONT_LABELS } from './lib/quoteParams'
 import { addTagToGroup, listGroupTags, removeTagFromGroup } from './features/tags'
 import { setWelcomeSetting, clearWelcomeMessage } from './features/welcome'
 import { equipTitle, getEquippedTitle, listUserTitles } from './features/titles'
@@ -986,7 +986,7 @@ async function routeCommand(env: Bindings, ctx: CommandCtx): Promise<LineMessage
   // card must use ITS author's name/icon and ITS text — not the replier's.
   // 装飾の一覧。返信モードの判定より先に置く必要がある
   // (「めいく 装飾」が返信モードのパラメータとして食われないようにする)。
-  if (text === 'めいく 装飾' || text === 'めいく装飾' || text === 'めいく ヘルプ') {
+  if (/^めいく[ 　]*(装飾|ヘルプ|help)$/i.test(text)) {
     const fontList = Object.entries(FONT_LABELS)
       .map(([n, l]) => `${n}:${l}`)
       .join(' / ')
@@ -996,8 +996,9 @@ async function routeCommand(env: Bindings, ctx: CommandCtx): Promise<LineMessage
         text:
           '名言カードの装飾\n\n' +
           '【書き方】\n' +
-          'めいく [装飾]:[テキスト]\n' +
-          '返信のときは「めいく [装飾]」\n' +
+          'めいく[装飾]:[テキスト]\n' +
+          '返信のときは「めいく[装飾]」\n' +
+          'スペースはあってもなくてもOK\n' +
           '装飾は続けて書けます（例: newbold虹7）\n\n' +
           '【見た目】\n' +
           'bold … 文字を太字\n' +
@@ -1013,19 +1014,30 @@ async function routeCommand(env: Bindings, ctx: CommandCtx): Promise<LineMessage
           '【フォント 1〜12】\n' +
           fontList +
           '\n\n【例】\n' +
-          'めいく bold虹:やったー\n' +
-          'めいく new7:静かな夜\n' +
-          'めいく whi#0088FF:おはよう\n' +
-          'めいく revmono （他人の発言に返信して）',
+          'めいく虹:やったー\n' +
+          'めいくbold虹:やったー\n' +
+          'めいくnew7:静かな夜\n' +
+          'めいくwhi#0088FF:おはよう\n' +
+          'めいくrevmono （他人の発言に返信して）',
       },
     ]
   }
 
-  // 返信モード: 「めいく」または「めいく <パラメータ>」を他人の発言への
-  // 返信として送る。パラメータ部分(bold, mono, 虹, 3 など)は任意で、
+  // 返信モード: 「めいく」または「めいく<装飾>」を他人の発言への
+  // 返信として送る。装飾部分(bold, mono, 虹, 3 など)は任意で、
   // 無指定なら従来と完全に同じカードになる。
-  const replyMake = text.match(/^めいく(?:[ 　]+(.+))?$/s)
-  if (replyMake && ctx.isGroup && ctx.groupId && ctx.quotedMessageId) {
+  // スペースは任意 —「めいく虹」「めいく 虹」のどちらでも同じ。
+  // スペース無しを許すと「めいくで作った」「めいくしたい」のような
+  // ふつうの会話にも一致してしまうため、続く文字列が丸ごと装飾として
+  // 解釈できた場合(または何も続かない場合)だけコマンドとして扱う。
+  const replyMake = text.match(/^めいく[ 　]*(.*)$/s)
+  if (
+    replyMake &&
+    isPureParamString(replyMake[1]) &&
+    ctx.isGroup &&
+    ctx.groupId &&
+    ctx.quotedMessageId
+  ) {
     const original = await getGroupMessage(env, ctx.groupId, ctx.quotedMessageId)
     if (!original) {
       return [{ type: 'text', text: '元のメッセージが見つかりませんでした(古すぎるか、記録前の発言かもしれません)' }]
@@ -1043,11 +1055,23 @@ async function routeCommand(env: Bindings, ctx: CommandCtx): Promise<LineMessage
     return [buildQuoteImageMessage(ctx.baseUrl, imageId)]
   }
 
-  // 通常モード: 「めいく:テキスト」または「めいく <パラメータ>:テキスト」。
-  const quoteMatch = text.match(/^めいく(?:[ 　]+([^:：]*))?[:：]\s*(.+)$/s)
+  // 通常モード: 「めいく:テキスト」「めいく<装飾>:テキスト」。
+  // スペースは任意 —「めいく虹:あ」「めいく 虹:あ」のどちらでも同じ。
+  // 装飾は最初の「:」までの部分だけを見る(本文に「:」が含まれても、
+  //   最初の1個だけを区切りにする)。
+  // 装飾部分と区切り文字を別々に捕獲する。区切り文字を捕獲しておくのは、
+  // 装飾として解釈できなかったときに元の文字列を正しく復元するため
+  // (「めいくで作った:test」の本文は「で作った:test」でなければならない)。
+  const quoteMatch = text.match(/^めいく[ 　]*([^:：]*)([:：])\s*(.+)$/s)
   if (quoteMatch && ctx.isGroup && ctx.groupId && ctx.userId) {
-    const params = parseQuoteParams(quoteMatch[1] ?? null)
-    const quoteText = quoteMatch[2].trim()
+    // 「:」の前の文字列が丸ごと装飾として解釈できたときだけ装飾と見なす。
+    // 解釈できない文字が混じっている場合は装飾ではなく本文の一部として
+    // 扱う(勝手に装飾を当てない)。
+    const rawParam = quoteMatch[1] ?? ''
+    const sep = quoteMatch[2]
+    const isParam = isPureParamString(rawParam)
+    const params = parseQuoteParams(isParam ? rawParam : null)
+    const quoteText = (isParam ? quoteMatch[3] : `${rawParam}${sep}${quoteMatch[3]}`).trim()
     const imageId = await saveQuote(
       env,
       ctx.groupId,
@@ -1165,8 +1189,9 @@ const HELP_TEXT = `葉っぱもち Bot ヘルプ
 めいく:[テキスト] - 名言カードを生成
 (他人のメッセージに「返信(リプライ)」で「めいく」だけ送ると、その人の名言カードを生成)
 
-めいく [装飾]:[テキスト] のように装飾を足せます
-返信のときは「めいく [装飾]」と送ります
+めいく[装飾]:[テキスト] のように装飾を足せます
+返信のときは「めいく[装飾]」と送ります
+(スペースはあってもなくてもOK)
 ・見た目: bold(太字) rev(アイコン反転) mono(アイコン白黒)
 　　　　　whi(白ベース) new(新レイアウト・日付付き)
 ・色: 虹 / 赤 橙 黄 緑 青 藍 紫 桃 水 白 黒 金 銀
@@ -1174,8 +1199,8 @@ const HELP_TEXT = `葉っぱもち Bot ヘルプ
 ・フォント: 1〜12
 　1ゴシック 2太 3細 4中 5極太 6極細
 　7明朝 8明朝太 9明朝細 10明朝極太 11明朝中 12等幅
-続けて書けます 例)「めいく newbold虹7:こんにちは」
-「めいく 装飾」で一覧を確認できます
+続けて書けます 例)「めいくnewbold虹7:こんにちは」
+「めいく装飾」で一覧を確認できます
 
 【オセロ】
 オセロ開始 - オセロを開始(自分が黒番になる)
