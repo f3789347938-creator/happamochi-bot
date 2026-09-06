@@ -274,3 +274,141 @@ pm2 start ecosystem.config.cjs
   429エラーは過去のレガシー版ボット(本リビルド以前)で発生していたものであり、
   現行コードでは構造的に発生し得ない。Push API経路は完全にReply API便乗方式
   (`pending_broadcasts`)に置き換わっている。
+
+---
+
+## チェス（グループ対局）
+
+LINEグループ内で2人が交互に指せるチェスです。駒をタップして動かします。
+盤面は Flex Message で描画し、64マスすべてが個別のタップ領域になっています。
+
+### 使い方
+
+| 操作 | 内容 |
+|---|---|
+| `チェス` | 対局相手の募集カードを出す（対局中なら現在の盤面を再送） |
+| `盤面` | 現在の盤面を再送する |
+| `チェス ヘルプ` | ルールと操作の説明を出す |
+
+1. 誰かが「チェス」と送ると募集カードが出ます（**10分で期限切れ**）
+2. **別の人**が「対局に参加」を押すと対局開始。白黒はランダムです
+3. 手番の人が自分の駒をタップ → 移動先（`•`＝移動 / 金枠＝駒を取る）をタップで確定
+4. 駒を選んだだけでは手番は進みません。「選び直す」で未確定の選択だけ解除できます
+
+### 対応しているルール
+
+通常移動 / 駒の取得 / **キャスリング** / **アンパッサン** / チェック /
+チェックメイト / ステイルメイト / ポーン昇格（Q・R・B・N から選択）/
+同一局面3回・50手ルール・戦力不足による自動引き分け / 投了（本人確認あり）/
+引き分け提案（相手の承諾で成立）/ 再戦（白黒を入れ替えて再開）
+
+時間制限はありません。厳密な大会ルールへの完全準拠はうたっていません。
+
+### 設計上の注意点
+
+- **1グループにつき募集中／対局中は1件**。`chess_games` の
+  `WHERE status IN ('waiting','playing')` を条件にした部分UNIQUEインデックスで
+  DBレベルに強制しています（同時タップでも重複作成されません）
+- **サーバー再起動で対局は壊れません**。局面は `current_fen` に加えて
+  `start_fen` + 棋譜（SAN配列）を保存しており、再生して復元します。
+  そのため同一局面3回の判定も再起動をまたいで有効です
+- **古いカードのタップは無効化されます**。各カードには生成時の `version` が
+  埋め込まれ、指し手の確定は `UPDATE ... WHERE version = ?` の条件付き更新
+  （楽観ロック）で行うため、古い盤面カードを押しても状態は変わりません
+- **Webhookの再送は1回だけ処理されます**。`webhookEventId` を
+  `chess_processed_events` に記録して重複を弾きます
+- **操作者の本人確認は必ず `source.userId`** から行います。
+  postbackのデータに入っている値は信用しません
+  （他人の投了・他人の駒の移動ができないため）
+- **Push APIは一切使いません**。すべて Reply API です
+
+### 駒画像のライセンス
+
+`assets/chess-svg/*.svg` の12種類（白黒 × ポーン・ナイト・ビショップ・ルーク・
+クイーン・キング）は**本プロジェクトで自作したもの**です。外部の駒画像
+（Wikimedia の Cburnett 版など）は使用していません。
+`public/static/chess/*.png` はこのSVGを `scripts/gen-chess-png.mjs` で
+PNGに変換した成果物です。再生成は次のコマンドで行えます。
+
+```bash
+node scripts/gen-chess-png.mjs
+```
+
+### 検証
+
+```bash
+# 自動テスト（正常系・異常系 90項目）
+node scripts/chess-test.mjs
+
+# 各状態のFlex JSONサンプル出力とサイズ検証
+node scripts/chess-flex-samples.mjs
+```
+
+Flex Message の上限は 30,000 バイトです。本実装の最大は **23,112 バイト**
+（引き分け提案中の盤面）で、約 6.9KB の余裕があります。
+サンプルと計測結果は [`samples/chess-flex/README.md`](./samples/chess-flex/README.md) にあります。
+
+---
+
+## セットアップ（LINE側の設定）
+
+### 1. 環境変数
+
+```bash
+cp .env.example .dev.vars   # ローカル開発用（コミット禁止）
+```
+
+本番は wrangler の secret として設定します。**secret は次回のデプロイ以降に反映されます。**
+
+```bash
+printf '%s' "$LINE_CHANNEL_ACCESS_TOKEN" | \
+  npx wrangler pages secret put LINE_CHANNEL_ACCESS_TOKEN --project-name line-group-bbs
+```
+
+### 2. LINE Developers コンソールの設定
+
+Messaging API チャネルで以下を設定します。**どれか1つでも漏れると動きません。**
+
+| 項目 | 設定値 | 理由 |
+|---|---|---|
+| Webhook URL | `https://line-group-bbs.pages.dev/webhook` | |
+| Webhookの利用 | **オン** | オフだとイベントが1件も届きません |
+| Webhookの再送 | オン推奨 | 一時的な失敗を救済できます。重複はBOT側で弾きます |
+| 応答メッセージ（自動応答） | **オフ** | オンだと定型文がBOTの返信と二重に出ます |
+| あいさつメッセージ | 任意 | |
+| **グループ・複数人チャットへの参加を許可する** | **オン** | **オフだとグループに追加できません** |
+
+### 3. グループへの追加手順
+
+1. LINEアプリでグループを開く → 「招待」→ BOTを検索して追加
+   （または BOTを友だち追加した状態で、トーク画面から「グループに招待」）
+2. 追加に成功すると、BOTが参加のあいさつを送ります
+3. 送られない場合は上記2の「グループ・複数人チャットへの参加を許可する」を確認してください
+
+### 4. 動作確認（ヘルスチェック）
+
+```bash
+# サイトが生きているか
+curl -s -o /dev/null -w "%{http_code}\n" https://line-group-bbs.pages.dev/
+
+# 駒画像が配信されているか（200 / image/png であること）
+curl -s -o /dev/null -w "%{http_code} %{content_type}\n" \
+  https://line-group-bbs.pages.dev/static/chess/wq.png
+
+# 署名なしのWebhookが正しく拒否されるか（401 であること）
+curl -s -o /dev/null -w "%{http_code}\n" -X POST \
+  https://line-group-bbs.pages.dev/webhook -d '{}'
+```
+
+グループで「チェス」と送って募集カードが出れば、LINE側の設定は完了です。
+
+### 5. ローカル開発
+
+```bash
+npm install
+cp .env.example .dev.vars           # 値を書き換える
+npx wrangler d1 migrations apply line-group-bbs-db --local
+npm run build
+pm2 start ecosystem.config.cjs      # http://localhost:3000
+pm2 logs --nostream
+```

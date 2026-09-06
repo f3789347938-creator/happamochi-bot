@@ -1,0 +1,1477 @@
+{
+  "type": "flex",
+  "altText": "チェス[終局] 白(白) vs 黒(黒)",
+  "contents": {
+    "type": "bubble",
+    "size": "giga",
+    "header": {
+      "type": "box",
+      "layout": "horizontal",
+      "backgroundColor": "#122D28",
+      "paddingAll": "md",
+      "alignItems": "center",
+      "contents": [
+        {
+          "type": "image",
+          "url": "http://localhost:3000/static/chess/wn.png",
+          "width": "18px",
+          "flex": 0,
+          "aspectMode": "fit"
+        },
+        {
+          "type": "text",
+          "text": "CHESS",
+          "color": "#F3EEDB",
+          "weight": "bold",
+          "size": "md",
+          "flex": 1,
+          "margin": "sm"
+        },
+        {
+          "type": "box",
+          "layout": "vertical",
+          "flex": 0,
+          "cornerRadius": "999px",
+          "borderColor": "#D9B45B",
+          "borderWidth": "1px",
+          "paddingAll": "xs",
+          "paddingStart": "md",
+          "paddingEnd": "md",
+          "contents": [
+            {
+              "type": "text",
+              "text": "終局",
+              "color": "#D9B45B",
+              "size": "xxs",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    "body": {
+      "type": "box",
+      "layout": "vertical",
+      "backgroundColor": "#122D28",
+      "paddingAll": "md",
+      "spacing": "sm",
+      "contents": [
+        {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "sm",
+          "alignItems": "center",
+          "paddingAll": "sm",
+          "backgroundColor": "#1B3F38",
+          "cornerRadius": "md",
+          "borderColor": "#1B3F38",
+          "borderWidth": "1px",
+          "contents": [
+            {
+              "type": "box",
+              "layout": "vertical",
+              "width": "32px",
+              "height": "32px",
+              "cornerRadius": "999px",
+              "backgroundColor": "#779677",
+              "justifyContent": "center",
+              "flex": 0,
+              "contents": [
+                {
+                  "type": "text",
+                  "text": "黒",
+                  "align": "center",
+                  "gravity": "center",
+                  "color": "#122D28",
+                  "weight": "bold",
+                  "size": "sm"
+                }
+              ]
+            },
+            {
+              "type": "box",
+              "layout": "vertical",
+              "flex": 1,
+              "contents": [
+                {
+                  "type": "text",
+                  "text": "黒のプレイヤー",
+                  "color": "#F3EEDB",
+                  "size": "sm",
+                  "weight": "bold",
+                  "maxLines": 1
+                },
+                {
+                  "type": "text",
+                  "text": "黒",
+                  "color": "#8FA894",
+                  "size": "xxs"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "text": "●",
+              "color": "#F3EEDB",
+              "size": "lg",
+              "flex": 0,
+              "gravity": "center"
+            }
+          ]
+        },
+        {
+          "type": "box",
+          "layout": "vertical",
+          "contents": [
+            {
+              "type": "box",
+              "layout": "horizontal",
+              "contents": [
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "width": "13px",
+                  "justifyContent": "center",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "8",
+                      "size": "xxs",
+                      "color": "#8FA894",
+                      "align": "center"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#F3EEDB",
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "http://localhost:3000/static/chess/br.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#779677",
+                  "contents": [
+                    {
+                      "type": "filler"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#F3EEDB",
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "http://localhost:3000/static/chess/bb.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#779677",
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "http://localhost:3000/static/chess/bq.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#F3EEDB",
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "http://localhost:3000/static/chess/bk.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ],
+                  "borderColor": "#C0392B",
+                  "borderWidth": "3px"
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#779677",
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "http://localhost:3000/static/chess/bb.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#F3EEDB",
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "http://localhost:3000/static/chess/bn.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#779677",
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "http://localhost:3000/static/chess/br.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ]
+                }
+              ],
+              "height": "38px",
+              "spacing": "none"
+            },
+            {
+              "type": "box",
+              "layout": "horizontal",
+              "contents": [
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "width": "13px",
+                  "justifyContent": "center",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "7",
+                      "size": "xxs",
+                      "color": "#8FA894",
+                      "align": "center"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#779677",
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "http://localhost:3000/static/chess/bp.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#F3EEDB",
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "http://localhost:3000/static/chess/bp.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#779677",
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "http://localhost:3000/static/chess/bp.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#F3EEDB",
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "http://localhost:3000/static/chess/bp.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#779677",
+                  "contents": [
+                    {
+                      "type": "filler"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#F3EEDB",
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "http://localhost:3000/static/chess/wq.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#779677",
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "http://localhost:3000/static/chess/bp.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#F3EEDB",
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "http://localhost:3000/static/chess/bp.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ]
+                }
+              ],
+              "height": "38px",
+              "spacing": "none"
+            },
+            {
+              "type": "box",
+              "layout": "horizontal",
+              "contents": [
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "width": "13px",
+                  "justifyContent": "center",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "6",
+                      "size": "xxs",
+                      "color": "#8FA894",
+                      "align": "center"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#F3EEDB",
+                  "contents": [
+                    {
+                      "type": "filler"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#779677",
+                  "contents": [
+                    {
+                      "type": "filler"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#F3EEDB",
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "http://localhost:3000/static/chess/bn.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#779677",
+                  "contents": [
+                    {
+                      "type": "filler"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#F3EEDB",
+                  "contents": [
+                    {
+                      "type": "filler"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#779677",
+                  "contents": [
+                    {
+                      "type": "filler"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#F3EEDB",
+                  "contents": [
+                    {
+                      "type": "filler"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#779677",
+                  "contents": [
+                    {
+                      "type": "filler"
+                    }
+                  ]
+                }
+              ],
+              "height": "38px",
+              "spacing": "none"
+            },
+            {
+              "type": "box",
+              "layout": "horizontal",
+              "contents": [
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "width": "13px",
+                  "justifyContent": "center",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "5",
+                      "size": "xxs",
+                      "color": "#8FA894",
+                      "align": "center"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#779677",
+                  "contents": [
+                    {
+                      "type": "filler"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#F3EEDB",
+                  "contents": [
+                    {
+                      "type": "filler"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#779677",
+                  "contents": [
+                    {
+                      "type": "filler"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#F3EEDB",
+                  "contents": [
+                    {
+                      "type": "filler"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#779677",
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "http://localhost:3000/static/chess/bp.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#F3EEDB",
+                  "contents": [
+                    {
+                      "type": "filler"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#779677",
+                  "contents": [
+                    {
+                      "type": "filler"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#F3EEDB",
+                  "contents": [
+                    {
+                      "type": "filler"
+                    }
+                  ]
+                }
+              ],
+              "height": "38px",
+              "spacing": "none"
+            },
+            {
+              "type": "box",
+              "layout": "horizontal",
+              "contents": [
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "width": "13px",
+                  "justifyContent": "center",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "4",
+                      "size": "xxs",
+                      "color": "#8FA894",
+                      "align": "center"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#F3EEDB",
+                  "contents": [
+                    {
+                      "type": "filler"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#779677",
+                  "contents": [
+                    {
+                      "type": "filler"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#F3EEDB",
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "http://localhost:3000/static/chess/wb.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#779677",
+                  "contents": [
+                    {
+                      "type": "filler"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#F3EEDB",
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "http://localhost:3000/static/chess/wp.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#779677",
+                  "contents": [
+                    {
+                      "type": "filler"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#F3EEDB",
+                  "contents": [
+                    {
+                      "type": "filler"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#779677",
+                  "contents": [
+                    {
+                      "type": "filler"
+                    }
+                  ]
+                }
+              ],
+              "height": "38px",
+              "spacing": "none"
+            },
+            {
+              "type": "box",
+              "layout": "horizontal",
+              "contents": [
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "width": "13px",
+                  "justifyContent": "center",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "3",
+                      "size": "xxs",
+                      "color": "#8FA894",
+                      "align": "center"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#779677",
+                  "contents": [
+                    {
+                      "type": "filler"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#F3EEDB",
+                  "contents": [
+                    {
+                      "type": "filler"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#779677",
+                  "contents": [
+                    {
+                      "type": "filler"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#F3EEDB",
+                  "contents": [
+                    {
+                      "type": "filler"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#779677",
+                  "contents": [
+                    {
+                      "type": "filler"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#F3EEDB",
+                  "contents": [
+                    {
+                      "type": "filler"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#779677",
+                  "contents": [
+                    {
+                      "type": "filler"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#F3EEDB",
+                  "contents": [
+                    {
+                      "type": "filler"
+                    }
+                  ]
+                }
+              ],
+              "height": "38px",
+              "spacing": "none"
+            },
+            {
+              "type": "box",
+              "layout": "horizontal",
+              "contents": [
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "width": "13px",
+                  "justifyContent": "center",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "2",
+                      "size": "xxs",
+                      "color": "#8FA894",
+                      "align": "center"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#F3EEDB",
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "http://localhost:3000/static/chess/wp.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#779677",
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "http://localhost:3000/static/chess/wp.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#F3EEDB",
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "http://localhost:3000/static/chess/wp.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#779677",
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "http://localhost:3000/static/chess/wp.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#F3EEDB",
+                  "contents": [
+                    {
+                      "type": "filler"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#779677",
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "http://localhost:3000/static/chess/wp.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#F3EEDB",
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "http://localhost:3000/static/chess/wp.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#779677",
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "http://localhost:3000/static/chess/wp.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ]
+                }
+              ],
+              "height": "38px",
+              "spacing": "none"
+            },
+            {
+              "type": "box",
+              "layout": "horizontal",
+              "contents": [
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "width": "13px",
+                  "justifyContent": "center",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "1",
+                      "size": "xxs",
+                      "color": "#8FA894",
+                      "align": "center"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#779677",
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "http://localhost:3000/static/chess/wr.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#F3EEDB",
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "http://localhost:3000/static/chess/wn.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#779677",
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "http://localhost:3000/static/chess/wb.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#F3EEDB",
+                  "contents": [
+                    {
+                      "type": "filler"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#779677",
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "http://localhost:3000/static/chess/wk.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#F3EEDB",
+                  "contents": [
+                    {
+                      "type": "filler"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#779677",
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "http://localhost:3000/static/chess/wn.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "backgroundColor": "#F3EEDB",
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "http://localhost:3000/static/chess/wr.png",
+                      "size": "full",
+                      "aspectMode": "fit"
+                    }
+                  ]
+                }
+              ],
+              "height": "38px",
+              "spacing": "none"
+            },
+            {
+              "type": "box",
+              "layout": "horizontal",
+              "height": "15px",
+              "spacing": "none",
+              "contents": [
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "width": "13px",
+                  "contents": [
+                    {
+                      "type": "filler"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "a",
+                      "size": "xxs",
+                      "color": "#8FA894",
+                      "align": "center"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "b",
+                      "size": "xxs",
+                      "color": "#8FA894",
+                      "align": "center"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "c",
+                      "size": "xxs",
+                      "color": "#8FA894",
+                      "align": "center"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "d",
+                      "size": "xxs",
+                      "color": "#8FA894",
+                      "align": "center"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "e",
+                      "size": "xxs",
+                      "color": "#8FA894",
+                      "align": "center"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "f",
+                      "size": "xxs",
+                      "color": "#8FA894",
+                      "align": "center"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "g",
+                      "size": "xxs",
+                      "color": "#8FA894",
+                      "align": "center"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "h",
+                      "size": "xxs",
+                      "color": "#8FA894",
+                      "align": "center"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "spacing": "none",
+          "backgroundColor": "#0E241F",
+          "paddingAll": "xs",
+          "cornerRadius": "sm"
+        },
+        {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "sm",
+          "alignItems": "center",
+          "paddingAll": "sm",
+          "backgroundColor": "#1B3F38",
+          "cornerRadius": "md",
+          "borderColor": "#1B3F38",
+          "borderWidth": "1px",
+          "contents": [
+            {
+              "type": "box",
+              "layout": "vertical",
+              "width": "32px",
+              "height": "32px",
+              "cornerRadius": "999px",
+              "backgroundColor": "#779677",
+              "justifyContent": "center",
+              "flex": 0,
+              "contents": [
+                {
+                  "type": "text",
+                  "text": "白",
+                  "align": "center",
+                  "gravity": "center",
+                  "color": "#122D28",
+                  "weight": "bold",
+                  "size": "sm"
+                }
+              ]
+            },
+            {
+              "type": "box",
+              "layout": "vertical",
+              "flex": 1,
+              "contents": [
+                {
+                  "type": "text",
+                  "text": "白のプレイヤー",
+                  "color": "#F3EEDB",
+                  "size": "sm",
+                  "weight": "bold",
+                  "maxLines": 1
+                },
+                {
+                  "type": "text",
+                  "text": "白",
+                  "color": "#8FA894",
+                  "size": "xxs"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "text": "○",
+              "color": "#F3EEDB",
+              "size": "lg",
+              "flex": 0,
+              "gravity": "center"
+            }
+          ]
+        },
+        {
+          "type": "box",
+          "layout": "vertical",
+          "backgroundColor": "#1B3F38",
+          "cornerRadius": "md",
+          "paddingAll": "md",
+          "contents": [
+            {
+              "type": "text",
+              "text": "白さん(白)の勝ち",
+              "color": "#F3EEDB",
+              "size": "sm",
+              "weight": "bold",
+              "wrap": true
+            },
+            {
+              "type": "text",
+              "text": "チェックメイト",
+              "color": "#8FA894",
+              "size": "xxs",
+              "margin": "xs",
+              "wrap": true
+            }
+          ]
+        },
+        {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "sm",
+          "contents": [
+            {
+              "type": "box",
+              "layout": "vertical",
+              "backgroundColor": "#1B3F38",
+              "cornerRadius": "md",
+              "paddingAll": "sm",
+              "action": {
+                "type": "postback",
+                "data": "cro|82a3e5e959cf49e6"
+              },
+              "contents": [
+                {
+                  "type": "text",
+                  "text": "再戦を提案",
+                  "size": "xs",
+                  "weight": "regular",
+                  "color": "#F3EEDB",
+                  "align": "center",
+                  "wrap": true
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "footer": {
+      "type": "box",
+      "layout": "horizontal",
+      "backgroundColor": "#122D28",
+      "paddingStart": "sm",
+      "paddingEnd": "sm",
+      "paddingBottom": "sm",
+      "spacing": "sm",
+      "contents": [
+        {
+          "type": "box",
+          "layout": "vertical",
+          "paddingAll": "sm",
+          "contents": [
+            {
+              "type": "text",
+              "text": "選び直す",
+              "size": "xxs",
+              "color": "#F3EEDB",
+              "align": "center",
+              "wrap": true
+            }
+          ]
+        },
+        {
+          "type": "box",
+          "layout": "vertical",
+          "paddingAll": "sm",
+          "contents": [
+            {
+              "type": "text",
+              "text": "引き分け提案",
+              "size": "xxs",
+              "color": "#F3EEDB",
+              "align": "center",
+              "wrap": true
+            }
+          ]
+        },
+        {
+          "type": "box",
+          "layout": "vertical",
+          "paddingAll": "sm",
+          "contents": [
+            {
+              "type": "text",
+              "text": "投了",
+              "size": "xxs",
+              "color": "#F3EEDB",
+              "align": "center",
+              "wrap": true
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

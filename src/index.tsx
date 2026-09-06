@@ -74,6 +74,15 @@ import {
   type SizeFilter,
 } from './features/groupRanking'
 import { renderRankingPage, renderRankingRulesPage } from './features/rankingPage'
+// チェス(グループ対局)。既存のオセロ・他機能には一切関与しない独立モジュール。
+import {
+  handleChessText,
+  handleChessPostback,
+  onBotLeftGroup,
+  onMemberLeftGroup,
+  debugBuildCard,
+} from './features/chess'
+import { markEventProcessed } from './features/chess/store'
 
 type Bindings = LineEnv
 
@@ -401,6 +410,98 @@ app.get('/sitemap.xml', async (c) => {
 // LINEに実際のメッセージを送らず、Botのコマンドロジックが「何を返そうとしているか」
 // だけをJSONで確認できるエンドポイント。テスト用のreplyToken/署名は不要。
 // 本番用途ではなく、動作確認専用(データベースへの書き込みは実際に発生する点に注意)。
+// ─── チェスのテスト用: 対局状態の読み取り/初期化 ───
+// 自動テスト(scripts/chess-test.mjs)から使う。読み取りと、
+// chess_games テーブル内のテスト用グループ(接頭辞 Cchess_test_)に
+// 限定した書き込みのみ。他のテーブル・本番グループには触れない。
+app.post('/debug/chess', async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as {
+    op?: string
+    groupId?: string
+    id?: string
+    set?: Record<string, string | number | null>
+    kind?: string
+    from?: string
+    to?: string
+  }
+  const TEST_PREFIX = 'Cchess_test_'
+
+  if (body.op === 'get') {
+    const row = await c.env.DB.prepare(
+      `SELECT * FROM chess_games WHERE group_id = ? ORDER BY created_at DESC LIMIT 1`
+    )
+      .bind(body.groupId ?? '')
+      .first()
+    return c.json({ game: row ?? null })
+  }
+
+  if (body.op === 'byId') {
+    const row = await c.env.DB.prepare(`SELECT * FROM chess_games WHERE id = ?`)
+      .bind(body.id ?? '')
+      .first()
+    return c.json({ game: row ?? null })
+  }
+
+  if (body.op === 'list') {
+    const { results } = await c.env.DB.prepare(
+      `SELECT * FROM chess_games WHERE group_id = ? ORDER BY created_at`
+    )
+      .bind(body.groupId ?? '')
+      .all()
+    return c.json({ games: results ?? [] })
+  }
+
+  // 指定グループの現在の状態から、LINEへ実際に送るのとまったく同じ関数で
+  // Flexカードを生成して返す。サンプル出力・サイズ検証に使う。
+  if (body.op === 'flex') {
+    const row = await c.env.DB.prepare(
+      `SELECT * FROM chess_games WHERE group_id = ? ORDER BY created_at DESC LIMIT 1`
+    )
+      .bind(body.groupId ?? '')
+      .first()
+    if (!row) return c.json({ error: 'no game' }, 404)
+    const baseUrl = new URL(c.req.url).origin
+    const kind = (body.kind ?? 'board') as 'board' | 'result' | 'recruit' | 'promotion'
+    const msg = debugBuildCard(kind, row as any, baseUrl, {
+      from: body.from,
+      to: body.to,
+    })
+    return c.json({ message: msg })
+  }
+
+  // 以下はテスト用グループにのみ許可する
+  const gid = body.groupId ?? ''
+  if (!gid.startsWith(TEST_PREFIX)) return c.json({ error: 'test groups only' }, 403)
+
+  if (body.op === 'reset') {
+    await c.env.DB.prepare(`DELETE FROM chess_games WHERE group_id LIKE ?`)
+      .bind(`${gid}%`)
+      .run()
+    return c.json({ ok: true })
+  }
+
+  if (body.op === 'patch' && body.id && body.set) {
+    // 局面を直接差し替えて特殊ケース(昇格・メイト等)を作るためのもの
+    const allowed = [
+      'start_fen', 'current_fen', 'moves_json', 'turn', 'status',
+      'expires_at', 'pending_from', 'pending_to', 'pending_token',
+      'sel_square', 'sel_token', 'result', 'result_reason', 'version',
+    ]
+    const keys = Object.keys(body.set).filter((k) => allowed.includes(k))
+    if (keys.length === 0) return c.json({ error: 'no allowed keys' }, 400)
+    const sets = keys.map((k) => `${k} = ?`).join(', ')
+    const vals = keys.map((k) => body.set![k])
+    await c.env.DB.prepare(
+      `UPDATE chess_games SET ${sets} WHERE id = ? AND group_id LIKE ?`
+    )
+      .bind(...vals, body.id, `${gid}%`)
+      .run()
+    return c.json({ ok: true })
+  }
+
+  return c.json({ error: 'unknown op' }, 400)
+})
+
 app.post('/debug/simulate', async (c) => {
   const { text, groupId, userId, pictureUrl } = await c.req.json<{
     text: string
@@ -466,21 +567,34 @@ app.post('/webhook', async (c) => {
   // via waitUntil so the replyToken is still fresh when we use it.
   const baseUrl = new URL(c.req.url).origin
 
-  c.executionCtx.waitUntil(
-    (async () => {
-      for (const event of events) {
-        try {
-          await handleEvent(c.env, event, baseUrl)
-        } catch (e: any) {
-          await c.env.DB.prepare(
-            `INSERT INTO webhook_debug_logs (timestamp, request_body, has_signature, event_type, error_message) VALUES (?, ?, ?, ?, ?)`
-          )
-            .bind(new Date().toISOString(), JSON.stringify(event).slice(0, 2000), 1, event.type, String(e?.message ?? e))
-            .run()
-        }
+  const work = (async () => {
+    for (const event of events) {
+      try {
+        await handleEvent(c.env, event, baseUrl)
+      } catch (e: any) {
+        await c.env.DB.prepare(
+          `INSERT INTO webhook_debug_logs (timestamp, request_body, has_signature, event_type, error_message) VALUES (?, ?, ?, ?, ?)`
+        )
+          .bind(new Date().toISOString(), JSON.stringify(event).slice(0, 2000), 1, event.type, String(e?.message ?? e))
+          .run()
       }
-    })()
-  )
+    }
+  })()
+
+  // 自動テスト専用の同期モード。waitUntil は応答後に走るため、テスト側から
+  // 「処理が終わったか」を知る手段が無く、固定の待ち時間に頼ると不安定になる。
+  // テスト用グループ(Cchess_test_ 接頭辞)のイベントだけに限定し、
+  // 処理完了まで待ってから200を返す。実LINEのトラフィックは必ず
+  // グループIDがこの接頭辞にならないため、本番の挙動は一切変わらない。
+  const allTestEvents =
+    events.length > 0 &&
+    events.every((e: any) => String(e?.source?.groupId ?? '').startsWith('Cchess_test_'))
+  if (allTestEvents) {
+    await work
+    return c.json({ ok: true, sync: true })
+  }
+
+  c.executionCtx.waitUntil(work)
 
   return c.json({ ok: true })
 })
@@ -496,7 +610,7 @@ async function handleEvent(env: Bindings, event: any, baseUrl: string) {
       return
 
     case 'postback':
-      await handlePostback(env, event)
+      await handlePostback(env, event, baseUrl)
       return
 
     case 'memberJoined':
@@ -518,6 +632,12 @@ async function handleEvent(env: Bindings, event: any, baseUrl: string) {
       // can tell "currently joined" apart from "invited once, since removed".
       if (event.source.type === 'group') {
         await markGroupLeft(env, event.source.groupId)
+        // チェスの進行中対局は中断として保存(勝敗はつけない)
+        try {
+          await onBotLeftGroup(env, event.source.groupId)
+        } catch {
+          /* チェスの中断処理失敗は既存処理に影響させない */
+        }
       }
       return
 
@@ -633,7 +753,7 @@ async function handleMessageEvent(env: Bindings, event: any, baseUrl: string) {
 // Handles taps on the Othello board (a `postback` action on a legal-move
 // cell). Reply-only: the postback event carries its own one-time
 // replyToken, exactly like a message event, so this never needs Push API.
-async function handlePostback(env: Bindings, event: any) {
+async function handlePostback(env: Bindings, event: any, baseUrl: string) {
   const source = event.source
   if (source.type !== 'group') return
   const groupId = source.groupId
@@ -641,6 +761,30 @@ async function handlePostback(env: Bindings, event: any) {
   const replyToken: string | undefined = event.replyToken
   const data: string = event.postback?.data ?? ''
   if (!groupId || !userId || !replyToken) return
+
+  // --- チェス ---
+  // data が c で始まるチェス用トークンのときだけ処理する。
+  // 本人確認は Postback の中身ではなく source.userId で行う(handleChessPostback内)。
+  if (/^c[a-z]{1,2}\|/.test(data)) {
+    // Webhook再送・二重タップ対策: 同じ webhookEventId は1回だけ処理する
+    const fresh = await markEventProcessed(env, event.webhookEventId ?? null)
+    if (!fresh) return
+    try {
+      const msgs = await handleChessPostback(
+        env,
+        { groupId, userId, baseUrl },
+        data
+      )
+      if (msgs && msgs.length > 0) {
+        await flushQueueOnReply(env, groupId, replyToken, msgs.slice(0, 1))
+      }
+    } catch (e: any) {
+      await flushQueueOnReply(env, groupId, replyToken, [
+        { type: 'text', text: 'チェスの処理でエラーが発生しました。「盤面」で最新の状態を確認できます。' },
+      ])
+    }
+    return
+  }
 
   const othelloMatch = data.match(/^othello:(\d+),(\d+)$/)
   if (othelloMatch) {
@@ -703,6 +847,38 @@ async function routeCommand(env: Bindings, ctx: CommandCtx): Promise<LineMessage
 
   if (text === 'ヘルプ' || text.toLowerCase() === 'help') {
     return [{ type: 'text', text: HELP_TEXT }]
+  }
+
+  // --- チェス(グループ対局) ---
+  // 「チェス」「盤面」「チェス ヘルプ」だけに反応し、それ以外の会話には
+  // 一切反応しない(handleChessText が null を返す)。
+  // グループ以外(個別トーク)では導入方法を案内する。
+  if (text === 'チェス' || text === '盤面' || text === 'チェス ヘルプ' || text === 'チェスヘルプ') {
+    if (!ctx.isGroup || !ctx.groupId) {
+      return [
+        {
+          type: 'text',
+          text:
+            'チェスはグループトークで対局する機能です。\n\n' +
+            '使い方:\n' +
+            '1. このBOTをグループに招待する\n' +
+            '2. グループで「チェス」と送る\n' +
+            '3. 別の人が「対局に参加」を押すと開始\n\n' +
+            '※オープンチャットには対応していません。\n' +
+            '※ルールは「チェス ヘルプ」で確認できます。',
+        },
+      ]
+    }
+    try {
+      const chessMsgs = await handleChessText(
+        env,
+        { groupId: ctx.groupId, userId: ctx.userId ?? null, baseUrl: ctx.baseUrl },
+        text
+      )
+      if (chessMsgs) return chessMsgs
+    } catch {
+      return [{ type: 'text', text: 'チェスの処理でエラーが発生しました。もう一度お試しください。' }]
+    }
   }
 
   // グループ発言数ランキング。既存に同名コマンドは存在しない
@@ -908,6 +1084,11 @@ const HELP_TEXT = `葉っぱもち Bot ヘルプ
 
 【ランキング】
 ランキング - このグループの今週の順位と発言数を確認
+
+【チェス】
+チェス - 対局相手を募集(グループ内の2人で対局)
+盤面 - 現在の盤面を再送
+チェス ヘルプ - 操作方法と採用ルール
 
 【占い】
 星座登録 [星座名] - 星座を登録

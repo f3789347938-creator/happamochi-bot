@@ -1,0 +1,143 @@
+{
+  "type": "flex",
+  "altText": "チェス[募集中] 作成者さんが対局相手を募集中",
+  "contents": {
+    "type": "bubble",
+    "size": "mega",
+    "header": {
+      "type": "box",
+      "layout": "horizontal",
+      "backgroundColor": "#122D28",
+      "paddingAll": "md",
+      "alignItems": "center",
+      "contents": [
+        {
+          "type": "image",
+          "url": "http://localhost:3000/static/chess/wn.png",
+          "width": "18px",
+          "flex": 0,
+          "aspectMode": "fit"
+        },
+        {
+          "type": "text",
+          "text": "CHESS",
+          "color": "#F3EEDB",
+          "weight": "bold",
+          "size": "md",
+          "flex": 1,
+          "margin": "sm"
+        },
+        {
+          "type": "box",
+          "layout": "vertical",
+          "flex": 0,
+          "cornerRadius": "999px",
+          "borderColor": "#D9B45B",
+          "borderWidth": "1px",
+          "paddingAll": "xs",
+          "paddingStart": "md",
+          "paddingEnd": "md",
+          "contents": [
+            {
+              "type": "text",
+              "text": "募集中",
+              "color": "#D9B45B",
+              "size": "xxs",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    "body": {
+      "type": "box",
+      "layout": "vertical",
+      "backgroundColor": "#122D28",
+      "paddingAll": "md",
+      "contents": [
+        {
+          "type": "box",
+          "layout": "vertical",
+          "backgroundColor": "#1B3F38",
+          "cornerRadius": "md",
+          "paddingAll": "md",
+          "contents": [
+            {
+              "type": "text",
+              "text": "作成者さんが対局相手を募集中",
+              "color": "#F3EEDB",
+              "size": "sm",
+              "weight": "bold",
+              "wrap": true
+            },
+            {
+              "type": "text",
+              "text": "同じグループの別の人が「対局に参加」を押すと開始します。白黒はランダムで決まります。",
+              "color": "#8FA894",
+              "size": "xxs",
+              "margin": "xs",
+              "wrap": true
+            }
+          ]
+        },
+        {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "sm",
+          "margin": "md",
+          "contents": [
+            {
+              "type": "box",
+              "layout": "vertical",
+              "backgroundColor": "#D9B45B",
+              "cornerRadius": "md",
+              "paddingAll": "md",
+              "action": {
+                "type": "postback",
+                "data": "cj|2119498a789a472f"
+              },
+              "contents": [
+                {
+                  "type": "text",
+                  "text": "対局に参加",
+                  "size": "sm",
+                  "weight": "bold",
+                  "color": "#122D28",
+                  "align": "center"
+                }
+              ]
+            },
+            {
+              "type": "box",
+              "layout": "vertical",
+              "backgroundColor": "#1B3F38",
+              "cornerRadius": "md",
+              "paddingAll": "md",
+              "action": {
+                "type": "postback",
+                "data": "cx|2119498a789a472f"
+              },
+              "contents": [
+                {
+                  "type": "text",
+                  "text": "募集を取り消す",
+                  "size": "sm",
+                  "color": "#F3EEDB",
+                  "align": "center"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": "募集は10分で期限切れになります。",
+          "size": "xxs",
+          "color": "#8FA894",
+          "margin": "md",
+          "wrap": true
+        }
+      ]
+    }
+  }
+}
