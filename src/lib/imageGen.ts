@@ -36,6 +36,13 @@
 // scripts/inject-wasm.mjs injects into the built worker (see ensureInit()).
 import satori, { init as initSatori } from 'satori/standalone'
 import { Resvg, initWasm as initResvg } from '@resvg/resvg-wasm'
+import {
+  DEFAULT_PARAMS,
+  baseTextColor,
+  effectiveFontNumber,
+  perCharColors,
+  type QuoteParams,
+} from './quoteParams'
 
 declare global {
   // eslint-disable-next-line no-var
@@ -126,6 +133,17 @@ export interface QuoteCardInput {
   authorName: string
   userId: string
   pictureUrl: string | null
+  /**
+   * カスタマイズ指定。未指定(または解析結果が全て既定)のときは、
+   * 従来と完全に同一のカードを生成する。
+   */
+  params?: QuoteParams
+  /**
+   * フォント番号が指定されたときに、そのフォント実体を取得するための
+   * ベースURL(同一オリジン)。Workers ではバンドルに12書体を積めないため、
+   * 静的アセットとして配信し、必要な1本だけ実行時に取得する。
+   */
+  baseUrl?: string
 }
 
 // レガシー(〜2026年6月)の名言カードは、引用文のフォントサイズを文字数で
@@ -427,6 +445,268 @@ function buildAvatarCard(
   }
 }
 
+// =========================================================================
+// カスタマイズ対応カード
+// =========================================================================
+// 重要: この経路は「パラメータが1つ以上指定されたときだけ」使う。
+// 無指定時は上の buildAvatarCard / buildNoAvatarCard をそのまま通すので、
+// 既存の名言カードの見た目は1ピクセルも変わらない。
+
+/** 日付を JST の YYYY-MM-DD で返す(右上表示用) */
+function todayJstStamp(): string {
+  const now = new Date(Date.now() + 9 * 60 * 60 * 1000)
+  const y = now.getUTCFullYear()
+  const m = String(now.getUTCMonth() + 1).padStart(2, '0')
+  const d = String(now.getUTCDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+/**
+ * 本文を「1文字ごとに色を変えられる」形で組む。
+ * 虹・季節テーマのときは1文字ずつ span 相当の div を並べる。
+ * それ以外は1つのテキストノードのまま返す(改行処理を satori に任せる)。
+ */
+function quoteChildren(text: string, p: QuoteParams): any {
+  const colors = perCharColors(text, p.color)
+  if (!colors) return text
+
+  // 1文字ずつ色を変える場合、flex-wrap で折り返す。
+  // 空白と改行は幅を保つために nbsp に置き換える。
+  return Array.from(text).map((ch, i) => ({
+    type: 'div',
+    props: {
+      style: {
+        display: 'flex',
+        color: colors[i],
+        // 半角スペースは flex 子要素だと潰れるので幅を明示する
+        ...(ch === ' ' || ch === '\u3000' ? { width: ch === ' ' ? '0.5em' : '1em' } : {}),
+      },
+      children: ch === '\n' ? '' : ch,
+    },
+  }))
+}
+
+function buildCustomCard(
+  quoteText: string,
+  authorName: string,
+  userId: string,
+  avatarDataUrl: string | null,
+  p: QuoteParams
+) {
+  // レイアウト寸法。
+  //   standard: 既存カードと同じ 写真640 / フェード182 / テキスト中心899.5
+  //   new     : 写真を狭めて(38%)テキスト領域を広く取る。MiqXの実測比率。
+  const photoWidth = p.layoutNew ? 486 : 640
+  const fadeWidth = p.layoutNew ? 150 : 182
+  const textLeft = p.layoutNew ? 470 : 559
+  const textWidth = p.layoutNew ? 790 : 681
+
+  const bg = p.whiteBase ? '#FFFFFF' : '#000000'
+  const fadeTo = p.whiteBase ? '255,255,255' : '0,0,0'
+  const textColor = baseTextColor(p)
+  const subColor = p.whiteBase ? '#555555' : '#ffffff'
+  const idColor = p.whiteBase ? '#9a9a9a' : '#aaaaaa'
+  const markColor = p.whiteBase ? '#b0b0b0' : '#777777'
+  const perChar = perCharColors(quoteText, p.color) !== null
+
+  // 本文サイズ。1文字ごとに色を付ける場合も同じ基準を使う。
+  const qSize = avatarDataUrl ? quoteFontSize(quoteText) : noAvatarQuoteFontSize(quoteText)
+
+  const children: any[] = []
+
+  // --- 背景(アイコン無しのとき) ---
+  if (!avatarDataUrl && !p.whiteBase) {
+    children.push({
+      type: 'div',
+      props: {
+        style: {
+          display: 'flex',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: `${CARD_WIDTH}px`,
+          height: `${CARD_HEIGHT}px`,
+          backgroundImage:
+            'linear-gradient(135deg, #0f0f23 0%, #1a1a3e 50%, #0f0f23 100%)',
+        },
+      },
+    })
+  }
+
+  // --- 左: アイコン ---
+  if (avatarDataUrl) {
+    children.push({
+      type: 'div',
+      props: {
+        style: {
+          display: 'flex',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: `${photoWidth}px`,
+          height: `${CARD_HEIGHT}px`,
+          backgroundColor: bg,
+          backgroundImage: `url(${avatarDataUrl})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          // mono: 白黒 / rev: 左右反転。
+          // satori はどちらも backgroundImage に対して効く(実測で確認済み)。
+          ...(p.monochrome ? { filter: 'grayscale(1)' } : {}),
+          ...(p.reversed ? { transform: 'scaleX(-1)' } : {}),
+        },
+      },
+    })
+    // フェードは写真とは別要素にして、親の scaleX(-1) の影響を受けないように
+    // する。写真の子要素にすると反転が伝播してフェードが左端に出てしまい、
+    // 写真の右端が黒へ溶けずに切り立った境界になる(実際にそうなった)。
+    children.push({
+      type: 'div',
+      props: {
+        style: {
+          display: 'flex',
+          position: 'absolute',
+          top: 0,
+          left: `${photoWidth - fadeWidth}px`,
+          width: `${fadeWidth}px`,
+          height: `${CARD_HEIGHT}px`,
+          backgroundImage: `linear-gradient(to right, rgba(${fadeTo},0) 0%, rgba(${fadeTo},1) 100%)`,
+        },
+      },
+    })
+  }
+
+  // --- 引用文 ---
+  const quoteTop = avatarDataUrl ? (p.layoutNew ? 236 : 249) : 250
+  children.push({
+    type: 'div',
+    props: {
+      style: {
+        display: 'flex',
+        position: 'absolute',
+        top: `${quoteTop}px`,
+        left: avatarDataUrl ? `${textLeft}px` : '140px',
+        width: avatarDataUrl ? `${textWidth}px` : '1000px',
+        color: textColor,
+        fontSize: `${qSize}px`,
+        fontWeight: p.bold ? 700 : 400,
+        lineHeight: 1.4,
+        textAlign: 'center',
+        justifyContent: 'center',
+        wordBreak: 'break-word',
+        // 1文字ずつ色を付けるときは折り返しを自前で行う
+        ...(perChar ? { flexWrap: 'wrap', alignItems: 'center' } : {}),
+      },
+      children: quoteChildren(quoteText, p),
+    },
+  })
+
+  // --- 著者名 ---
+  const authorTop = avatarDataUrl ? (p.layoutNew ? 380 : 385) : 400
+  children.push({
+    type: 'div',
+    props: {
+      style: {
+        display: 'flex',
+        position: 'absolute',
+        top: `${authorTop}px`,
+        left: avatarDataUrl ? `${textLeft}px` : '140px',
+        width: avatarDataUrl ? `${textWidth}px` : '1000px',
+        color: subColor,
+        fontSize: '24px',
+        fontWeight: 400,
+        textAlign: 'center',
+        justifyContent: 'center',
+      },
+      children: `@${authorName}`,
+    },
+  })
+
+  // --- userId ---
+  children.push({
+    type: 'div',
+    props: {
+      style: {
+        display: 'flex',
+        position: 'absolute',
+        top: `${authorTop + 39}px`,
+        left: avatarDataUrl ? `${textLeft}px` : '140px',
+        width: avatarDataUrl ? `${textWidth}px` : '1000px',
+        color: idColor,
+        fontSize: '17px',
+        fontWeight: 400,
+        textAlign: 'center',
+        justifyContent: 'center',
+      },
+      children: userId,
+    },
+  })
+
+  // --- 右上の日付。new レイアウトのときだけ出す ---
+  if (p.layoutNew) {
+    children.push({
+      type: 'div',
+      props: {
+        style: {
+          display: 'flex',
+          position: 'absolute',
+          right: '20px',
+          top: '16px',
+          color: markColor,
+          fontSize: '18px',
+          fontWeight: 400,
+        },
+        children: todayJstStamp(),
+      },
+    })
+  }
+
+  // --- ウォーターマーク ---
+  children.push({
+    type: 'div',
+    props: {
+      style: {
+        display: 'flex',
+        position: 'absolute',
+        right: '13px',
+        bottom: '8px',
+        color: markColor,
+        fontSize: '14px',
+        fontWeight: 400,
+      },
+      children: 'HappaMochi Bot',
+    },
+  })
+
+  return {
+    type: 'div',
+    props: {
+      style: {
+        display: 'flex',
+        width: `${CARD_WIDTH}px`,
+        height: `${CARD_HEIGHT}px`,
+        backgroundColor: bg,
+        position: 'relative',
+      },
+      children,
+    },
+  }
+}
+
+/**
+ * フォント番号に対応する書体を同一オリジンから取得する。
+ * 取得できなければ null を返し、呼び出し側は既定フォントにフォールバックする
+ * (フォント指定の失敗でカード生成全体を落とさない)。
+ */
+async function fetchQuoteFont(baseUrl: string, n: number): Promise<ArrayBuffer | null> {
+  try {
+    const res = await fetch(`${baseUrl}/static/fonts/quote/f${n}.ttf`)
+    if (!res.ok) return null
+    return await res.arrayBuffer()
+  } catch {
+    return null
+  }
+}
+
 // Renders the "meigen card" (quote card). Which of the two legacy designs
 // gets used depends on whether we have a real profile photo: with one, we
 // use the photo-left/dark-panel-right layout; without one (pictureUrl was
@@ -445,27 +725,45 @@ export async function generateQuoteCardPng(input: QuoteCardInput): Promise<Uint8
 
   const avatarDataUrl = input.pictureUrl ? await fetchImageAsDataUrl(input.pictureUrl) : null
 
-  const markup = avatarDataUrl
-    ? buildAvatarCard(input.quoteText, input.authorName, input.userId, avatarDataUrl)
-    : buildNoAvatarCard(input.quoteText, input.authorName)
+  const p = input.params ?? DEFAULT_PARAMS
+
+  // パラメータが何も指定されていないときは、従来のレイアウト関数を
+  // そのまま通す。ここを分岐させておくことで、既存の名言カードの
+  // 出力が1ピクセルも変わらないことを保証する。
+  const markup = p.any
+    ? buildCustomCard(input.quoteText, input.authorName, input.userId, avatarDataUrl, p)
+    : avatarDataUrl
+      ? buildAvatarCard(input.quoteText, input.authorName, input.userId, avatarDataUrl)
+      : buildNoAvatarCard(input.quoteText, input.authorName)
+
+  // フォント指定があれば、その書体を同一オリジンから取得して
+  // 既定フォントより先に登録する(satori は先に一致した書体を使う)。
+  const fonts: any[] = []
+  // bold と併用された場合は同系統の太い書体に差し替える
+  // (satori は合成太字をしないため。effectiveFontNumber のコメント参照)
+  const fontNo = effectiveFontNumber(p)
+  if (fontNo > 0 && input.baseUrl) {
+    const custom = await fetchQuoteFont(input.baseUrl, fontNo)
+    if (custom) {
+      // サブセットは単一ウェイトなので 400/700 の両方に同じ実体を割り当てる。
+      // 太さは「どの実体を選ぶか」で決まっており、fontWeight では変わらない。
+      fonts.push(
+        { name: 'Noto Sans JP', data: custom, weight: 400, style: 'normal' },
+        { name: 'Noto Sans JP', data: custom, weight: 700, style: 'normal' }
+      )
+    }
+  }
+  if (fonts.length === 0) {
+    fonts.push(
+      { name: 'Noto Sans JP', data: fontDataRegular, weight: 400, style: 'normal' },
+      { name: 'Noto Sans JP', data: fontDataBold, weight: 700, style: 'normal' }
+    )
+  }
 
   const svg = await satori(markup as any, {
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
-    fonts: [
-      {
-        name: 'Noto Sans JP',
-        data: fontDataRegular,
-        weight: 400,
-        style: 'normal',
-      },
-      {
-        name: 'Noto Sans JP',
-        data: fontDataBold,
-        weight: 700,
-        style: 'normal',
-      },
-    ],
+    fonts,
   })
 
   const resvg = new Resvg(svg, {

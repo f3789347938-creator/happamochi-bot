@@ -25,6 +25,7 @@ import {
 } from './features/fortune'
 import { checkAndQueueWeeklyRanking } from './features/ranking'
 import { saveQuote, buildQuoteImageMessage } from './features/quote'
+import { parseQuoteParams, describeParams, FONT_LABELS } from './lib/quoteParams'
 import { addTagToGroup, listGroupTags, removeTagFromGroup } from './features/tags'
 import { setWelcomeSetting, clearWelcomeMessage } from './features/welcome'
 import { equipTitle, getEquippedTitle, listUserTitles } from './features/titles'
@@ -983,26 +984,79 @@ async function routeCommand(env: Bindings, ctx: CommandCtx): Promise<LineMessage
   // Reply mode: bare "めいく" (no colon/text) sent as a LINE reply to someone
   // else's message. quotedMessageId points at the ORIGINAL message, so the
   // card must use ITS author's name/icon and ITS text — not the replier's.
-  if (text === 'めいく' && ctx.isGroup && ctx.groupId && ctx.quotedMessageId) {
+  // 装飾の一覧。返信モードの判定より先に置く必要がある
+  // (「めいく 装飾」が返信モードのパラメータとして食われないようにする)。
+  if (text === 'めいく 装飾' || text === 'めいく装飾' || text === 'めいく ヘルプ') {
+    const fontList = Object.entries(FONT_LABELS)
+      .map(([n, l]) => `${n}:${l}`)
+      .join(' / ')
+    return [
+      {
+        type: 'text',
+        text:
+          '名言カードの装飾\n\n' +
+          '【書き方】\n' +
+          'めいく [装飾]:[テキスト]\n' +
+          '返信のときは「めいく [装飾]」\n' +
+          '装飾は続けて書けます（例: newbold虹7）\n\n' +
+          '【見た目】\n' +
+          'bold … 文字を太字\n' +
+          'rev … アイコンを左右反転\n' +
+          'mono … アイコンを白黒\n' +
+          'whi … 白ベースで生成\n' +
+          'new … 新レイアウト（右上に日付）\n\n' +
+          '【色】\n' +
+          '虹 … 1文字ずつ虹色\n' +
+          '赤 橙 黄 緑 青 藍 紫 桃 水 白 黒 金 銀\n' +
+          '春 夏 秋 冬 … 季節テーマ（1文字ずつ変化）\n' +
+          '#FF00AA … 好きな色コード\n\n' +
+          '【フォント 1〜12】\n' +
+          fontList +
+          '\n\n【例】\n' +
+          'めいく bold虹:やったー\n' +
+          'めいく new7:静かな夜\n' +
+          'めいく whi#0088FF:おはよう\n' +
+          'めいく revmono （他人の発言に返信して）',
+      },
+    ]
+  }
+
+  // 返信モード: 「めいく」または「めいく <パラメータ>」を他人の発言への
+  // 返信として送る。パラメータ部分(bold, mono, 虹, 3 など)は任意で、
+  // 無指定なら従来と完全に同じカードになる。
+  const replyMake = text.match(/^めいく(?:[ 　]+(.+))?$/s)
+  if (replyMake && ctx.isGroup && ctx.groupId && ctx.quotedMessageId) {
     const original = await getGroupMessage(env, ctx.groupId, ctx.quotedMessageId)
     if (!original) {
       return [{ type: 'text', text: '元のメッセージが見つかりませんでした(古すぎるか、記録前の発言かもしれません)' }]
     }
+    const params = parseQuoteParams(replyMake[1] ?? null)
     const imageId = await saveQuote(
       env,
       ctx.groupId,
       original.user_id,
       original.display_name ?? '不明',
       original.picture_url,
-      original.message_text
+      original.message_text,
+      { params, baseUrl: ctx.baseUrl }
     )
     return [buildQuoteImageMessage(ctx.baseUrl, imageId)]
   }
 
-  const quoteMatch = text.match(/^めいく[:：]\s*(.+)$/s)
+  // 通常モード: 「めいく:テキスト」または「めいく <パラメータ>:テキスト」。
+  const quoteMatch = text.match(/^めいく(?:[ 　]+([^:：]*))?[:：]\s*(.+)$/s)
   if (quoteMatch && ctx.isGroup && ctx.groupId && ctx.userId) {
-    const quoteText = quoteMatch[1].trim()
-    const imageId = await saveQuote(env, ctx.groupId, ctx.userId, ctx.displayName ?? '不明', ctx.pictureUrl, quoteText)
+    const params = parseQuoteParams(quoteMatch[1] ?? null)
+    const quoteText = quoteMatch[2].trim()
+    const imageId = await saveQuote(
+      env,
+      ctx.groupId,
+      ctx.userId,
+      ctx.displayName ?? '不明',
+      ctx.pictureUrl,
+      quoteText,
+      { params, baseUrl: ctx.baseUrl }
+    )
     return [buildQuoteImageMessage(ctx.baseUrl, imageId)]
   }
 
@@ -1110,6 +1164,18 @@ const HELP_TEXT = `葉っぱもち Bot ヘルプ
 【名言カード】
 めいく:[テキスト] - 名言カードを生成
 (他人のメッセージに「返信(リプライ)」で「めいく」だけ送ると、その人の名言カードを生成)
+
+めいく [装飾]:[テキスト] のように装飾を足せます
+返信のときは「めいく [装飾]」と送ります
+・見た目: bold(太字) rev(アイコン反転) mono(アイコン白黒)
+　　　　　whi(白ベース) new(新レイアウト・日付付き)
+・色: 虹 / 赤 橙 黄 緑 青 藍 紫 桃 水 白 黒 金 銀
+　　　春 夏 秋 冬(季節テーマ) / #FF00AA(自由な色)
+・フォント: 1〜12
+　1ゴシック 2太 3細 4中 5極太 6極細
+　7明朝 8明朝太 9明朝細 10明朝極太 11明朝中 12等幅
+続けて書けます 例)「めいく newbold虹7:こんにちは」
+「めいく 装飾」で一覧を確認できます
 
 【オセロ】
 オセロ開始 - オセロを開始(自分が黒番になる)

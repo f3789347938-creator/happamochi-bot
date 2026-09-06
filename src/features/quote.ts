@@ -10,6 +10,7 @@
 // behavior and the real rows found in the production quote_images table.
 import type { LineEnv, LineMessage } from '../lib/line'
 import { generateQuoteCardPng } from '../lib/imageGen'
+import { parseQuoteParams, type QuoteParams } from '../lib/quoteParams'
 
 // Generates the PNG and stores it in quote_images. Returns the row id,
 // which becomes part of the publicly-served image URL
@@ -20,7 +21,9 @@ export async function saveQuote(
   userId: string,
   displayName: string,
   pictureUrl: string | null,
-  quoteText: string
+  quoteText: string,
+  // カスタマイズ指定。未指定なら従来と完全に同一のカードを生成する。
+  opts?: { params?: QuoteParams; baseUrl?: string }
 ): Promise<string> {
   const id = crypto.randomUUID()
 
@@ -29,6 +32,8 @@ export async function saveQuote(
     authorName: displayName,
     userId,
     pictureUrl,
+    params: opts?.params,
+    baseUrl: opts?.baseUrl,
   })
 
   // D1's .bind() does NOT accept a Uint8Array as a BLOB value — it falls
