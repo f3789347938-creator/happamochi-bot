@@ -1,0 +1,187 @@
+{
+  "type": "flex",
+  "altText": "カテゴリを選ぶ",
+  "contents": {
+    "type": "bubble",
+    "size": "mega",
+    "header": {
+      "type": "box",
+      "layout": "vertical",
+      "backgroundColor": "#009FDE",
+      "paddingAll": "md",
+      "contents": [
+        {
+          "type": "text",
+          "text": "カテゴリを選ぶ",
+          "size": "md",
+          "weight": "bold",
+          "color": "#FFFFFF",
+          "align": "center"
+        }
+      ]
+    },
+    "body": {
+      "type": "box",
+      "layout": "vertical",
+      "backgroundColor": "#E4F7FF",
+      "paddingAll": "md",
+      "spacing": "xs",
+      "contents": [
+        {
+          "type": "box",
+          "layout": "vertical",
+          "borderColor": "#16BCEC",
+          "borderWidth": "1px",
+          "cornerRadius": "md",
+          "paddingAll": "sm",
+          "action": {
+            "type": "postback",
+            "data": "pf|tl|all|-|-|1"
+          },
+          "contents": [
+            {
+              "type": "text",
+              "text": "すべてのカテゴリ",
+              "size": "sm",
+              "color": "#17364C",
+              "align": "center"
+            }
+          ]
+        },
+        {
+          "type": "box",
+          "layout": "horizontal",
+          "alignItems": "center",
+          "borderColor": "#16BCEC",
+          "borderWidth": "1px",
+          "cornerRadius": "md",
+          "paddingAll": "sm",
+          "action": {
+            "type": "postback",
+            "data": "pf|tl|all|growth|-|1"
+          },
+          "contents": [
+            {
+              "type": "text",
+              "text": "成長",
+              "size": "sm",
+              "color": "#17364C",
+              "flex": 4,
+              "wrap": true
+            },
+            {
+              "type": "text",
+              "text": "自由",
+              "size": "xxs",
+              "color": "#16BCEC",
+              "align": "end",
+              "flex": 1
+            }
+          ]
+        },
+        {
+          "type": "box",
+          "layout": "horizontal",
+          "alignItems": "center",
+          "borderColor": "#16BCEC",
+          "borderWidth": "1px",
+          "cornerRadius": "md",
+          "paddingAll": "sm",
+          "action": {
+            "type": "postback",
+            "data": "pf|tl|all|othello|-|1"
+          },
+          "contents": [
+            {
+              "type": "text",
+              "text": "オセロ",
+              "size": "sm",
+              "color": "#17364C",
+              "flex": 4,
+              "wrap": true
+            },
+            {
+              "type": "text",
+              "text": "自由",
+              "size": "xxs",
+              "color": "#16BCEC",
+              "align": "end",
+              "flex": 1
+            }
+          ]
+        },
+        {
+          "type": "box",
+          "layout": "horizontal",
+          "margin": "md",
+          "alignItems": "center",
+          "contents": [
+            {
+              "type": "box",
+              "layout": "vertical",
+              "borderColor": "#16BCEC",
+              "borderWidth": "1px",
+              "cornerRadius": "md",
+              "paddingAll": "xs",
+              "flex": 2,
+              "action": {
+                "type": "postback",
+                "data": "pf|cat|all|-|1"
+              },
+              "contents": [
+                {
+                  "type": "text",
+                  "text": "前へ",
+                  "size": "xs",
+                  "color": "#17364C",
+                  "align": "center"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "text": "2 / 2",
+              "size": "sm",
+              "color": "#17364C",
+              "align": "center",
+              "flex": 3
+            },
+            {
+              "type": "box",
+              "layout": "vertical",
+              "borderColor": "#E4F7FF",
+              "borderWidth": "1px",
+              "cornerRadius": "md",
+              "paddingAll": "xs",
+              "flex": 2,
+              "contents": [
+                {
+                  "type": "text",
+                  "text": "次へ",
+                  "size": "xs",
+                  "color": "#16BCEC",
+                  "align": "center"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "footer": {
+      "type": "box",
+      "layout": "vertical",
+      "backgroundColor": "#009FDE",
+      "paddingAll": "sm",
+      "contents": [
+        {
+          "type": "text",
+          "text": "© 2026 HappaMochi Bot",
+          "size": "xxs",
+          "color": "#FFFFFF",
+          "align": "center"
+        }
+      ]
+    }
+  }
+}

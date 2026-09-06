@@ -9,7 +9,6 @@
 - **メッセージ取り消し通知**: グループ内でメッセージが削除(unsend)されたことを検知し、次にそのグループで誰かが発言した際のReplyに便乗して通知
 - **グループメンバー・活動追跡**: メッセージ受信ごとにメンバー情報・発言をキャッシュ
 - **誕生日通知**: `誕生日登録 [月]/[日]` で登録、当日になったら次のメッセージ時に自動でお祝い通知(cron不使用、遅延評価方式)
-- **星座占い**: `星座登録 [星座名]`→`運勢`で日替わり運勢を取得(シード付き疑似ランダムで同日は同じ結果)
 - **週間ランキング**: グループの活動量ランキングを週次で自動配信(cron不使用、遅延評価方式)
 - **名言カード**: `名言:[テキスト]` で、satori + @resvg/resvg-wasm によって実際にPNG画像(1280x720)をCloudflare Workers上でレンダリングし、LINEの`imageMessage`(`originalContentUrl`/`previewImageUrl`)として配信する。生成したPNGはCloudflare D1の`quote_images.image_data`にBLOBとして保存し、`GET /quote-image/:id`で公開配信する。過去の一時的なリビルドでLINE Flex Message(偽の吹き出し)に差し替えられていたが、本来の実画像生成に復元済み。
   デザインは本番D1に残っていたレガシー画像を実際に取得・比較して再現した2パターン切り替え式:
@@ -22,6 +21,27 @@
 - **称号システム**: `称号一覧`、`称号装備 [称号名]`、`称号確認`(既存の本番データ: 5種のSSR称号、付与済み2件を引き継ぎ)。
   `grantTitle()`の実際のトリガーは「オセロで3勝したら`絶対王者`を自動付与」(下記オセロ戦績と連動)。
 - **オセロ**: `オセロ開始/参加/終了`に加え、`オセロ戦績`で自分の累計勝敗数(勝ち/負け/引き分け)を確認可能。
+- **個人ステータス(レベル/EXP/ポイント)**: メッセージ1通ごとに 1 EXP と 1 ポイントがたまる。
+  グループでもトークでも加算対象で、スタンプ・画像・コマンドも1通として数える。獲得上限・
+  連呼制限・参加登録は無し。同じイベントの再受信だけは二重加算しないよう`exp_events`の
+  一意キーで防いでいる(「1通を1回と数える」ための重複排除で、レート制限ではない)。
+  必要EXPは`100 + 8 × (現在のレベル − 1)`で、レベル上限は無い(称号のLv.200は解放条件であって
+  上限ではない)。累計EXPだけを保存し、レベルとレベル内EXPは都度計算するので、計算式を
+  後から直しても過去データが壊れない。`ステータス`コマンドで自分のカードを表示する。
+- **着せ替え(カードテーマ)**: 水色(無料) / ホワイト(300P) / ブラック(500P) / さくらピンク(700P)。
+  プレビューは無料、購入と適用は別操作、所持は永続で再適用も無料。購入は確認→確定の2段で、
+  台帳(`point_ledger`)の`reason_key`一意制約と条件付きUPDATE(`WHERE points >= ?`)により
+  二重引き落としと残高不足での購入を防ぐ。ステータスカードと、以後に生成する名言カードに反映される
+  (すでに送信済みのカードは書き換えない)。
+- **共通称号(300種)**: 自由選択240種 / レベル解放40種 / オセロ実績20種、14カテゴリ。
+  `共通称号一覧`・`共通称号装備 [称号名]`・`共通称号確認`・`称号検索 [文字]`で、
+  グループ内のまま一覧・検索・変更・交換まで完結する。解放履歴を持つので、あとで
+  レベルが下がっても没収しない。**既存の`称号一覧`/`称号装備`/`称号確認`(グループごと)は
+  従来どおり別管理**で、名前が同じでも自動では統合しない。
+- **個人ランキング**: 累計EXPの多い順に全員を掲載。同じ累計EXPは同順位(1位、2位、2位、4位…)。
+  `/ranking/personal`で公開し、名前を押すとその人の公開ステータス`/u/:publicId`へ移動する。
+  URLにはLINEのIDとは無関係なランダムな公開ID(`public_id`)だけを使い、会話の内容・
+  LINEユーザーID・非公開のグループ情報・誕生日の日付は公開しない。
   対局が決着した瞬間に`othello_records`テーブルへ記録され、3勝目で称号が付与される。
 - **LINEグループ募集掲示板 (BBS) + オープンチャット**: `/bbs` で公開。かつて存在した(現在は削除された)
   同名サイトのD1データ(`threads`/`chat_messages`、2025-11-09〜のデータ、40件+35件)をそのまま
@@ -75,9 +95,6 @@
 ```
 ヘルプ                          - コマンド一覧を表示
 ランキング / 順位                - このグループの今週の順位と発言数を表示
-運勢 / 今日の運勢                - 今日の星座運勢を表示
-星座登録 [星座名]                - 星座を登録
-星座登録解除                     - 星座の登録を解除
 誕生日登録 [月]/[日]             - 誕生日を登録
 誕生日登録解除                   - 誕生日の登録を解除
 取り消し通知オン / オフ          - 削除通知の切替
@@ -86,9 +103,20 @@
 ウェルカムメッセージ解除         - カスタム歓迎文を解除してデフォルトに戻す
 名言:[テキスト]                  - 名言カードを生成
 タグ追加/削除/一覧 [タグ名]
-称号一覧 / 称号装備 [称号名] / 称号確認
+称号一覧 / 称号装備 [称号名] / 称号確認   - グループごとの称号(従来どおり)
 オセロ開始 / 参加 / 終了 / 戦績
+
+--- 個人ステータス(人単位・全グループ共通) ---
+ステータス                       - 自分のステータスカードを表示
+着せ替え                         - カードテーマの選択・購入
+共通称号一覧                     - 共通称号(300種)の一覧
+共通称号装備 [称号名]            - 共通称号を装備
+共通称号確認                     - 装備中の共通称号を確認
+称号検索 [文字]                  - 共通称号を名前で検索
 ```
+
+※ グループでもトークでも使えます。トークへの誘導はしません。
+※ 「ステータス」で表示されるのは、コマンドを送った本人のカードだけです。
 
 ## 公開Webページ(LINEコマンドではない)
 ```
@@ -102,6 +130,8 @@ POST /bbs/chat         - オープンチャットへ投稿
 
 GET  /ranking          - グループ発言数ランキング(?period=today|week|month&size=all|small|medium|large&q=&page=N&group=ID)
 GET  /ranking/rules    - ランキングの集計ルール
+GET  /ranking/personal - 個人ランキング(累計EXP順、1ページ50人、?page=N)
+GET  /u/:publicId      - その人の公開ステータス(存在しないIDは404)
 
 GET  /gallery                    - 名言カードギャラリー一覧(?page=N)
 GET  /gallery/admin               - 管理者ログインフォーム
@@ -178,7 +208,24 @@ Cloudflare Workers上で本物のPNG画像を動的生成する仕組み。「Wo
   push_api_logs, webhook_debug_logs, member_birthdays, daily_fortune_sent, user_zodiac_signs,
   daily_zodiac_fortunes, group_rankings, weekly_ranking_sends, group_welcome_settings, tags,
   group_tags, quote_images, title_master, user_titles, pending_broadcasts, othello_games,
-  othello_records(新規), threads(新規/BBS), chat_messages(新規/BBS)
+  othello_records, threads(BBS), chat_messages(BBS), chess_games, chess_moves, chess_seats,
+  user_profiles(新規), exp_events(新規), theme_master(新規), user_themes(新規),
+  point_ledger(新規), common_title_category(新規), common_title_master(新規),
+  user_common_titles(新規)
+- **個人ステータスのデータモデル(0015/0016)**:
+  - `user_profiles`: 人単位・全グループ共通。`user_id`主キー、`public_id`(公開ページ用の
+    ランダム値/UNIQUE)、`total_exp`(累計のみ保存)、`points`、`active_theme`、`equipped_title`。
+    索引`idx_user_profiles_exp (total_exp DESC)`で個人ランキングを引く。
+  - `exp_events`: `event_key`主キー。`INSERT OR IGNORE`の`meta.changes`で二重加算を判定する。
+  - `theme_master` / `user_themes`: テーマ定義と「所持」。所持と「適用中」(`active_theme`)は別管理。
+  - `point_ledger`: `reason_key`をUNIQUEにして、購入処理が二重に成立しないようにしている。
+  - `common_title_category` / `common_title_master` / `user_common_titles`:
+    新しい共通称号(300種)。既存の`title_master`/`user_titles`(グループごと)とは**完全に別テーブル**で、
+    名前が同じでも自動では結び付けない。
+- **運勢の扱い**: 星座占いの自動配信は削除済み。ステータスカードに出る運勢は
+  「その人 + 日本時間の日付」から決まる表示専用の値で、DBには保存していない
+  (同じ日は何度開いても同じ結果、日付が変わると変わる)。
+  `daily_fortune_sent`テーブルは**誕生日通知機能が流用している**ため、絶対にドロップしない。
 - **除外テーブル(意図的・危険人物リスト/ガチャ機能ごと除外)**: danger_list, user_gacha_count, gacha_history
 - **未使用テーブル(存在するが現行src/では未参照・データは保持のまま放置)**: group_rankings,
   conversation_states, member_update_progress, line_friends, unsend_notification_messages。
@@ -190,7 +237,18 @@ Cloudflare Workers上で本物のPNG画像を動的生成する仕組み。「Wo
 ## デプロイ状況
 - **Platform**: Cloudflare Pages (プロジェクト `line-group-bbs`)
 - **Production URL**: https://line-group-bbs.pages.dev
-- **Status**: ✅ 本番デプロイ済み(2026-09-05)。BBS再構築(threads/chat_messages公開サイト化)
+- **Status**: ✅ 本番デプロイ済み(2026-09-06)。個人ステータス機能(レベル/EXP/ポイント/
+  個人ランキング/着せ替え4種/共通称号300種)を追加。デプロイID `6fdd3902`。
+  マイグレーション`0015_personalization.sql`・`0016_common_titles_seed.sql`を本番D1
+  (`--remote`)に適用済み。適用の前後で既存データが変化していないことを確認済み
+  (title_master 5件→5件、user_titles 8件→8件、group_activities 45,266件→45,266件、
+  daily_fortune_sent 47件→47件)。新規側は共通称号300件・カテゴリ14件・テーマ4件。
+  ローカルの自動テストは89項目すべて成功、Flexカード16種はLINE公式の検証API
+  (`/v2/bot/message/validate/reply`)で全件受理を確認済み。本番の`/ranking/personal`は200、
+  存在しない公開IDは404、不正署名のWebhookは401、既存ページ(`/bbs`・`/bbs/guide`・
+  `/bbs/chat`・`/ranking`・`/ranking/rules`・`/gallery`・`/sitemap.xml`)はすべて200。
+  ⚠️ ただし**実機のLINEアプリでの表示は未確認**(検証用の端末がないため)。
+- **過去の状態**: 本番デプロイ済み(2026-09-05)。BBS再構築(threads/chat_messages公開サイト化)
   とPhase5監査Fix#1/3/4/5/6/7/8を含む全機能を本番D1に接続した状態で動作確認済み。
   デプロイID `37e4a9d3-793f-4c16-86d5-ecf490c733fd`、コミット `beb6b2f`。
   マイグレーション`0008_bbs.sql`・`0009_othello_stats_and_title_trigger.sql`を

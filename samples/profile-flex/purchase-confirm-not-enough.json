@@ -1,0 +1,163 @@
+{
+  "type": "flex",
+  "altText": "ブラック を 500ポイントで交換しますか",
+  "contents": {
+    "type": "bubble",
+    "size": "mega",
+    "header": {
+      "type": "box",
+      "layout": "vertical",
+      "backgroundColor": "#009FDE",
+      "paddingAll": "md",
+      "contents": [
+        {
+          "type": "text",
+          "text": "交換の確認",
+          "size": "lg",
+          "weight": "bold",
+          "color": "#FFFFFF",
+          "align": "center"
+        }
+      ]
+    },
+    "body": {
+      "type": "box",
+      "layout": "vertical",
+      "backgroundColor": "#E4F7FF",
+      "paddingAll": "md",
+      "spacing": "sm",
+      "contents": [
+        {
+          "type": "box",
+          "layout": "vertical",
+          "backgroundColor": "#17212B",
+          "cornerRadius": "md",
+          "paddingAll": "sm",
+          "contents": [
+            {
+              "type": "text",
+              "text": "ブラック",
+              "size": "md",
+              "weight": "bold",
+              "color": "#F5F9FD",
+              "align": "center"
+            }
+          ]
+        },
+        {
+          "type": "box",
+          "layout": "horizontal",
+          "contents": [
+            {
+              "type": "text",
+              "text": "必要ポイント",
+              "size": "sm",
+              "color": "#17364C",
+              "flex": 3
+            },
+            {
+              "type": "text",
+              "text": "500 P",
+              "size": "sm",
+              "weight": "bold",
+              "color": "#17364C",
+              "align": "end",
+              "flex": 2
+            }
+          ]
+        },
+        {
+          "type": "box",
+          "layout": "horizontal",
+          "contents": [
+            {
+              "type": "text",
+              "text": "現在の残高",
+              "size": "sm",
+              "color": "#17364C",
+              "flex": 3
+            },
+            {
+              "type": "text",
+              "text": "120 P",
+              "size": "sm",
+              "weight": "bold",
+              "color": "#17364C",
+              "align": "end",
+              "flex": 2
+            }
+          ]
+        },
+        {
+          "type": "box",
+          "layout": "horizontal",
+          "contents": [
+            {
+              "type": "text",
+              "text": "交換後の残高",
+              "size": "sm",
+              "color": "#17364C",
+              "flex": 3
+            },
+            {
+              "type": "text",
+              "text": "不足しています",
+              "size": "sm",
+              "weight": "bold",
+              "color": "#17364C",
+              "align": "end",
+              "flex": 2
+            }
+          ]
+        },
+        {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "sm",
+          "margin": "md",
+          "contents": [
+            {
+              "type": "box",
+              "layout": "vertical",
+              "backgroundColor": "#E4F7FF",
+              "borderColor": "#16BCEC",
+              "borderWidth": "1px",
+              "cornerRadius": "md",
+              "paddingAll": "sm",
+              "action": {
+                "type": "postback",
+                "data": "pf|themes"
+              },
+              "contents": [
+                {
+                  "type": "text",
+                  "text": "戻る",
+                  "size": "sm",
+                  "weight": "regular",
+                  "color": "#17364C",
+                  "align": "center",
+                  "wrap": true
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "footer": {
+      "type": "box",
+      "layout": "vertical",
+      "backgroundColor": "#009FDE",
+      "paddingAll": "sm",
+      "contents": [
+        {
+          "type": "text",
+          "text": "© 2026 HappaMochi Bot",
+          "size": "xxs",
+          "color": "#FFFFFF",
+          "align": "center"
+        }
+      ]
+    }
+  }
+}

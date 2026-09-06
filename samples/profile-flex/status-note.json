@@ -1,0 +1,265 @@
+{
+  "type": "flex",
+  "altText": "はる のステータス（Lv.19 / 9999999位）",
+  "contents": {
+    "type": "bubble",
+    "size": "mega",
+    "header": {
+      "type": "box",
+      "layout": "vertical",
+      "backgroundColor": "#009FDE",
+      "paddingAll": "md",
+      "contents": [
+        {
+          "type": "text",
+          "text": "Ranking：9,999,999位",
+          "size": "lg",
+          "weight": "bold",
+          "color": "#FFFFFF",
+          "align": "center"
+        }
+      ]
+    },
+    "body": {
+      "type": "box",
+      "layout": "vertical",
+      "backgroundColor": "#E4F7FF",
+      "paddingAll": "md",
+      "contents": [
+        {
+          "type": "box",
+          "layout": "vertical",
+          "backgroundColor": "#16BCEC",
+          "cornerRadius": "md",
+          "paddingAll": "sm",
+          "contents": [
+            {
+              "type": "text",
+              "text": "長い称号名長い称号名長い称号名長い称号名",
+              "size": "md",
+              "weight": "bold",
+              "color": "#FFFFFF",
+              "align": "center",
+              "wrap": true
+            }
+          ]
+        },
+        {
+          "type": "box",
+          "layout": "vertical",
+          "backgroundColor": "#E4F7FF",
+          "borderColor": "#16BCEC",
+          "borderWidth": "1px",
+          "cornerRadius": "md",
+          "paddingAll": "md",
+          "margin": "md",
+          "spacing": "sm",
+          "contents": [
+            {
+              "type": "box",
+              "layout": "horizontal",
+              "spacing": "md",
+              "alignItems": "center",
+              "contents": [
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "width": "56px",
+                  "height": "56px",
+                  "cornerRadius": "999px",
+                  "backgroundColor": "#009FDE",
+                  "justifyContent": "center",
+                  "flex": 0,
+                  "contents": [
+                    {
+                      "type": "image",
+                      "url": "https://example.com/a.png",
+                      "size": "full",
+                      "aspectMode": "cover",
+                      "aspectRatio": "1:1"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "はる",
+                      "size": "lg",
+                      "weight": "bold",
+                      "color": "#17364C",
+                      "wrap": true
+                    },
+                    {
+                      "type": "box",
+                      "layout": "horizontal",
+                      "margin": "sm",
+                      "contents": [
+                        {
+                          "type": "text",
+                          "text": "Lv. 19",
+                          "size": "sm",
+                          "color": "#17364C",
+                          "flex": 0
+                        },
+                        {
+                          "type": "text",
+                          "text": "exp 188 / 244",
+                          "size": "xs",
+                          "color": "#16BCEC",
+                          "align": "end"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "box",
+                      "layout": "vertical",
+                      "height": "12px",
+                      "backgroundColor": "#E4F7FF",
+                      "cornerRadius": "999px",
+                      "borderColor": "#16BCEC",
+                      "borderWidth": "1px",
+                      "contents": [
+                        {
+                          "type": "box",
+                          "layout": "vertical",
+                          "width": "77%",
+                          "height": "12px",
+                          "backgroundColor": "#16BCEC",
+                          "cornerRadius": "999px",
+                          "contents": [
+                            {
+                              "type": "filler"
+                            }
+                          ]
+                        }
+                      ],
+                      "margin": "sm"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "box",
+              "layout": "horizontal",
+              "margin": "md",
+              "alignItems": "center",
+              "contents": [
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "backgroundColor": "#16BCEC",
+                  "cornerRadius": "20px",
+                  "paddingAll": "xs",
+                  "paddingStart": "md",
+                  "paddingEnd": "md",
+                  "flex": 0,
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "小吉",
+                      "size": "sm",
+                      "weight": "bold",
+                      "color": "#FFFFFF",
+                      "align": "center"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "text": "保有ポイント: 3,599",
+                  "size": "sm",
+                  "color": "#17364C",
+                  "align": "end",
+                  "gravity": "center"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "sm",
+          "margin": "md",
+          "contents": [
+            {
+              "type": "box",
+              "layout": "vertical",
+              "backgroundColor": "#16BCEC",
+              "borderColor": "#16BCEC",
+              "borderWidth": "1px",
+              "cornerRadius": "md",
+              "paddingAll": "sm",
+              "action": {
+                "type": "postback",
+                "data": "pf|themes"
+              },
+              "contents": [
+                {
+                  "type": "text",
+                  "text": "着せ替え",
+                  "size": "sm",
+                  "weight": "bold",
+                  "color": "#FFFFFF",
+                  "align": "center",
+                  "wrap": true
+                }
+              ]
+            },
+            {
+              "type": "box",
+              "layout": "vertical",
+              "backgroundColor": "#E4F7FF",
+              "borderColor": "#16BCEC",
+              "borderWidth": "1px",
+              "cornerRadius": "md",
+              "paddingAll": "sm",
+              "action": {
+                "type": "postback",
+                "data": "pf|titles"
+              },
+              "contents": [
+                {
+                  "type": "text",
+                  "text": "称号変更",
+                  "size": "sm",
+                  "weight": "regular",
+                  "color": "#17364C",
+                  "align": "center",
+                  "wrap": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": "押した方自身のステータスを表示しています。",
+          "size": "xxs",
+          "color": "#16BCEC",
+          "margin": "md",
+          "wrap": true
+        }
+      ]
+    },
+    "footer": {
+      "type": "box",
+      "layout": "vertical",
+      "backgroundColor": "#009FDE",
+      "paddingAll": "sm",
+      "contents": [
+        {
+          "type": "text",
+          "text": "© 2026 HappaMochi Bot",
+          "size": "xxs",
+          "color": "#FFFFFF",
+          "align": "center"
+        }
+      ]
+    }
+  }
+}

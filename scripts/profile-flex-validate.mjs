@@ -82,37 +82,74 @@ add('status-preview', flex.buildStatusCard({
 add('status-note', flex.buildStatusCard({ profile: profile(), level: lv, theme: AQUA, rank: 9999999, titleName: '長い称号名'.repeat(4), fortune: '小吉', note: '押した方自身のステータスを表示しています。' }))
 
 // 着せ替え
+const ALL_THEMES = [
+  AQUA,
+  { ...AQUA, id: 'white', name: 'ホワイト', price: 300, header_bg: '#EEF3F7', body_bg: '#FFFFFF', text_color: '#203747', accent: '#6B879B', header_text: '#203747', sort_order: 2 },
+  BLACK,
+  { ...AQUA, id: 'sakura', name: 'さくらピンク', price: 700, header_bg: '#F6C9D6', body_bg: '#FFF7FA', text_color: '#643A4E', accent: '#C56B91', header_text: '#643A4E', sort_order: 4 },
+]
 add('themes', flex.buildThemeCard({
-  profile: profile(), theme: AQUA, ui: AQUA, level: lv,
-  themes: [AQUA, { ...AQUA, id: 'white', name: 'ホワイト', price: 300 }, BLACK, { ...AQUA, id: 'sakura', name: 'さくらピンク', price: 700 }],
-  ownedIds: new Set(['aqua', 'white']),
+  profile: profile(), level: lv, uiTheme: AQUA, themes: ALL_THEMES,
+  ownedIds: new Set(['aqua', 'white']), activeId: 'aqua',
 }))
-add('purchase-confirm', flex.buildPurchaseConfirm({ theme: BLACK, ui: AQUA, points: 1200, confirmData: 'pf|buyok|black', backData: 'pf|themes' }))
+add('themes-all-owned', flex.buildThemeCard({
+  profile: profile({ points: 0 }), level: lv, uiTheme: AQUA, themes: ALL_THEMES,
+  ownedIds: new Set(['aqua', 'white', 'black', 'sakura']), activeId: 'black',
+}))
+add('purchase-confirm', flex.buildPurchaseConfirm(BLACK, AQUA, 1200))
+add('purchase-confirm-not-enough', flex.buildPurchaseConfirm(BLACK, AQUA, 120))
 
-// 共通称号
-const mk = (i) => ({ title: title({ id: `t${i}`, name: `称号${i}` }), available: i % 2 === 0, reason: i % 2 === 0 ? null : 'Lv.30で解放' })
-add('titles-list', flex.buildTitleListCard({
-  ui: AQUA, filter: 'all', categoryId: null, query: null, page: 1, totalPages: 12,
-  rows: [1, 2, 3, 4, 5].map(mk), equippedId: 't2',
-  equipData: (id) => `pf|equipp|${id}|all|-|-|1`, navData: (p) => `pf|tl|all|-|-|${p}`,
-  backData: 'pf|status', categoryData: 'pf|cat|all|-|1', searchData: 'pf|searchhelp',
+// 共通称号一覧
+const item = (i, usable) => ({
+  title: title({ id: `t${i}`, name: `称号${i}`, description: `説明${i}` }),
+  usable,
+  lockLabel: usable ? null : 'Lv.30で解放',
+  equipped: i === 2,
+})
+const listBase = {
+  ui: AQUA, profile: profile(), level: lv,
+  totalCount: 300, filteredCount: 60, page: 1, pageCount: 12, filter: 'all',
+  scopeLabel: 'すべて',
+  pageData: (p) => `pf|tl|all|-|-|${p}`,
   filterData: (f) => `pf|tl|${f}|-|-|1`,
+  categoryData: 'pf|cat|all|-|1',
+  searchData: 'pf|searchhelp',
+  equipData: (id) => `pf|equipp|${id}|all|-|-|1`,
+}
+add('titles-list', flex.buildTitleListCard({
+  ...listBase,
+  items: [1, 2, 3, 4, 5].map((i) => item(i, i % 2 === 0)),
+}))
+add('titles-list-last-page', flex.buildTitleListCard({
+  ...listBase, page: 12, pageCount: 12,
+  items: [1, 2].map((i) => item(i, true)),
 }))
 add('titles-empty', flex.buildTitleListCard({
-  ui: AQUA, filter: 'locked', categoryId: null, query: 'zzzz', page: 1, totalPages: 0,
-  rows: [], equippedId: null,
-  equipData: (id) => `pf|equipp|${id}|locked|-|zzzz|1`, navData: (p) => `pf|tl|locked|-|zzzz|${p}`,
-  backData: 'pf|status', categoryData: 'pf|cat|locked|zzzz|1', searchData: 'pf|searchhelp',
-  filterData: (f) => `pf|tl|${f}|-|zzzz|1`,
+  ...listBase, filter: 'locked', scopeLabel: '未解放のみ / 検索「zzzz」',
+  filteredCount: 0, page: 1, pageCount: 1, items: [],
 }))
-add('categories', flex.buildCategoryCard({
-  ui: AQUA, page: 1, totalPages: 2,
-  rows: [
-    { id: 'daily', name: '暮らし・時間', total: 20, usable: 20 },
-    { id: 'growth', name: '成長', total: 20, usable: 3 },
-  ],
-  selectData: (id) => `pf|tl|all|${id}|-|1`, navData: (p) => `pf|cat|all|-|${p}`, backData: 'pf|titles',
+add('titles-long-names', flex.buildTitleListCard({
+  ...listBase,
+  items: [1, 2, 3, 4, 5].map((i) => ({
+    title: title({ id: `t${i}`, name: `とても長い称号の名前${i}`.repeat(2), description: 'とても長い説明文'.repeat(6) }),
+    usable: false, lockLabel: 'オセロ100勝で解放', equipped: false,
+  })),
 }))
+
+// カテゴリ選択
+const CATS = [
+  { id: 'daily', name: '暮らし・時間', kind: 'free', display_order: 1 },
+  { id: 'mood', name: '気分', kind: 'free', display_order: 2 },
+  { id: 'talk', name: '会話', kind: 'free', display_order: 3 },
+  { id: 'food', name: '食べもの', kind: 'free', display_order: 4 },
+  { id: 'season', name: '季節', kind: 'free', display_order: 5 },
+  { id: 'nature', name: '自然', kind: 'free', display_order: 6 },
+  { id: 'hobby', name: '趣味', kind: 'free', display_order: 7 },
+  { id: 'growth', name: '成長', kind: 'level', display_order: 8 },
+  { id: 'othello', name: 'オセロ', kind: 'othello', display_order: 9 },
+]
+add('categories-page1', flex.buildCategoryCard(AQUA, CATS, 1, (p) => `pf|cat|all|-|${p}`, (id) => `pf|tl|all|${id ?? '-'}|-|1`))
+add('categories-page2', flex.buildCategoryCard(AQUA, CATS, 2, (p) => `pf|cat|all|-|${p}`, (id) => `pf|tl|all|${id ?? '-'}|-|1`))
 
 fs.mkdirSync(OUT, { recursive: true })
 for (const s of samples) {

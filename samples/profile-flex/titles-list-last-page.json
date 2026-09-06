@@ -1,0 +1,383 @@
+{
+  "type": "flex",
+  "altText": "称号を選ぶ（全300種類）",
+  "contents": {
+    "type": "bubble",
+    "size": "mega",
+    "header": {
+      "type": "box",
+      "layout": "horizontal",
+      "backgroundColor": "#009FDE",
+      "paddingAll": "md",
+      "alignItems": "center",
+      "spacing": "sm",
+      "contents": [
+        {
+          "type": "box",
+          "layout": "vertical",
+          "width": "36px",
+          "height": "36px",
+          "cornerRadius": "999px",
+          "backgroundColor": "#009FDE",
+          "justifyContent": "center",
+          "flex": 0,
+          "contents": [
+            {
+              "type": "image",
+              "url": "https://example.com/a.png",
+              "size": "full",
+              "aspectMode": "cover",
+              "aspectRatio": "1:1"
+            }
+          ]
+        },
+        {
+          "type": "box",
+          "layout": "vertical",
+          "contents": [
+            {
+              "type": "text",
+              "text": "称号を選ぶ",
+              "size": "lg",
+              "weight": "bold",
+              "color": "#FFFFFF"
+            },
+            {
+              "type": "text",
+              "text": "全300種類・はる Lv.19",
+              "size": "xxs",
+              "color": "#FFFFFF",
+              "margin": "xs",
+              "wrap": true
+            }
+          ]
+        }
+      ]
+    },
+    "body": {
+      "type": "box",
+      "layout": "vertical",
+      "backgroundColor": "#E4F7FF",
+      "paddingAll": "md",
+      "contents": [
+        {
+          "type": "box",
+          "layout": "horizontal",
+          "contents": [
+            {
+              "type": "box",
+              "layout": "vertical",
+              "backgroundColor": "#16BCEC",
+              "borderColor": "#16BCEC",
+              "borderWidth": "1px",
+              "paddingAll": "xs",
+              "action": {
+                "type": "postback",
+                "data": "pf|tl|all|-|-|1"
+              },
+              "contents": [
+                {
+                  "type": "text",
+                  "text": "すべて",
+                  "size": "xs",
+                  "weight": "bold",
+                  "color": "#FFFFFF",
+                  "align": "center"
+                }
+              ]
+            },
+            {
+              "type": "box",
+              "layout": "vertical",
+              "backgroundColor": "#E4F7FF",
+              "borderColor": "#16BCEC",
+              "borderWidth": "1px",
+              "paddingAll": "xs",
+              "action": {
+                "type": "postback",
+                "data": "pf|tl|usable|-|-|1"
+              },
+              "contents": [
+                {
+                  "type": "text",
+                  "text": "使える",
+                  "size": "xs",
+                  "weight": "regular",
+                  "color": "#17364C",
+                  "align": "center"
+                }
+              ]
+            },
+            {
+              "type": "box",
+              "layout": "vertical",
+              "backgroundColor": "#E4F7FF",
+              "borderColor": "#16BCEC",
+              "borderWidth": "1px",
+              "paddingAll": "xs",
+              "action": {
+                "type": "postback",
+                "data": "pf|tl|locked|-|-|1"
+              },
+              "contents": [
+                {
+                  "type": "text",
+                  "text": "未解放",
+                  "size": "xs",
+                  "weight": "regular",
+                  "color": "#17364C",
+                  "align": "center"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "box",
+          "layout": "horizontal",
+          "margin": "md",
+          "alignItems": "center",
+          "spacing": "sm",
+          "contents": [
+            {
+              "type": "text",
+              "text": "すべて（60種類）",
+              "size": "xs",
+              "color": "#17364C",
+              "flex": 4,
+              "wrap": true
+            },
+            {
+              "type": "box",
+              "layout": "vertical",
+              "borderColor": "#16BCEC",
+              "borderWidth": "1px",
+              "cornerRadius": "md",
+              "paddingAll": "xs",
+              "flex": 2,
+              "action": {
+                "type": "postback",
+                "data": "pf|cat|all|-|1"
+              },
+              "contents": [
+                {
+                  "type": "text",
+                  "text": "カテゴリ",
+                  "size": "xxs",
+                  "color": "#17364C",
+                  "align": "center"
+                }
+              ]
+            },
+            {
+              "type": "box",
+              "layout": "vertical",
+              "borderColor": "#16BCEC",
+              "borderWidth": "1px",
+              "cornerRadius": "md",
+              "paddingAll": "xs",
+              "flex": 2,
+              "action": {
+                "type": "postback",
+                "data": "pf|searchhelp"
+              },
+              "contents": [
+                {
+                  "type": "text",
+                  "text": "検索",
+                  "size": "xxs",
+                  "color": "#17364C",
+                  "align": "center"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "box",
+          "layout": "vertical",
+          "margin": "md",
+          "borderColor": "#16BCEC",
+          "borderWidth": "1px",
+          "cornerRadius": "md",
+          "paddingAll": "sm",
+          "contents": [
+            {
+              "type": "box",
+              "layout": "horizontal",
+              "alignItems": "center",
+              "paddingAll": "sm",
+              "margin": "none",
+              "contents": [
+                {
+                  "type": "text",
+                  "text": "称号1",
+                  "size": "sm",
+                  "weight": "regular",
+                  "color": "#17364C",
+                  "flex": 3,
+                  "wrap": true
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "borderColor": "#16BCEC",
+                  "borderWidth": "1px",
+                  "cornerRadius": "md",
+                  "paddingAll": "xs",
+                  "flex": 2,
+                  "action": {
+                    "type": "postback",
+                    "data": "pf|equipp|t1|all|-|-|1"
+                  },
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "装備",
+                      "size": "xs",
+                      "color": "#17364C",
+                      "align": "center"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "box",
+              "layout": "horizontal",
+              "alignItems": "center",
+              "paddingAll": "sm",
+              "backgroundColor": "#E4F7FF",
+              "borderColor": "#16BCEC",
+              "borderWidth": "1px",
+              "cornerRadius": "md",
+              "margin": "xs",
+              "contents": [
+                {
+                  "type": "text",
+                  "text": "称号2",
+                  "size": "sm",
+                  "weight": "bold",
+                  "color": "#17364C",
+                  "flex": 3,
+                  "wrap": true
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "backgroundColor": "#16BCEC",
+                  "cornerRadius": "md",
+                  "paddingAll": "xs",
+                  "flex": 2,
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "装備中",
+                      "size": "xs",
+                      "weight": "bold",
+                      "color": "#FFFFFF",
+                      "align": "center"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "box",
+          "layout": "horizontal",
+          "margin": "md",
+          "alignItems": "center",
+          "contents": [
+            {
+              "type": "box",
+              "layout": "vertical",
+              "borderColor": "#16BCEC",
+              "borderWidth": "1px",
+              "cornerRadius": "md",
+              "paddingAll": "xs",
+              "flex": 2,
+              "action": {
+                "type": "postback",
+                "data": "pf|tl|all|-|-|11"
+              },
+              "contents": [
+                {
+                  "type": "text",
+                  "text": "前へ",
+                  "size": "xs",
+                  "color": "#17364C",
+                  "align": "center"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "text": "12 / 12",
+              "size": "sm",
+              "color": "#17364C",
+              "align": "center",
+              "flex": 3
+            },
+            {
+              "type": "box",
+              "layout": "vertical",
+              "borderColor": "#E4F7FF",
+              "borderWidth": "1px",
+              "cornerRadius": "md",
+              "paddingAll": "xs",
+              "flex": 2,
+              "contents": [
+                {
+                  "type": "text",
+                  "text": "次へ",
+                  "size": "xs",
+                  "color": "#16BCEC",
+                  "align": "center"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "box",
+          "layout": "vertical",
+          "borderColor": "#16BCEC",
+          "borderWidth": "1px",
+          "cornerRadius": "md",
+          "paddingAll": "sm",
+          "margin": "sm",
+          "action": {
+            "type": "postback",
+            "data": "pf|status"
+          },
+          "contents": [
+            {
+              "type": "text",
+              "text": "ステータスに戻る",
+              "size": "sm",
+              "color": "#17364C",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    "footer": {
+      "type": "box",
+      "layout": "vertical",
+      "backgroundColor": "#009FDE",
+      "paddingAll": "sm",
+      "contents": [
+        {
+          "type": "text",
+          "text": "© 2026 HappaMochi Bot",
+          "size": "xxs",
+          "color": "#FFFFFF",
+          "align": "center"
+        }
+      ]
+    }
+  }
+}
