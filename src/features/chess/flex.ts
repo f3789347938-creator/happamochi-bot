@@ -406,35 +406,81 @@ export function buildRecruitCard(
   note?: string
 ): LineMessage {
   const name = displayName(game.creator_name, '作成者')
+
+  // 作成者のアイコン。プロフィール画像があればそれを、無ければ
+  // 頭文字を丸く表示する(盤面カードの playerRow と同じ方式)。
+  const avatar: Record<string, any> = game.creator_picture
+    ? { type: 'image', url: game.creator_picture, size: 'full', aspectMode: 'cover', aspectRatio: '1:1' }
+    : {
+        type: 'text',
+        text: initialOf(game.creator_name, '作成者'),
+        align: 'center',
+        gravity: 'center',
+        color: DARKBG,
+        weight: 'bold',
+        size: 'xxl',
+      }
+
   const contents: Record<string, any>[] = [
-    noticeBox(`${name}さんが対局相手を募集中`, '同じグループの別の人が「対局に参加」を押すと開始します。白黒はランダムで決まります。'),
+    // 上段: 大きめの丸アイコン + 名前 + 状態
     {
       type: 'box',
       layout: 'horizontal',
-      spacing: 'sm',
-      margin: 'md',
+      spacing: 'md',
+      alignItems: 'center',
       contents: [
         {
           type: 'box',
           layout: 'vertical',
-          backgroundColor: GOLD,
-          cornerRadius: 'md',
-          paddingAll: 'md',
-          action: { type: 'postback', data: joinToken },
-          contents: [{ type: 'text', text: '対局に参加', size: 'sm', weight: 'bold', color: DARKBG, align: 'center' }],
+          width: '64px',
+          height: '64px',
+          cornerRadius: '999px',
+          backgroundColor: IVORY,
+          justifyContent: 'center',
+          flex: 0,
+          contents: [avatar],
         },
         {
           type: 'box',
           layout: 'vertical',
-          backgroundColor: PANEL,
-          cornerRadius: 'md',
-          paddingAll: 'md',
-          action: { type: 'postback', data: cancelToken },
-          contents: [{ type: 'text', text: '募集を取り消す', size: 'sm', color: IVORY, align: 'center' }],
+          contents: [
+            { type: 'text', text: name, color: IVORY, size: 'xl', weight: 'bold', wrap: true },
+            { type: 'text', text: '対局相手を待っています', color: IVORY, size: 'sm', margin: 'xs', wrap: true },
+          ],
         },
       ],
     },
-    { type: 'text', text: '募集は10分で期限切れになります。', size: 'xxs', color: MUTED, margin: 'md', wrap: true },
+    // 中段: 条件を1行で
+    {
+      type: 'text',
+      text: '白黒ランダム・募集10分',
+      color: MUTED,
+      size: 'xs',
+      margin: 'lg',
+      wrap: true,
+    },
+    // 主ボタン: 横幅いっぱいの金色
+    {
+      type: 'box',
+      layout: 'vertical',
+      backgroundColor: GOLD,
+      cornerRadius: 'md',
+      paddingAll: 'lg',
+      margin: 'md',
+      action: { type: 'postback', data: joinToken },
+      contents: [
+        { type: 'text', text: '対局に参加', size: 'lg', weight: 'bold', color: DARKBG, align: 'center' },
+      ],
+    },
+    // 副ボタン: 枠なしの控えめな文字リンク
+    {
+      type: 'box',
+      layout: 'vertical',
+      paddingAll: 'sm',
+      margin: 'sm',
+      action: { type: 'postback', data: cancelToken },
+      contents: [{ type: 'text', text: '募集を取り消す', size: 'sm', color: MUTED, align: 'center' }],
+    },
   ]
   if (note) contents.push({ type: 'text', text: note, size: 'xxs', color: GOLD, margin: 'sm', wrap: true })
 
@@ -445,7 +491,7 @@ export function buildRecruitCard(
       type: 'bubble',
       size: 'mega',
       header: header('募集中', imageBase),
-      body: { type: 'box', layout: 'vertical', backgroundColor: DARKBG, paddingAll: 'md', contents },
+      body: { type: 'box', layout: 'vertical', backgroundColor: DARKBG, paddingAll: 'lg', contents },
     },
   }
 }

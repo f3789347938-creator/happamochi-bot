@@ -304,11 +304,11 @@ export async function handleChessText(
   return [recruitMessage(await withCreatorName(env, ctx, created), ctx.baseUrl)]
 }
 
-/** 募集カード表示用に作成者名を補完する(DBには保存しない) */
+/** 募集カード表示用に作成者の名前とアイコンを補完する(DBには保存しない) */
 async function withCreatorName(env: LineEnv, ctx: ChessCtx, game: ChessGame): Promise<ChessGame> {
   if (game.creator_name !== undefined) return game
   const p = await safeProfile(env, game.creator_user_id, ctx.groupId)
-  return { ...game, creator_name: p.name }
+  return { ...game, creator_name: p.name, creator_picture: p.picture }
 }
 
 /** プロフィール取得。失敗しても対局を続けられるよう例外を出さない。 */

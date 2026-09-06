@@ -60,77 +60,54 @@
       "type": "box",
       "layout": "vertical",
       "backgroundColor": "#122D28",
-      "paddingAll": "md",
+      "paddingAll": "lg",
       "contents": [
         {
           "type": "box",
-          "layout": "vertical",
-          "backgroundColor": "#1B3F38",
-          "cornerRadius": "md",
-          "paddingAll": "md",
-          "contents": [
-            {
-              "type": "text",
-              "text": "作成者さんが対局相手を募集中",
-              "color": "#F3EEDB",
-              "size": "sm",
-              "weight": "bold",
-              "wrap": true
-            },
-            {
-              "type": "text",
-              "text": "同じグループの別の人が「対局に参加」を押すと開始します。白黒はランダムで決まります。",
-              "color": "#8FA894",
-              "size": "xxs",
-              "margin": "xs",
-              "wrap": true
-            }
-          ]
-        },
-        {
-          "type": "box",
           "layout": "horizontal",
-          "spacing": "sm",
-          "margin": "md",
+          "spacing": "md",
+          "alignItems": "center",
           "contents": [
             {
               "type": "box",
               "layout": "vertical",
-              "backgroundColor": "#D9B45B",
-              "cornerRadius": "md",
-              "paddingAll": "md",
-              "action": {
-                "type": "postback",
-                "data": "cj|7ffd5985f1774bcf"
-              },
+              "width": "64px",
+              "height": "64px",
+              "cornerRadius": "999px",
+              "backgroundColor": "#F3EEDB",
+              "justifyContent": "center",
+              "flex": 0,
               "contents": [
                 {
                   "type": "text",
-                  "text": "対局に参加",
-                  "size": "sm",
-                  "weight": "bold",
+                  "text": "作",
+                  "align": "center",
+                  "gravity": "center",
                   "color": "#122D28",
-                  "align": "center"
+                  "weight": "bold",
+                  "size": "xxl"
                 }
               ]
             },
             {
               "type": "box",
               "layout": "vertical",
-              "backgroundColor": "#1B3F38",
-              "cornerRadius": "md",
-              "paddingAll": "md",
-              "action": {
-                "type": "postback",
-                "data": "cx|7ffd5985f1774bcf"
-              },
               "contents": [
                 {
                   "type": "text",
-                  "text": "募集を取り消す",
-                  "size": "sm",
+                  "text": "作成者",
                   "color": "#F3EEDB",
-                  "align": "center"
+                  "size": "xl",
+                  "weight": "bold",
+                  "wrap": true
+                },
+                {
+                  "type": "text",
+                  "text": "対局相手を待っています",
+                  "color": "#F3EEDB",
+                  "size": "sm",
+                  "margin": "xs",
+                  "wrap": true
                 }
               ]
             }
@@ -138,11 +115,52 @@
         },
         {
           "type": "text",
-          "text": "募集は10分で期限切れになります。",
-          "size": "xxs",
+          "text": "白黒ランダム・募集10分",
           "color": "#8FA894",
-          "margin": "md",
+          "size": "xs",
+          "margin": "lg",
           "wrap": true
+        },
+        {
+          "type": "box",
+          "layout": "vertical",
+          "backgroundColor": "#D9B45B",
+          "cornerRadius": "md",
+          "paddingAll": "lg",
+          "margin": "md",
+          "action": {
+            "type": "postback",
+            "data": "cj|66769d0fe6c143ba"
+          },
+          "contents": [
+            {
+              "type": "text",
+              "text": "対局に参加",
+              "size": "lg",
+              "weight": "bold",
+              "color": "#122D28",
+              "align": "center"
+            }
+          ]
+        },
+        {
+          "type": "box",
+          "layout": "vertical",
+          "paddingAll": "sm",
+          "margin": "sm",
+          "action": {
+            "type": "postback",
+            "data": "cx|66769d0fe6c143ba"
+          },
+          "contents": [
+            {
+              "type": "text",
+              "text": "募集を取り消す",
+              "size": "sm",
+              "color": "#8FA894",
+              "align": "center"
+            }
+          ]
         }
       ]
     }

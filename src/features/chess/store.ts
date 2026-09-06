@@ -10,6 +10,8 @@ export interface ChessGame {
   creator_user_id: string
   /** 募集カード表示用。DBには持たず実行時に補完する */
   creator_name?: string | null
+  /** 募集カード表示用のアイコンURL。同じく DBには持たない */
+  creator_picture?: string | null
   white_user_id: string | null
   black_user_id: string | null
   white_name: string | null
