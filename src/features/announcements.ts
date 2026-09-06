@@ -98,16 +98,28 @@ export const ANNOUNCEMENTS: AnnouncementContent[] = [
 
 // --- Flex rendering ("notice card" design) ------------------------------
 
-const HEADER_BG = '#2a323d'
-const CARD_BG_OUTER = '#eef1f4'
+// --- 配色 (水色テーマ) ---------------------------------------------------
+// ユーザー指定の3色を基準にしている:
+//   ヘッダーの水色 #BAE7FA / ボタンの水色 #9DDDF4 / 文字のネイビー #15384D
+//
+// 重要: ヘッダーとボタンが淡い水色になったため、以前の「白文字」では
+// 文字が読めなくなる(実測コントラスト比 ヘッダー 1.32:1 / ボタン 1.49:1)。
+// そのため、この2箇所の文字色は白ではなくネイビーにしている
+// (ヘッダー 9.33:1 / ボタン 8.26:1 でどちらも十分な可読性)。
+// 併せてフッターも濃紺から水色系に寄せ、ネイビー文字にしている。
+const HEADER_BG = '#BAE7FA'        // ヘッダー(水色)
+const HEADER_TEXT = '#15384D'      // ヘッダー文字(ネイビー)
+const CARD_BG_OUTER = '#EAF6FD'    // カードの外側の淡い水色地
 const CARD_BG = '#ffffff'
-const CARD_BORDER = '#d5dbe3'
-const TITLE_COLOR = '#1a1a2e'
-const BODY_COLOR = '#4a5568'
-const DATE_COLOR = '#a0aab5'
-const BUTTON_BG = '#3b4a5a'
-const FOOTER_BG = '#1f2937'
-const HIGHLIGHT_COLOR = '#2b6cb0'
+const CARD_BORDER = '#C4E4F5'      // 水色系の枠線
+const TITLE_COLOR = '#15384D'      // 見出し(ネイビー)
+const BODY_COLOR = '#3C6478'       // 本文(白地で 6.39:1)
+const DATE_COLOR = '#7DA3B8'       // 日付(補助情報なので淡く)
+const BUTTON_BG = '#9DDDF4'        // ボタン(水色)
+const BUTTON_TEXT = '#15384D'      // ボタン文字(ネイビー)
+const FOOTER_BG = '#D6EEFA'        // フッター(ヘッダーより淡い水色)
+const FOOTER_TEXT = '#15384D'      // フッター文字(ネイビー)
+const HIGHLIGHT_COLOR = '#0E7FA8'  // 強調(白地で 4.55:1、水色寄りのアクセント)
 // When an announcement is split into a multi-card Carousel, every card
 // must render at the SAME size, or the bubbles end up visibly different
 // heights depending on how much text landed on each page. Two things make
@@ -223,12 +235,28 @@ function buildBubble(
     card.height = `${CARD_HEIGHT_PX}px`
   }
 
+  // LINEのFlex `button` は style:'primary' だと文字色が白で固定され、
+  // 淡い水色(#9DDDF4)の上では 1.49:1 しかなく読めない。文字色を指定できる
+  // プロパティが button には無いため、タップ領域を持つ box(action付き)で
+  // 自前に組み、中のテキストをネイビーにしている。見た目・挙動はボタンと
+  // 同じで、action の内容(message/uri/postback)もそのまま渡している。
   const buttonBox = {
-    type: 'button',
-    style: 'primary',
-    color: BUTTON_BG,
-    height: 'sm',
+    type: 'box',
+    layout: 'vertical',
+    backgroundColor: BUTTON_BG,
+    cornerRadius: 'md',
+    paddingAll: 'md',
     action: { type: button.action.type, label: button.label, ...omitLabelAndType(button.action) },
+    contents: [
+      {
+        type: 'text',
+        text: button.label,
+        color: BUTTON_TEXT,
+        weight: 'bold',
+        size: 'sm',
+        align: 'center',
+      },
+    ],
   }
 
   return {
@@ -256,7 +284,7 @@ function buildBubble(
       layout: 'vertical',
       backgroundColor: HEADER_BG,
       paddingAll: 'lg',
-      contents: [{ type: 'text', text: 'お知らせ', color: '#ffffff', weight: 'bold', size: 'md', align: 'center' }],
+      contents: [{ type: 'text', text: 'お知らせ', color: HEADER_TEXT, weight: 'bold', size: 'md', align: 'center' }],
     },
     body: {
       type: 'box',
@@ -272,7 +300,7 @@ function buildBubble(
       backgroundColor: FOOTER_BG,
       paddingAll: 'md',
       contents: [
-        { type: 'text', text: `© ${jstYear()} 葉っぱもち nano-bot`, color: '#ffffff', size: 'xs', align: 'center' },
+        { type: 'text', text: `© ${jstYear()} 葉っぱもち nano-bot`, color: FOOTER_TEXT, size: 'xs', align: 'center' },
       ],
     },
   }
