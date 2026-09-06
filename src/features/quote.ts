@@ -9,8 +9,9 @@
 // and delivers it to LINE as a real imageMessage, matching the legacy
 // behavior and the real rows found in the production quote_images table.
 import type { LineEnv, LineMessage } from '../lib/line'
-import { generateQuoteCardPng } from '../lib/imageGen'
+import { generateQuoteCardPng, type QuoteTheme } from '../lib/imageGen'
 import { parseQuoteParams, type QuoteParams } from '../lib/quoteParams'
+import { DEFAULT_THEME_ID, resolveThemeForUser } from './profile/core'
 
 // Generates the PNG and stores it in quote_images. Returns the row id,
 // which becomes part of the publicly-served image URL
@@ -27,6 +28,29 @@ export async function saveQuote(
 ): Promise<string> {
   const id = crypto.randomUUID()
 
+  // カードテーマ(着せ替え)を反映する。
+  // 対象は「カードに名前が載る発言者本人」= この関数の userId。
+  // 他人への返信から生成する場合は、呼び出し側が引用元の発言者IDを
+  // userId として渡しているので、そのまま本人のテーマになる。
+  // 水色(既定)のときは theme を渡さず、従来と同一のカードにする。
+  // 読み込み失敗時も resolveThemeForUser が水色を返すので生成は壊れない。
+  let theme: QuoteTheme | undefined
+  try {
+    const t = await resolveThemeForUser(env, userId)
+    if (t.id !== DEFAULT_THEME_ID) {
+      theme = {
+        id: t.id,
+        bg: t.body_bg,
+        text: t.text_color,
+        sub: t.text_color,
+        muted: t.accent,
+        mark: t.accent,
+      }
+    }
+  } catch {
+    theme = undefined
+  }
+
   const png = await generateQuoteCardPng({
     quoteText,
     authorName: displayName,
@@ -34,6 +58,7 @@ export async function saveQuote(
     pictureUrl,
     params: opts?.params,
     baseUrl: opts?.baseUrl,
+    theme,
   })
 
   // D1's .bind() does NOT accept a Uint8Array as a BLOB value — it falls

@@ -15,6 +15,11 @@ import { cacheGroupMessage, touchGroupMember, ensureGroupMetadata, markGroupLeft
 import { buildWelcomeMessages } from './features/welcome'
 import { registerBirthday, unregisterBirthday, checkAndQueueBirthdays } from './features/birthday'
 // 運勢機能は廃止したため features/fortune.ts の import は無い。
+// 個人ステータス(レベル/EXP/ポイント)・着せ替え・共通称号。
+// 既存のグループ別称号(features/titles.ts)とは別系統の独立モジュール。
+import { addExpForMessage } from './features/profile/core'
+import { handleProfileText, handleProfilePostback } from './features/profile'
+import { renderPersonalRankingPage, renderPublicStatusPage } from './features/profile/page'
 import { checkAndQueueWeeklyRanking } from './features/ranking'
 import { saveQuote, buildQuoteImageMessage } from './features/quote'
 import { parseQuoteParams, describeParams, isPureParamString, FONT_LABELS } from './lib/quoteParams'
@@ -117,6 +122,22 @@ app.get('/quote-image/:id', async (c) => {
 // LINE Botが集計した group_activities を集計源にした公開ページ。
 // 読み取り専用で、Bot本体(webhook・コマンド処理)には一切関与しない。
 // 集計に失敗した場合も 500 にせず、ページ内でエラー表示に切り替える。
+// 個人ランキング。既存の /ranking(グループ発言数)とは別物なので
+// パスを分けている。既存の集計方法は変更していない。
+app.get('/ranking/personal', async (c) => {
+  const page = Math.max(1, parseInt(c.req.query('page') || '1', 10) || 1)
+  const html = await renderPersonalRankingPage(c.env, SITE_URL, page)
+  return c.html(html)
+})
+
+// 公開ステータス。URLには public_id しか使わない(LINEのユーザーIDは
+// 公開しない)。会話本文・グループ情報・誕生日は載せない。
+app.get('/u/:publicId', async (c) => {
+  const publicId = c.req.param('publicId').slice(0, 40)
+  const { html, found } = await renderPublicStatusPage(c.env, SITE_URL, publicId)
+  return c.html(html, found ? 200 : 404)
+})
+
 app.get('/ranking', async (c) => {
   const rawPeriod = c.req.query('period')
   const period: RankingPeriod =
@@ -495,6 +516,96 @@ app.post('/debug/chess', async (c) => {
   return c.json({ error: 'unknown op' }, 400)
 })
 
+// 個人ステータス機能のテスト用エンドポイント。
+// 読み取りは誰でも、書き込み(reset)はテスト用IDのみ。
+app.post('/debug/profile', async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as {
+    op?: string
+    userId?: string
+    publicId?: string
+    set?: Record<string, number | string | null>
+  }
+  const TEST_PREFIX = 'Upf_test_'
+
+  if (body.op === 'get') {
+    const row = await c.env.DB.prepare(`SELECT * FROM user_profiles WHERE user_id = ?`)
+      .bind(body.userId ?? '')
+      .first()
+    const themes = await c.env.DB.prepare(`SELECT theme_id FROM user_themes WHERE user_id = ?`)
+      .bind(body.userId ?? '')
+      .all()
+    const ledger = await c.env.DB.prepare(
+      `SELECT delta, reason, reason_key FROM point_ledger WHERE user_id = ? ORDER BY id`
+    )
+      .bind(body.userId ?? '')
+      .all()
+    const titles = await c.env.DB.prepare(
+      `SELECT title_id FROM user_common_titles WHERE user_id = ?`
+    )
+      .bind(body.userId ?? '')
+      .all()
+    return c.json({
+      profile: row ?? null,
+      themes: (themes.results ?? []).map((r: any) => r.theme_id),
+      ledger: ledger.results ?? [],
+      unlocked: (titles.results ?? []).map((r: any) => r.title_id),
+    })
+  }
+
+  if (body.op === 'counts') {
+    const t = await c.env.DB.prepare(`SELECT COUNT(*) c FROM common_title_master`).first<{ c: number }>()
+    const cat = await c.env.DB.prepare(`SELECT COUNT(*) c FROM common_title_category`).first<{ c: number }>()
+    const th = await c.env.DB.prepare(`SELECT COUNT(*) c FROM theme_master`).first<{ c: number }>()
+    const byCat = await c.env.DB.prepare(
+      `SELECT category, COUNT(*) c FROM common_title_master GROUP BY category`
+    ).all()
+    const byType = await c.env.DB.prepare(
+      `SELECT unlock_type, COUNT(*) c FROM common_title_master GROUP BY unlock_type`
+    ).all()
+    // 既存のグループ別称号が壊れていないことも確認できるようにする
+    const legacy = await c.env.DB.prepare(`SELECT COUNT(*) c FROM title_master`).first<{ c: number }>()
+    const legacyUser = await c.env.DB.prepare(`SELECT COUNT(*) c FROM user_titles`).first<{ c: number }>()
+    return c.json({
+      titles: t?.c ?? 0,
+      categories: cat?.c ?? 0,
+      themes: th?.c ?? 0,
+      byCategory: byCat.results ?? [],
+      byType: byType.results ?? [],
+      legacyTitleMaster: legacy?.c ?? 0,
+      legacyUserTitles: legacyUser?.c ?? 0,
+    })
+  }
+
+  const uid = body.userId ?? ''
+  if (!uid.startsWith(TEST_PREFIX)) return c.json({ error: 'test users only' }, 403)
+
+  if (body.op === 'reset') {
+    for (const sql of [
+      `DELETE FROM user_profiles WHERE user_id LIKE ?`,
+      `DELETE FROM user_themes WHERE user_id LIKE ?`,
+      `DELETE FROM point_ledger WHERE user_id LIKE ?`,
+      `DELETE FROM user_common_titles WHERE user_id LIKE ?`,
+      `DELETE FROM exp_events WHERE user_id LIKE ?`,
+    ]) {
+      await c.env.DB.prepare(sql).bind(`${uid}%`).run()
+    }
+    return c.json({ ok: true })
+  }
+
+  if (body.op === 'patch' && body.set) {
+    const allowed = ['total_exp', 'points', 'active_theme', 'equipped_title']
+    const keys = Object.keys(body.set).filter((k) => allowed.includes(k))
+    if (keys.length === 0) return c.json({ error: 'no allowed keys' }, 400)
+    const sets = keys.map((k) => `${k} = ?`).join(', ')
+    await c.env.DB.prepare(`UPDATE user_profiles SET ${sets} WHERE user_id = ?`)
+      .bind(...keys.map((k) => body.set![k]), uid)
+      .run()
+    return c.json({ ok: true })
+  }
+
+  return c.json({ error: 'unknown op' }, 400)
+})
+
 app.post('/debug/simulate', async (c) => {
   const { text, groupId, userId, pictureUrl } = await c.req.json<{
     text: string
@@ -576,12 +687,18 @@ app.post('/webhook', async (c) => {
 
   // 自動テスト専用の同期モード。waitUntil は応答後に走るため、テスト側から
   // 「処理が終わったか」を知る手段が無く、固定の待ち時間に頼ると不安定になる。
-  // テスト用グループ(Cchess_test_ 接頭辞)のイベントだけに限定し、
-  // 処理完了まで待ってから200を返す。実LINEのトラフィックは必ず
-  // グループIDがこの接頭辞にならないため、本番の挙動は一切変わらない。
-  const allTestEvents =
-    events.length > 0 &&
-    events.every((e: any) => String(e?.source?.groupId ?? '').startsWith('Cchess_test_'))
+  // テスト用のID(下の接頭辞)のイベントだけに限定し、処理完了まで待ってから
+  // 200を返す。実LINEのトラフィックは必ずこれらの接頭辞にならないため、
+  // 本番の挙動は一切変わらない。
+  // 個人トーク(source.type === 'user')のテストもあるため、
+  // グループIDだけでなくユーザーIDの接頭辞も見る。
+  const TEST_ID_PREFIXES = ['Cchess_test_', 'Cpf_test_', 'Upf_test_']
+  const isTestEvent = (e: any) => {
+    const gid = String(e?.source?.groupId ?? '')
+    const uid = String(e?.source?.userId ?? '')
+    return TEST_ID_PREFIXES.some((p) => gid.startsWith(p) || uid.startsWith(p))
+  }
+  const allTestEvents = events.length > 0 && events.every(isTestEvent)
   if (allTestEvents) {
     await work
     return c.json({ ok: true, sync: true })
@@ -671,6 +788,23 @@ async function handleMessageEvent(env: Bindings, event: any, baseUrl: string) {
     pictureUrl = profile?.pictureUrl ?? null
   }
 
+  // 個人ステータスのEXP/ポイント加算(追加機能)。
+  //   ・本人が新しく送った1通につき EXP+1・ポイント+1。
+  //   ・種類(文章/画像/スタンプ/コマンド)で除外しない。
+  //   ・グループと個人トークの両方が対象。
+  //   ・獲得制限は付けない。ただし「1通を1回と数える」ため、
+  //     webhookEventId(無ければ message.id)で二重加算だけ防ぐ。
+  //   ・Bot自身の返信やボタン操作(Postback)はここを通らないので加算されない。
+  // 失敗しても既存処理を止めないよう try/catch で完全に隔離する。
+  if (userId) {
+    try {
+      const eventKey = event.webhookEventId ?? (message?.id ? `msg_${message.id}` : null)
+      await addExpForMessage(env, userId, eventKey, displayName, pictureUrl)
+    } catch {
+      /* EXP加算の失敗は既存機能に影響させない */
+    }
+  }
+
   if (isGroup) {
     // Only call the LINE Group Summary API when we don't have a name yet
     // for this group — avoids hitting that endpoint on every single
@@ -748,11 +882,51 @@ async function handleMessageEvent(env: Bindings, event: any, baseUrl: string) {
 // replyToken, exactly like a message event, so this never needs Push API.
 async function handlePostback(env: Bindings, event: any, baseUrl: string) {
   const source = event.source
-  if (source.type !== 'group') return
-  const groupId = source.groupId
   const userId = source.userId
   const replyToken: string | undefined = event.replyToken
   const data: string = event.postback?.data ?? ''
+
+  // --- 個人ステータス・着せ替え・共通称号(追加機能) ---
+  // グループでも個人トークでも動かす必要があるため、
+  // 既存のグループ限定チェックより前に処理する。
+  //
+  // 操作主体は必ず source.userId。PostbackのデータにユーザーIDは
+  // 入っていないので、他人のカードのボタンを押しても、そのカードの
+  // 持ち主のポイント・装備は一切変わらず、押した本人の画面が出る。
+  if (data.startsWith('pf|') && userId && replyToken) {
+    // Webhook再送・連打対策: 同じ webhookEventId は1回だけ処理する。
+    // (購入の二重成立は point_ledger の一意制約でも防いでいる)
+    const fresh = await markEventProcessed(env, event.webhookEventId ?? null)
+    if (!fresh) return
+    try {
+      const msgs = await handleProfilePostback(
+        env,
+        {
+          userId,
+          displayName: null,
+          pictureUrl: null,
+          baseUrl,
+        },
+        data
+      )
+      if (msgs && msgs.length > 0) {
+        if (source.type === 'group' && source.groupId) {
+          await flushQueueOnReply(env, source.groupId, replyToken, msgs.slice(0, 5))
+        } else {
+          await replyMessage(env, replyToken, msgs.slice(0, 5))
+        }
+      }
+    } catch {
+      await replyMessage(env, replyToken, [
+        { type: 'text', text: 'この操作でエラーが発生しました。「ステータス」で開き直せます。' },
+      ])
+    }
+    return
+  }
+
+  // 以下はグループ限定の既存処理(チェス・オセロ)。
+  if (source.type !== 'group') return
+  const groupId = source.groupId
   if (!groupId || !userId || !replyToken) return
 
   // --- チェス ---
@@ -840,6 +1014,31 @@ async function routeCommand(env: Bindings, ctx: CommandCtx): Promise<LineMessage
 
   if (text === 'ヘルプ' || text.toLowerCase() === 'help') {
     return [{ type: 'text', text: HELP_TEXT }]
+  }
+
+  // --- 個人ステータス・着せ替え・共通称号(追加機能) ---
+  // 「ステータス」「着せ替え」「共通称号一覧」「共通称号装備」
+  // 「共通称号確認」「称号検索」だけに反応する。
+  // 既存の「称号一覧」「称号装備」「称号確認」はグループ別称号のまま
+  // 下の方で処理されるので、ここでは触らない。
+  // グループでも個人トークでも使える(個人トークへ誘導しない)。
+  // 失敗しても他のコマンドを止めないよう try/catch で囲う。
+  if (ctx.userId) {
+    try {
+      const pfMsgs = await handleProfileText(
+        env,
+        {
+          userId: ctx.userId,
+          displayName: ctx.displayName,
+          pictureUrl: ctx.pictureUrl,
+          baseUrl: ctx.baseUrl,
+        },
+        text
+      )
+      if (pfMsgs) return pfMsgs
+    } catch {
+      /* 個人ステータス機能の失敗は既存コマンドに影響させない */
+    }
   }
 
   // --- チェス(グループ対局) ---
@@ -1181,9 +1380,22 @@ const HELP_TEXT = `葉っぱもち Bot ヘルプ
 【タグ】
 タグ追加/削除/一覧 [タグ名]
 
-【称号】
-称号一覧 - 所持している称号を確認
+【称号(グループごと)】
+称号一覧 - このグループで所持している称号を確認
 称号装備 [称号名] - 称号を装備
-称号確認 - 現在装備中の称号を確認`
+称号確認 - 現在装備中の称号を確認
+
+【ステータス・着せ替え・共通称号】
+ステータス - レベル・EXP・順位・ポイントを表示
+着せ替え - カードテーマを選ぶ(名言カードにも反映)
+共通称号一覧 - 全300種類から称号を選ぶ
+共通称号装備 [称号名] - 共通称号を装備
+共通称号確認 - 装備中の共通称号を確認
+称号検索 [文字] - 共通称号を名前で探す
+
+メッセージを1通送るごとに 1EXP と 1ポイントがたまります。
+必要EXPは「100 + 8 ×（現在のレベル − 1）」です。
+共通称号はグループをまたいで共通、上の「称号」はグループごとです。
+個人ランキングと公開ステータス: ${SITE_URL}/ranking/personal`
 
 export default app

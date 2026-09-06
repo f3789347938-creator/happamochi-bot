@@ -144,6 +144,27 @@ export interface QuoteCardInput {
    * 静的アセットとして配信し、必要な1本だけ実行時に取得する。
    */
   baseUrl?: string
+  /**
+   * カードテーマ(着せ替え)。発言者本人が選んだテーマの色を渡す。
+   * 水色(既定テーマ)のときは undefined を渡すこと。そうすれば
+   * 従来と完全に同一のカードが出る(既存カードの見た目を守るため)。
+   */
+  theme?: QuoteTheme
+}
+
+/** 名言カードに反映するテーマ色。features/profile の theme_master と対応。 */
+export interface QuoteTheme {
+  id: string
+  /** テキスト面の背景色 */
+  bg: string
+  /** 引用文の色 */
+  text: string
+  /** 著者名の色 */
+  sub: string
+  /** userId の色 */
+  muted: string
+  /** ウォーターマークの色 */
+  mark: string
 }
 
 // レガシー(〜2026年6月)の名言カードは、引用文のフォントサイズを文字数で
@@ -486,12 +507,24 @@ function quoteChildren(text: string, p: QuoteParams): any {
   }))
 }
 
+/** #RRGGBB → "r,g,b"(グラデーションのrgba()で使うため) */
+function hexToRgbTriplet(hex: string): string {
+  const m = hex.replace('#', '')
+  const v =
+    m.length === 3
+      ? [m[0] + m[0], m[1] + m[1], m[2] + m[2]]
+      : [m.slice(0, 2), m.slice(2, 4), m.slice(4, 6)]
+  const [r, g, b] = v.map((x) => parseInt(x, 16) || 0)
+  return `${r},${g},${b}`
+}
+
 function buildCustomCard(
   quoteText: string,
   authorName: string,
   userId: string,
   avatarDataUrl: string | null,
-  p: QuoteParams
+  p: QuoteParams,
+  theme?: QuoteTheme
 ) {
   // レイアウト寸法。
   //   standard: 既存カードと同じ 写真640 / フェード182 / テキスト中心899.5
@@ -506,12 +539,21 @@ function buildCustomCard(
   const textLeft = 559
   const textWidth = 681
 
-  const bg = p.whiteBase ? '#FFFFFF' : '#000000'
-  const fadeTo = p.whiteBase ? '255,255,255' : '0,0,0'
-  const textColor = baseTextColor(p)
-  const subColor = p.whiteBase ? '#555555' : '#ffffff'
-  const idColor = p.whiteBase ? '#9a9a9a' : '#aaaaaa'
-  const markColor = p.whiteBase ? '#b0b0b0' : '#777777'
+  // テーマ(着せ替え)があればそれを基調にする。
+  // whi(白ベース)を明示指定した場合は、そちらを優先する
+  // (パラメータは本人がその場で指定した意思表示なので上に置く)。
+  const bg = p.whiteBase ? '#FFFFFF' : (theme?.bg ?? '#000000')
+  const fadeTo = p.whiteBase
+    ? '255,255,255'
+    : theme
+      ? hexToRgbTriplet(theme.bg)
+      : '0,0,0'
+  // 色パラメータが指定されていればそれを、無ければテーマの文字色を使う。
+  const textColor =
+    p.color.kind !== 'default' ? baseTextColor(p) : p.whiteBase ? '#1A1A1A' : (theme?.text ?? '#ffffff')
+  const subColor = p.whiteBase ? '#555555' : (theme?.sub ?? '#ffffff')
+  const idColor = p.whiteBase ? '#9a9a9a' : (theme?.muted ?? '#aaaaaa')
+  const markColor = p.whiteBase ? '#b0b0b0' : (theme?.mark ?? '#777777')
   const perChar = perCharColors(quoteText, p.color) !== null
 
   // 本文サイズ。1文字ごとに色を付ける場合も同じ基準を使う。
@@ -736,11 +778,22 @@ export async function generateQuoteCardPng(input: QuoteCardInput): Promise<Uint8
   // パラメータが何も指定されていないときは、従来のレイアウト関数を
   // そのまま通す。ここを分岐させておくことで、既存の名言カードの
   // 出力が1ピクセルも変わらないことを保証する。
-  const markup = p.any
-    ? buildCustomCard(input.quoteText, input.authorName, input.userId, avatarDataUrl, p)
-    : avatarDataUrl
-      ? buildAvatarCard(input.quoteText, input.authorName, input.userId, avatarDataUrl)
-      : buildNoAvatarCard(input.quoteText, input.authorName)
+  // テーマが指定されている(= 水色以外を選んでいる)場合もカスタム経路を
+  // 通す。水色のときは input.theme を渡さない運用なので、従来どおり
+  // buildAvatarCard がそのまま使われ、既存カードの見た目は変わらない。
+  const markup =
+    p.any || input.theme
+      ? buildCustomCard(
+          input.quoteText,
+          input.authorName,
+          input.userId,
+          avatarDataUrl,
+          p,
+          input.theme
+        )
+      : avatarDataUrl
+        ? buildAvatarCard(input.quoteText, input.authorName, input.userId, avatarDataUrl)
+        : buildNoAvatarCard(input.quoteText, input.authorName)
 
   // フォント指定があれば、その書体を同一オリジンから取得して
   // 既定フォントより先に登録する(satori は先に一致した書体を使う)。
