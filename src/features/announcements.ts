@@ -13,7 +13,8 @@
 // text is too long for one card) are handled generically by this file.
 // targetGroupIds can still be used to limit which groups the command
 // responds in, e.g. while testing a new announcement.
-import type { LineMessage } from '../lib/line'
+import { enqueueBroadcast } from '../lib/line'
+import type { LineMessage, LineEnv } from '../lib/line'
 
 // --- Content model -------------------------------------------------------
 
@@ -52,6 +53,10 @@ export interface AnnouncementContent {
 // --- Registry --------------------------------------------------------------
 // Add future announcements here — nothing else needs to change.
 
+// 新しいお知らせを本番の全グループに出す前に、まず1グループだけで見た目を
+// 確認したいときに targetGroupIds: [BOT_TEST_GROUP_ID] として使う。
+// 現在登録済みの3件は確認済みのため全グループ対象(targetGroupIds なし)。
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const BOT_TEST_GROUP_ID = 'C69deb597234d891abaf8b643b186476c' // "botテスト"
 
 export const ANNOUNCEMENTS: AnnouncementContent[] = [
@@ -66,9 +71,6 @@ export const ANNOUNCEMENTS: AnnouncementContent[] = [
       '・対局中はヘッダーに手番の人を表示するように変更\n' +
       '・タップできるマスの色が手番（黒・白）ごとに変化',
     button: { label: 'ヘルプを見る', action: { type: 'message', label: 'ヘルプを見る', text: 'ヘルプ' } },
-    // Test run: only respond in "botテスト" for now. Remove targetGroupIds
-    // (or list more group IDs) once the user confirms it looks good.
-    targetGroupIds: [BOT_TEST_GROUP_ID],
   },
   {
     id: 'notice_2026_09_05_tag',
@@ -80,7 +82,6 @@ export const ANNOUNCEMENTS: AnnouncementContent[] = [
       '「タグ一覧」で今設定されているタグを確認できます',
     highlightWord: 'タグ',
     button: { label: 'タグ一覧を見る', action: { type: 'message', label: 'タグ一覧を見る', text: 'タグ一覧' } },
-    targetGroupIds: [BOT_TEST_GROUP_ID],
   },
   {
     id: 'notice_2026_09_05_title',
@@ -92,7 +93,6 @@ export const ANNOUNCEMENTS: AnnouncementContent[] = [
       '「称号確認」で今装備している称号を確認できます',
     highlightWord: '称号',
     button: { label: '称号一覧を見る', action: { type: 'message', label: '称号一覧を見る', text: '称号一覧' } },
-    targetGroupIds: [BOT_TEST_GROUP_ID],
   },
 ]
 
@@ -366,4 +366,73 @@ export function getLatestAnnouncementMessages(groupId: string | null): LineMessa
   )
   if (visible.length === 0) return []
   return [buildAnnouncementsMessage(visible)]
+}
+
+// --- 未送信のお知らせを1回だけ自動送信する ------------------------------
+//
+// 「お知らせ」コマンドは何度でも見返せるが(上の
+// getLatestAnnouncementMessages)、それとは別に、新しいお知らせを
+// ANNOUNCEMENTS に追加したときは、各グループに **1回だけ** 自動で届く。
+//
+// 仕組み(週間ランキング features/ranking.ts と同じ遅延評価方式):
+//   1. グループでメッセージを受信するたびに checkAndQueueAnnouncements()
+//      が呼ばれる。
+//   2. そのグループに対して「まだ送っていない id」があるか調べる。
+//      (announcement_sends テーブルで管理)
+//   3. あればブロードキャストキューに積み、送信済みとして記録する。
+//   4. 実際の送信は、その発言への Reply に便乗して行われる(Push API不使用)。
+//
+// したがって:
+//   ・新しい id を追加 → 各グループで次の発言時に1回だけ届く
+//   ・そのあとは、次に新しい id を追加するまで自動送信されない
+//   ・既存の id の文面だけを直した場合は「送信済み」なので再送されない
+//     (再送したいなら id を新しくする)
+export async function checkAndQueueAnnouncements(env: LineEnv, groupId: string) {
+  // このグループが対象になるお知らせだけに絞る
+  // (targetGroupIds が指定されているものは、そのグループ限定)
+  const visible = ANNOUNCEMENTS.filter(
+    (a) => !a.targetGroupIds || a.targetGroupIds.includes(groupId)
+  )
+  if (visible.length === 0) return
+
+  // 既に送信済みの id を取得
+  const placeholders = visible.map(() => '?').join(',')
+  const { results } = await env.DB.prepare(
+    `SELECT announcement_id FROM announcement_sends
+      WHERE group_id = ? AND announcement_id IN (${placeholders})`
+  )
+    .bind(groupId, ...visible.map((a) => a.id))
+    .all<{ announcement_id: string }>()
+
+  const alreadySent = new Set((results ?? []).map((r) => r.announcement_id))
+  const unsent = visible.filter((a) => !alreadySent.has(a.id))
+  if (unsent.length === 0) return
+
+  // 未送信ぶんをまとめて1通のFlex(複数ならCarousel)にする。
+  // LINEの1リプライ5メッセージ制限があるため、Flex 1通に束ねるのが安全。
+  const message = buildAnnouncementsMessage(unsent)
+
+  await enqueueBroadcast(
+    env,
+    groupId,
+    'announcement',
+    [message],
+    // dedup_key: 同じ組み合わせを二重にキューしない
+    `announcement_${groupId}_${unsent.map((a) => a.id).join('+')}`
+  )
+
+  // 送信済みとして記録する。
+  //
+  // 注意: ここでキュー投入直後に記録している。キューは delivered=0 のまま
+  // 残り、Reply成功まで再試行されるので「キューに入った=最終的に届く」と
+  // みなして良い。逆にReply成功を待って記録しようとすると、キューの
+  // 送信経路(lib/line.ts)にお知らせ専用の後処理を差し込む必要があり、
+  // 既存のブロードキャスト処理に手を入れることになるため採らない。
+  for (const a of unsent) {
+    await env.DB.prepare(
+      `INSERT OR IGNORE INTO announcement_sends (group_id, announcement_id) VALUES (?, ?)`
+    )
+      .bind(groupId, a.id)
+      .run()
+  }
 }

@@ -29,7 +29,7 @@ import { addTagToGroup, listGroupTags, removeTagFromGroup } from './features/tag
 import { setWelcomeSetting, clearWelcomeMessage } from './features/welcome'
 import { equipTitle, getEquippedTitle, listUserTitles } from './features/titles'
 import { startGame as startOthello, joinGame as joinOthello, endGame as endOthello, applyMove as applyOthelloMove, buildOthelloMessage, checkAndQueueOthelloTimeout, getOthelloRecord } from './features/othello'
-import { getLatestAnnouncementMessages } from './features/announcements'
+import { getLatestAnnouncementMessages, checkAndQueueAnnouncements } from './features/announcements'
 import {
   listThreads,
   listAllThreadIds,
@@ -591,6 +591,14 @@ async function handleMessageEvent(env: Bindings, event: any, baseUrl: string) {
     await checkAndQueueBirthdays(env, groupId)
     await checkAndQueueGroupFortune(env, groupId)
     await checkAndQueueWeeklyRanking(env, groupId)
+    // 未送信のお知らせをグループごとに1回だけ配信する。
+    // キューに積むだけなので Push API は使わず、実送信はこの発言への
+    // Reply に便乗する。失敗しても他の機能を巫がないよう try/catch で囲う。
+    try {
+      await checkAndQueueAnnouncements(env, groupId)
+    } catch {
+      /* お知らせ配信の失敗は既存機能に影響させない */
+    }
     // Any message (not just othello commands or board taps) can be the
     // trigger that notices an abandoned in-progress game and announces its
     // timeout — there's no cron/push to do this proactively.
