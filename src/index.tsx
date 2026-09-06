@@ -21,6 +21,8 @@ import {
   unregisterZodiacSign,
   todayJst,
   ZODIAC_SIGNS,
+  // 自動配信は停止中。関数自体は features/fortune.ts に残してあり、
+  // 呼び出しを1行戻せば再開できる(handleMessageEvent 内のコメント参照)。
   checkAndQueueGroupFortune,
 } from './features/fortune'
 import { checkAndQueueWeeklyRanking } from './features/ranking'
@@ -710,7 +712,12 @@ async function handleMessageEvent(env: Bindings, event: any, baseUrl: string) {
 
     // Lazily check push-free scheduled-ish features (no cron available).
     await checkAndQueueBirthdays(env, groupId)
-    await checkAndQueueGroupFortune(env, groupId)
+    // 運勢の自動配信は停止した。毎日グループの発言に勝手に割り込んで
+    // うっとうしいという指摘があったため。
+    // 「運勢」コマンドで自分から見る機能はそのまま残してある
+    // (routeCommand の '運勢' / '今日の運勢' を参照)。
+    // 再開したい場合はこの1行を戻すだけでよい:
+    //   await checkAndQueueGroupFortune(env, groupId)
     await checkAndQueueWeeklyRanking(env, groupId)
     // 未送信のお知らせをグループごとに1回だけ配信する。
     // キューに積むだけなので Push API は使わず、実送信はこの発言への
