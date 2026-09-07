@@ -1,0 +1,1428 @@
+{
+  "type": "flex",
+  "altText": "ヘルプ（メニュー）— 横にスワイプして選べます",
+  "contents": {
+    "type": "carousel",
+    "contents": [
+      {
+        "type": "bubble",
+        "size": "mega",
+        "header": {
+          "type": "box",
+          "layout": "horizontal",
+          "backgroundColor": "#EAF6FD",
+          "paddingAll": "md",
+          "contents": [
+            {
+              "type": "text",
+              "text": "葉っぱもち Bot",
+              "size": "xs",
+              "color": "#4A7C97",
+              "flex": 1,
+              "wrap": false
+            },
+            {
+              "type": "text",
+              "text": "01 / 06",
+              "size": "xs",
+              "color": "#4A7C97",
+              "align": "end",
+              "flex": 0
+            }
+          ]
+        },
+        "body": {
+          "type": "box",
+          "layout": "vertical",
+          "backgroundColor": "#FFFFFF",
+          "paddingAll": "lg",
+          "contents": [
+            {
+              "type": "text",
+              "text": "名言カード",
+              "size": "xl",
+              "weight": "bold",
+              "color": "#123A56",
+              "wrap": true
+            },
+            {
+              "type": "text",
+              "text": "ひとことを、残したくなる一枚に。",
+              "size": "sm",
+              "color": "#456B82",
+              "wrap": true,
+              "margin": "sm"
+            },
+            {
+              "type": "box",
+              "layout": "vertical",
+              "margin": "lg",
+              "spacing": "sm",
+              "contents": [
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "contents": [
+                    {
+                      "type": "box",
+                      "layout": "baseline",
+                      "margin": "none",
+                      "contents": [
+                        {
+                          "type": "text",
+                          "text": "できること",
+                          "size": "xxs",
+                          "color": "#7C9AAD",
+                          "flex": 3,
+                          "wrap": true
+                        },
+                        {
+                          "type": "text",
+                          "text": "テキスト・返信・装飾",
+                          "size": "xxs",
+                          "color": "#123A56",
+                          "flex": 7,
+                          "align": "end",
+                          "wrap": true
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "box",
+              "layout": "vertical",
+              "margin": "lg",
+              "spacing": "sm",
+              "contents": [
+                {
+                  "type": "box",
+                  "layout": "horizontal",
+                  "backgroundColor": "#0E9AD6",
+                  "borderColor": "#0E9AD6",
+                  "borderWidth": "1px",
+                  "cornerRadius": "md",
+                  "paddingAll": "md",
+                  "alignItems": "center",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "文字を入れて作る",
+                      "size": "sm",
+                      "weight": "bold",
+                      "color": "#FFFFFF",
+                      "wrap": true,
+                      "flex": 1
+                    },
+                    {
+                      "type": "text",
+                      "text": "›",
+                      "size": "sm",
+                      "color": "#FFFFFF",
+                      "align": "end",
+                      "flex": 0
+                    }
+                  ],
+                  "action": {
+                    "type": "postback",
+                    "data": "hm|n|Q01"
+                  }
+                },
+                {
+                  "type": "box",
+                  "layout": "horizontal",
+                  "backgroundColor": "#F2F9FD",
+                  "borderColor": "#D6E9F5",
+                  "borderWidth": "1px",
+                  "cornerRadius": "md",
+                  "paddingAll": "md",
+                  "alignItems": "center",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "装飾を選ぶ",
+                      "size": "sm",
+                      "weight": "bold",
+                      "color": "#1B5E80",
+                      "wrap": true,
+                      "flex": 1
+                    },
+                    {
+                      "type": "text",
+                      "text": "›",
+                      "size": "sm",
+                      "color": "#1B5E80",
+                      "align": "end",
+                      "flex": 0
+                    }
+                  ],
+                  "action": {
+                    "type": "postback",
+                    "data": "hm|n|Q02"
+                  }
+                },
+                {
+                  "type": "box",
+                  "layout": "horizontal",
+                  "backgroundColor": "#F2F9FD",
+                  "borderColor": "#D6E9F5",
+                  "borderWidth": "1px",
+                  "cornerRadius": "md",
+                  "paddingAll": "md",
+                  "alignItems": "center",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "返信で作る",
+                      "size": "sm",
+                      "weight": "bold",
+                      "color": "#1B5E80",
+                      "wrap": true,
+                      "flex": 1
+                    },
+                    {
+                      "type": "text",
+                      "text": "›",
+                      "size": "sm",
+                      "color": "#1B5E80",
+                      "align": "end",
+                      "flex": 0
+                    }
+                  ],
+                  "action": {
+                    "type": "postback",
+                    "data": "hm|n|Q06"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "footer": {
+          "type": "box",
+          "layout": "vertical",
+          "backgroundColor": "#FFFFFF",
+          "paddingAll": "md",
+          "contents": [
+            {
+              "type": "text",
+              "text": "© 2026 HappaMochi Bot",
+              "size": "xxs",
+              "color": "#8FAEC0",
+              "align": "center",
+              "wrap": false
+            }
+          ]
+        }
+      },
+      {
+        "type": "bubble",
+        "size": "mega",
+        "header": {
+          "type": "box",
+          "layout": "horizontal",
+          "backgroundColor": "#EAF6FD",
+          "paddingAll": "md",
+          "contents": [
+            {
+              "type": "text",
+              "text": "葉っぱもち Bot",
+              "size": "xs",
+              "color": "#4A7C97",
+              "flex": 1,
+              "wrap": false
+            },
+            {
+              "type": "text",
+              "text": "02 / 06",
+              "size": "xs",
+              "color": "#4A7C97",
+              "align": "end",
+              "flex": 0
+            }
+          ]
+        },
+        "body": {
+          "type": "box",
+          "layout": "vertical",
+          "backgroundColor": "#FFFFFF",
+          "paddingAll": "lg",
+          "contents": [
+            {
+              "type": "text",
+              "text": "ステータス",
+              "size": "xl",
+              "weight": "bold",
+              "color": "#123A56",
+              "wrap": true
+            },
+            {
+              "type": "text",
+              "text": "自分らしさを、少しずつ。",
+              "size": "sm",
+              "color": "#456B82",
+              "wrap": true,
+              "margin": "sm"
+            },
+            {
+              "type": "box",
+              "layout": "vertical",
+              "margin": "lg",
+              "spacing": "sm",
+              "contents": [
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "contents": [
+                    {
+                      "type": "box",
+                      "layout": "baseline",
+                      "margin": "none",
+                      "contents": [
+                        {
+                          "type": "text",
+                          "text": "ステータス",
+                          "size": "xxs",
+                          "color": "#7C9AAD",
+                          "flex": 3,
+                          "wrap": true
+                        },
+                        {
+                          "type": "text",
+                          "text": "レベル・EXP・ポイント",
+                          "size": "xxs",
+                          "color": "#123A56",
+                          "flex": 7,
+                          "align": "end",
+                          "wrap": true
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "contents": [
+                    {
+                      "type": "separator",
+                      "color": "#E8F2F8",
+                      "margin": "none"
+                    },
+                    {
+                      "type": "box",
+                      "layout": "baseline",
+                      "margin": "sm",
+                      "contents": [
+                        {
+                          "type": "text",
+                          "text": "カスタマイズ",
+                          "size": "xxs",
+                          "color": "#7C9AAD",
+                          "flex": 3,
+                          "wrap": true
+                        },
+                        {
+                          "type": "text",
+                          "text": "テーマ・共通称号",
+                          "size": "xxs",
+                          "color": "#123A56",
+                          "flex": 7,
+                          "align": "end",
+                          "wrap": true
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "box",
+              "layout": "vertical",
+              "margin": "lg",
+              "spacing": "sm",
+              "contents": [
+                {
+                  "type": "box",
+                  "layout": "horizontal",
+                  "backgroundColor": "#0E9AD6",
+                  "borderColor": "#0E9AD6",
+                  "borderWidth": "1px",
+                  "cornerRadius": "md",
+                  "paddingAll": "md",
+                  "alignItems": "center",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "ステータスを見る",
+                      "size": "sm",
+                      "weight": "bold",
+                      "color": "#FFFFFF",
+                      "wrap": true,
+                      "flex": 1
+                    },
+                    {
+                      "type": "text",
+                      "text": "›",
+                      "size": "sm",
+                      "color": "#FFFFFF",
+                      "align": "end",
+                      "flex": 0
+                    }
+                  ],
+                  "action": {
+                    "type": "postback",
+                    "data": "hm|x|ステータス"
+                  }
+                },
+                {
+                  "type": "box",
+                  "layout": "horizontal",
+                  "backgroundColor": "#F2F9FD",
+                  "borderColor": "#D6E9F5",
+                  "borderWidth": "1px",
+                  "cornerRadius": "md",
+                  "paddingAll": "md",
+                  "alignItems": "center",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "着せ替え",
+                      "size": "sm",
+                      "weight": "bold",
+                      "color": "#1B5E80",
+                      "wrap": true,
+                      "flex": 1
+                    },
+                    {
+                      "type": "text",
+                      "text": "›",
+                      "size": "sm",
+                      "color": "#1B5E80",
+                      "align": "end",
+                      "flex": 0
+                    }
+                  ],
+                  "action": {
+                    "type": "postback",
+                    "data": "hm|x|着せ替え"
+                  }
+                },
+                {
+                  "type": "box",
+                  "layout": "horizontal",
+                  "backgroundColor": "#F2F9FD",
+                  "borderColor": "#D6E9F5",
+                  "borderWidth": "1px",
+                  "cornerRadius": "md",
+                  "paddingAll": "md",
+                  "alignItems": "center",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "称号を選ぶ",
+                      "size": "sm",
+                      "weight": "bold",
+                      "color": "#1B5E80",
+                      "wrap": true,
+                      "flex": 1
+                    },
+                    {
+                      "type": "text",
+                      "text": "›",
+                      "size": "sm",
+                      "color": "#1B5E80",
+                      "align": "end",
+                      "flex": 0
+                    }
+                  ],
+                  "action": {
+                    "type": "postback",
+                    "data": "hm|x|共通称号一覧"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "footer": {
+          "type": "box",
+          "layout": "vertical",
+          "backgroundColor": "#FFFFFF",
+          "paddingAll": "md",
+          "contents": [
+            {
+              "type": "text",
+              "text": "© 2026 HappaMochi Bot",
+              "size": "xxs",
+              "color": "#8FAEC0",
+              "align": "center",
+              "wrap": false
+            }
+          ]
+        }
+      },
+      {
+        "type": "bubble",
+        "size": "mega",
+        "header": {
+          "type": "box",
+          "layout": "horizontal",
+          "backgroundColor": "#EAF6FD",
+          "paddingAll": "md",
+          "contents": [
+            {
+              "type": "text",
+              "text": "葉っぱもち Bot",
+              "size": "xs",
+              "color": "#4A7C97",
+              "flex": 1,
+              "wrap": false
+            },
+            {
+              "type": "text",
+              "text": "03 / 06",
+              "size": "xs",
+              "color": "#4A7C97",
+              "align": "end",
+              "flex": 0
+            }
+          ]
+        },
+        "body": {
+          "type": "box",
+          "layout": "vertical",
+          "backgroundColor": "#FFFFFF",
+          "paddingAll": "lg",
+          "contents": [
+            {
+              "type": "text",
+              "text": "ゲーム",
+              "size": "xl",
+              "weight": "bold",
+              "color": "#123A56",
+              "wrap": true
+            },
+            {
+              "type": "text",
+              "text": "グループのみんなと、ひと勝負。",
+              "size": "sm",
+              "color": "#456B82",
+              "wrap": true,
+              "margin": "sm"
+            },
+            {
+              "type": "box",
+              "layout": "vertical",
+              "margin": "lg",
+              "spacing": "sm",
+              "contents": [
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "contents": [
+                    {
+                      "type": "box",
+                      "layout": "baseline",
+                      "margin": "none",
+                      "contents": [
+                        {
+                          "type": "text",
+                          "text": "オセロ",
+                          "size": "xxs",
+                          "color": "#7C9AAD",
+                          "flex": 3,
+                          "wrap": true
+                        },
+                        {
+                          "type": "text",
+                          "text": "開始・参加・盤面・戦績",
+                          "size": "xxs",
+                          "color": "#123A56",
+                          "flex": 7,
+                          "align": "end",
+                          "wrap": true
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "contents": [
+                    {
+                      "type": "separator",
+                      "color": "#E8F2F8",
+                      "margin": "none"
+                    },
+                    {
+                      "type": "box",
+                      "layout": "baseline",
+                      "margin": "sm",
+                      "contents": [
+                        {
+                          "type": "text",
+                          "text": "チェス",
+                          "size": "xxs",
+                          "color": "#7C9AAD",
+                          "flex": 3,
+                          "wrap": true
+                        },
+                        {
+                          "type": "text",
+                          "text": "2人募集・盤面・ヘルプ",
+                          "size": "xxs",
+                          "color": "#123A56",
+                          "flex": 7,
+                          "align": "end",
+                          "wrap": true
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "box",
+              "layout": "vertical",
+              "margin": "lg",
+              "spacing": "sm",
+              "contents": [
+                {
+                  "type": "box",
+                  "layout": "horizontal",
+                  "backgroundColor": "#0E9AD6",
+                  "borderColor": "#0E9AD6",
+                  "borderWidth": "1px",
+                  "cornerRadius": "md",
+                  "paddingAll": "md",
+                  "alignItems": "center",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "オセロ",
+                      "size": "sm",
+                      "weight": "bold",
+                      "color": "#FFFFFF",
+                      "wrap": true,
+                      "flex": 1
+                    },
+                    {
+                      "type": "text",
+                      "text": "›",
+                      "size": "sm",
+                      "color": "#FFFFFF",
+                      "align": "end",
+                      "flex": 0
+                    }
+                  ],
+                  "action": {
+                    "type": "postback",
+                    "data": "hm|n|G20"
+                  }
+                },
+                {
+                  "type": "box",
+                  "layout": "horizontal",
+                  "backgroundColor": "#F2F9FD",
+                  "borderColor": "#D6E9F5",
+                  "borderWidth": "1px",
+                  "cornerRadius": "md",
+                  "paddingAll": "md",
+                  "alignItems": "center",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "チェス",
+                      "size": "sm",
+                      "weight": "bold",
+                      "color": "#1B5E80",
+                      "wrap": true,
+                      "flex": 1
+                    },
+                    {
+                      "type": "text",
+                      "text": "›",
+                      "size": "sm",
+                      "color": "#1B5E80",
+                      "align": "end",
+                      "flex": 0
+                    }
+                  ],
+                  "action": {
+                    "type": "postback",
+                    "data": "hm|n|G21"
+                  }
+                },
+                {
+                  "type": "box",
+                  "layout": "horizontal",
+                  "backgroundColor": "#F2F9FD",
+                  "borderColor": "#D6E9F5",
+                  "borderWidth": "1px",
+                  "cornerRadius": "md",
+                  "paddingAll": "md",
+                  "alignItems": "center",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "遊び方",
+                      "size": "sm",
+                      "weight": "bold",
+                      "color": "#1B5E80",
+                      "wrap": true,
+                      "flex": 1
+                    },
+                    {
+                      "type": "text",
+                      "text": "›",
+                      "size": "sm",
+                      "color": "#1B5E80",
+                      "align": "end",
+                      "flex": 0
+                    }
+                  ],
+                  "action": {
+                    "type": "postback",
+                    "data": "hm|n|G01"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "footer": {
+          "type": "box",
+          "layout": "vertical",
+          "backgroundColor": "#FFFFFF",
+          "paddingAll": "md",
+          "contents": [
+            {
+              "type": "text",
+              "text": "© 2026 HappaMochi Bot",
+              "size": "xxs",
+              "color": "#8FAEC0",
+              "align": "center",
+              "wrap": false
+            }
+          ]
+        }
+      },
+      {
+        "type": "bubble",
+        "size": "mega",
+        "header": {
+          "type": "box",
+          "layout": "horizontal",
+          "backgroundColor": "#EAF6FD",
+          "paddingAll": "md",
+          "contents": [
+            {
+              "type": "text",
+              "text": "葉っぱもち Bot",
+              "size": "xs",
+              "color": "#4A7C97",
+              "flex": 1,
+              "wrap": false
+            },
+            {
+              "type": "text",
+              "text": "04 / 06",
+              "size": "xs",
+              "color": "#4A7C97",
+              "align": "end",
+              "flex": 0
+            }
+          ]
+        },
+        "body": {
+          "type": "box",
+          "layout": "vertical",
+          "backgroundColor": "#FFFFFF",
+          "paddingAll": "lg",
+          "contents": [
+            {
+              "type": "text",
+              "text": "ランキング",
+              "size": "xl",
+              "weight": "bold",
+              "color": "#123A56",
+              "wrap": true
+            },
+            {
+              "type": "text",
+              "text": "今週の会話を、ランキングで。",
+              "size": "sm",
+              "color": "#456B82",
+              "wrap": true,
+              "margin": "sm"
+            },
+            {
+              "type": "box",
+              "layout": "vertical",
+              "margin": "lg",
+              "spacing": "sm",
+              "contents": [
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "contents": [
+                    {
+                      "type": "box",
+                      "layout": "baseline",
+                      "margin": "none",
+                      "contents": [
+                        {
+                          "type": "text",
+                          "text": "グループ",
+                          "size": "xxs",
+                          "color": "#7C9AAD",
+                          "flex": 3,
+                          "wrap": true
+                        },
+                        {
+                          "type": "text",
+                          "text": "今いるグループの今週の順位・発言数",
+                          "size": "xxs",
+                          "color": "#123A56",
+                          "flex": 7,
+                          "align": "end",
+                          "wrap": true
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "contents": [
+                    {
+                      "type": "separator",
+                      "color": "#E8F2F8",
+                      "margin": "none"
+                    },
+                    {
+                      "type": "box",
+                      "layout": "baseline",
+                      "margin": "sm",
+                      "contents": [
+                        {
+                          "type": "text",
+                          "text": "個人",
+                          "size": "xxs",
+                          "color": "#7C9AAD",
+                          "flex": 3,
+                          "wrap": true
+                        },
+                        {
+                          "type": "text",
+                          "text": "累計EXP順の個人ランキング",
+                          "size": "xxs",
+                          "color": "#123A56",
+                          "flex": 7,
+                          "align": "end",
+                          "wrap": true
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "box",
+              "layout": "vertical",
+              "margin": "lg",
+              "spacing": "sm",
+              "contents": [
+                {
+                  "type": "box",
+                  "layout": "horizontal",
+                  "backgroundColor": "#0E9AD6",
+                  "borderColor": "#0E9AD6",
+                  "borderWidth": "1px",
+                  "cornerRadius": "md",
+                  "paddingAll": "md",
+                  "alignItems": "center",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "今週のグループ",
+                      "size": "sm",
+                      "weight": "bold",
+                      "color": "#FFFFFF",
+                      "wrap": true,
+                      "flex": 1
+                    },
+                    {
+                      "type": "text",
+                      "text": "›",
+                      "size": "sm",
+                      "color": "#FFFFFF",
+                      "align": "end",
+                      "flex": 0
+                    }
+                  ],
+                  "action": {
+                    "type": "postback",
+                    "data": "hm|x|ランキング"
+                  }
+                },
+                {
+                  "type": "box",
+                  "layout": "horizontal",
+                  "backgroundColor": "#F2F9FD",
+                  "borderColor": "#D6E9F5",
+                  "borderWidth": "1px",
+                  "cornerRadius": "md",
+                  "paddingAll": "md",
+                  "alignItems": "center",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "個人ランキング",
+                      "size": "sm",
+                      "weight": "bold",
+                      "color": "#1B5E80",
+                      "wrap": true,
+                      "flex": 1
+                    },
+                    {
+                      "type": "text",
+                      "text": "›",
+                      "size": "sm",
+                      "color": "#1B5E80",
+                      "align": "end",
+                      "flex": 0
+                    }
+                  ],
+                  "action": {
+                    "type": "uri",
+                    "label": "個人ランキング",
+                    "uri": "https://line-group-bbs.pages.dev/ranking/personal"
+                  }
+                },
+                {
+                  "type": "box",
+                  "layout": "horizontal",
+                  "backgroundColor": "#F2F9FD",
+                  "borderColor": "#D6E9F5",
+                  "borderWidth": "1px",
+                  "cornerRadius": "md",
+                  "paddingAll": "md",
+                  "alignItems": "center",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "ランキングについて",
+                      "size": "sm",
+                      "weight": "bold",
+                      "color": "#1B5E80",
+                      "wrap": true,
+                      "flex": 1
+                    },
+                    {
+                      "type": "text",
+                      "text": "›",
+                      "size": "sm",
+                      "color": "#1B5E80",
+                      "align": "end",
+                      "flex": 0
+                    }
+                  ],
+                  "action": {
+                    "type": "postback",
+                    "data": "hm|n|R01"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "footer": {
+          "type": "box",
+          "layout": "vertical",
+          "backgroundColor": "#FFFFFF",
+          "paddingAll": "md",
+          "contents": [
+            {
+              "type": "text",
+              "text": "© 2026 HappaMochi Bot",
+              "size": "xxs",
+              "color": "#8FAEC0",
+              "align": "center",
+              "wrap": false
+            }
+          ]
+        }
+      },
+      {
+        "type": "bubble",
+        "size": "mega",
+        "header": {
+          "type": "box",
+          "layout": "horizontal",
+          "backgroundColor": "#EAF6FD",
+          "paddingAll": "md",
+          "contents": [
+            {
+              "type": "text",
+              "text": "葉っぱもち Bot",
+              "size": "xs",
+              "color": "#4A7C97",
+              "flex": 1,
+              "wrap": false
+            },
+            {
+              "type": "text",
+              "text": "05 / 06",
+              "size": "xs",
+              "color": "#4A7C97",
+              "align": "end",
+              "flex": 0
+            }
+          ]
+        },
+        "body": {
+          "type": "box",
+          "layout": "vertical",
+          "backgroundColor": "#FFFFFF",
+          "paddingAll": "lg",
+          "contents": [
+            {
+              "type": "text",
+              "text": "グループ設定",
+              "size": "xl",
+              "weight": "bold",
+              "color": "#123A56",
+              "wrap": true
+            },
+            {
+              "type": "text",
+              "text": "このグループに合った使い方へ。",
+              "size": "sm",
+              "color": "#456B82",
+              "wrap": true,
+              "margin": "sm"
+            },
+            {
+              "type": "box",
+              "layout": "vertical",
+              "margin": "lg",
+              "spacing": "sm",
+              "contents": [
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "contents": [
+                    {
+                      "type": "box",
+                      "layout": "baseline",
+                      "margin": "none",
+                      "contents": [
+                        {
+                          "type": "text",
+                          "text": "設定",
+                          "size": "xxs",
+                          "color": "#7C9AAD",
+                          "flex": 3,
+                          "wrap": true
+                        },
+                        {
+                          "type": "text",
+                          "text": "取り消し通知・ウェルカム",
+                          "size": "xxs",
+                          "color": "#123A56",
+                          "flex": 7,
+                          "align": "end",
+                          "wrap": true
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "contents": [
+                    {
+                      "type": "separator",
+                      "color": "#E8F2F8",
+                      "margin": "none"
+                    },
+                    {
+                      "type": "box",
+                      "layout": "baseline",
+                      "margin": "sm",
+                      "contents": [
+                        {
+                          "type": "text",
+                          "text": "管理",
+                          "size": "xxs",
+                          "color": "#7C9AAD",
+                          "flex": 3,
+                          "wrap": true
+                        },
+                        {
+                          "type": "text",
+                          "text": "ウェルカム本文・タグ",
+                          "size": "xxs",
+                          "color": "#123A56",
+                          "flex": 7,
+                          "align": "end",
+                          "wrap": true
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "box",
+              "layout": "vertical",
+              "margin": "lg",
+              "spacing": "sm",
+              "contents": [
+                {
+                  "type": "box",
+                  "layout": "horizontal",
+                  "backgroundColor": "#0E9AD6",
+                  "borderColor": "#0E9AD6",
+                  "borderWidth": "1px",
+                  "cornerRadius": "md",
+                  "paddingAll": "md",
+                  "alignItems": "center",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "通知・ウェルカム",
+                      "size": "sm",
+                      "weight": "bold",
+                      "color": "#FFFFFF",
+                      "wrap": true,
+                      "flex": 1
+                    },
+                    {
+                      "type": "text",
+                      "text": "›",
+                      "size": "sm",
+                      "color": "#FFFFFF",
+                      "align": "end",
+                      "flex": 0
+                    }
+                  ],
+                  "action": {
+                    "type": "postback",
+                    "data": "hm|n|C01"
+                  }
+                },
+                {
+                  "type": "box",
+                  "layout": "horizontal",
+                  "backgroundColor": "#F2F9FD",
+                  "borderColor": "#D6E9F5",
+                  "borderWidth": "1px",
+                  "cornerRadius": "md",
+                  "paddingAll": "md",
+                  "alignItems": "center",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "タグを管理",
+                      "size": "sm",
+                      "weight": "bold",
+                      "color": "#1B5E80",
+                      "wrap": true,
+                      "flex": 1
+                    },
+                    {
+                      "type": "text",
+                      "text": "›",
+                      "size": "sm",
+                      "color": "#1B5E80",
+                      "align": "end",
+                      "flex": 0
+                    }
+                  ],
+                  "action": {
+                    "type": "postback",
+                    "data": "hm|n|Q07"
+                  }
+                },
+                {
+                  "type": "box",
+                  "layout": "horizontal",
+                  "backgroundColor": "#F2F9FD",
+                  "borderColor": "#D6E9F5",
+                  "borderWidth": "1px",
+                  "cornerRadius": "md",
+                  "paddingAll": "md",
+                  "alignItems": "center",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "グループ称号",
+                      "size": "sm",
+                      "weight": "bold",
+                      "color": "#1B5E80",
+                      "wrap": true,
+                      "flex": 1
+                    },
+                    {
+                      "type": "text",
+                      "text": "›",
+                      "size": "sm",
+                      "color": "#1B5E80",
+                      "align": "end",
+                      "flex": 0
+                    }
+                  ],
+                  "action": {
+                    "type": "postback",
+                    "data": "hm|x|称号一覧"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "footer": {
+          "type": "box",
+          "layout": "vertical",
+          "backgroundColor": "#FFFFFF",
+          "paddingAll": "md",
+          "contents": [
+            {
+              "type": "text",
+              "text": "© 2026 HappaMochi Bot",
+              "size": "xxs",
+              "color": "#8FAEC0",
+              "align": "center",
+              "wrap": false
+            }
+          ]
+        }
+      },
+      {
+        "type": "bubble",
+        "size": "mega",
+        "header": {
+          "type": "box",
+          "layout": "horizontal",
+          "backgroundColor": "#EAF6FD",
+          "paddingAll": "md",
+          "contents": [
+            {
+              "type": "text",
+              "text": "葉っぱもち Bot",
+              "size": "xs",
+              "color": "#4A7C97",
+              "flex": 1,
+              "wrap": false
+            },
+            {
+              "type": "text",
+              "text": "06 / 06",
+              "size": "xs",
+              "color": "#4A7C97",
+              "align": "end",
+              "flex": 0
+            }
+          ]
+        },
+        "body": {
+          "type": "box",
+          "layout": "vertical",
+          "backgroundColor": "#FFFFFF",
+          "paddingAll": "lg",
+          "contents": [
+            {
+              "type": "text",
+              "text": "ガイド",
+              "size": "xl",
+              "weight": "bold",
+              "color": "#123A56",
+              "wrap": true
+            },
+            {
+              "type": "text",
+              "text": "迷ったときは、ここから。",
+              "size": "sm",
+              "color": "#456B82",
+              "wrap": true,
+              "margin": "sm"
+            },
+            {
+              "type": "box",
+              "layout": "vertical",
+              "margin": "lg",
+              "spacing": "sm",
+              "contents": [
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "contents": [
+                    {
+                      "type": "box",
+                      "layout": "baseline",
+                      "margin": "none",
+                      "contents": [
+                        {
+                          "type": "text",
+                          "text": "案内",
+                          "size": "xxs",
+                          "color": "#7C9AAD",
+                          "flex": 3,
+                          "wrap": true
+                        },
+                        {
+                          "type": "text",
+                          "text": "使い方・コマンド・お知らせ",
+                          "size": "xxs",
+                          "color": "#123A56",
+                          "flex": 7,
+                          "align": "end",
+                          "wrap": true
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "box",
+              "layout": "vertical",
+              "margin": "lg",
+              "spacing": "sm",
+              "contents": [
+                {
+                  "type": "box",
+                  "layout": "horizontal",
+                  "backgroundColor": "#0E9AD6",
+                  "borderColor": "#0E9AD6",
+                  "borderWidth": "1px",
+                  "cornerRadius": "md",
+                  "paddingAll": "md",
+                  "alignItems": "center",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "お知らせ",
+                      "size": "sm",
+                      "weight": "bold",
+                      "color": "#FFFFFF",
+                      "wrap": true,
+                      "flex": 1
+                    },
+                    {
+                      "type": "text",
+                      "text": "›",
+                      "size": "sm",
+                      "color": "#FFFFFF",
+                      "align": "end",
+                      "flex": 0
+                    }
+                  ],
+                  "action": {
+                    "type": "postback",
+                    "data": "hm|x|お知らせ"
+                  }
+                },
+                {
+                  "type": "box",
+                  "layout": "horizontal",
+                  "backgroundColor": "#F2F9FD",
+                  "borderColor": "#D6E9F5",
+                  "borderWidth": "1px",
+                  "cornerRadius": "md",
+                  "paddingAll": "md",
+                  "alignItems": "center",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "全コマンド",
+                      "size": "sm",
+                      "weight": "bold",
+                      "color": "#1B5E80",
+                      "wrap": true,
+                      "flex": 1
+                    },
+                    {
+                      "type": "text",
+                      "text": "›",
+                      "size": "sm",
+                      "color": "#1B5E80",
+                      "align": "end",
+                      "flex": 0
+                    }
+                  ],
+                  "action": {
+                    "type": "postback",
+                    "data": "hm|n|H03"
+                  }
+                },
+                {
+                  "type": "box",
+                  "layout": "horizontal",
+                  "backgroundColor": "#F2F9FD",
+                  "borderColor": "#D6E9F5",
+                  "borderWidth": "1px",
+                  "cornerRadius": "md",
+                  "paddingAll": "md",
+                  "alignItems": "center",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "使い方",
+                      "size": "sm",
+                      "weight": "bold",
+                      "color": "#1B5E80",
+                      "wrap": true,
+                      "flex": 1
+                    },
+                    {
+                      "type": "text",
+                      "text": "›",
+                      "size": "sm",
+                      "color": "#1B5E80",
+                      "align": "end",
+                      "flex": 0
+                    }
+                  ],
+                  "action": {
+                    "type": "postback",
+                    "data": "hm|n|H01"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "footer": {
+          "type": "box",
+          "layout": "vertical",
+          "backgroundColor": "#FFFFFF",
+          "paddingAll": "md",
+          "contents": [
+            {
+              "type": "text",
+              "text": "© 2026 HappaMochi Bot",
+              "size": "xxs",
+              "color": "#8FAEC0",
+              "align": "center",
+              "wrap": false
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

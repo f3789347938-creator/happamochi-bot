@@ -20,6 +20,9 @@ import { registerBirthday, unregisterBirthday, checkAndQueueBirthdays } from './
 import { addExpForMessage } from './features/profile/core'
 import { handleProfileText, handleProfilePostback } from './features/profile'
 import { renderPersonalRankingPage, renderPublicStatusPage } from './features/profile/page'
+// ヘルプメニュー(横スワイプのカルーセル + 案内画面)。
+// 実装済みFlexは作り直さず、既存の出力へ渡すだけの薄い層。
+import { handleMenuText, handleMenuPostback } from './features/menu'
 import { checkAndQueueWeeklyRanking } from './features/ranking'
 import { saveQuote, buildQuoteImageMessage } from './features/quote'
 import { parseQuoteParams, describeParams, isPureParamString, FONT_LABELS } from './lib/quoteParams'
@@ -606,6 +609,58 @@ app.post('/debug/profile', async (c) => {
   return c.json({ error: 'unknown op' }, 400)
 })
 
+// ヘルプメニューのPostbackが生成する内容を、LINEへ送らずに確認する。
+// 自動テスト専用。テスト用IDの接頭辞に限定し、本番の利用者IDでは動かない。
+app.post('/debug/menu', async (c) => {
+  const { data, groupId, userId } = await c.req.json<{
+    data: string
+    groupId?: string
+    userId?: string
+  }>()
+  if (!data) return c.json({ error: 'data is required' }, 400)
+  const uid = userId ?? ''
+  const gid = groupId ?? undefined
+  // 本番の利用者・グループでは絶対に動かさない。
+  const allowed =
+    uid.startsWith('Umenu_test_') && (gid === undefined || gid.startsWith('Cmenu_test_'))
+  if (!allowed) return c.json({ error: 'test ids only' }, 403)
+
+  try {
+    const result = await handleMenuPostback(
+      c.env,
+      {
+        isGroup: gid !== undefined,
+        groupId: gid,
+        userId: uid,
+        displayName: 'テスト利用者',
+        siteUrl: SITE_URL,
+      },
+      data
+    )
+    let messages = result?.messages ?? []
+    let ranExisting: string | null = null
+    if (result?.runExisting) {
+      ranExisting = result.runExisting
+      messages = await routeCommand(c.env, {
+        text: result.runExisting,
+        isGroup: gid !== undefined,
+        groupId: gid,
+        userId: uid,
+        displayName: 'テスト利用者',
+        pictureUrl: null,
+        baseUrl: new URL(c.req.url).origin,
+      })
+    }
+    return c.json({
+      would_reply_with: messages.slice(0, 5),
+      ran_existing_command: ranExisting,
+      note: 'これはLINEに送信されていません。',
+    })
+  } catch (e: any) {
+    return c.json({ error: String(e?.message ?? e) }, 500)
+  }
+})
+
 app.post('/debug/simulate', async (c) => {
   const { text, groupId, userId, pictureUrl } = await c.req.json<{
     text: string
@@ -924,6 +979,61 @@ async function handlePostback(env: Bindings, event: any, baseUrl: string) {
     return
   }
 
+  // --- ヘルプメニュー(横スワイプのカルーセルと案内画面) ---
+  // グループでも個人トークでも動くよう、グループ限定チェックより前に置く。
+  //
+  // 操作主体は必ず source.userId。トークンにユーザーIDは入っていない。
+  // 「メニューを開く」だけの操作では状態を変えない。設定変更は確認をはさみ、
+  // 確認意図はサーバー(menu_confirmations)に保存して本人・グループ・期限を
+  // 照合してから、既存コマンドの処理をそのまま呼ぶ。
+  if (data.startsWith('hm|') && userId && replyToken) {
+    // Webhook再送・連打対策: 同じ webhookEventId は1回だけ処理する。
+    const fresh = await markEventProcessed(env, event.webhookEventId ?? null)
+    if (!fresh) return
+    const isGroup = source.type === 'group'
+    const gid: string | undefined = isGroup ? source.groupId : undefined
+    try {
+      const profile = await getProfile(env, userId, gid)
+      const result = await handleMenuPostback(
+        env,
+        {
+          isGroup,
+          groupId: gid,
+          userId,
+          displayName: profile?.displayName ?? null,
+          siteUrl: SITE_URL,
+        },
+        data
+      )
+      let msgs = result?.messages ?? []
+      // 表示だけの既存コマンドは、既存の routeCommand をそのまま通す。
+      // これにより既存のカード・文言・内部処理を作り直さずに再利用する。
+      if (result?.runExisting) {
+        msgs = await routeCommand(env, {
+          text: result.runExisting,
+          isGroup,
+          groupId: gid,
+          userId,
+          displayName: profile?.displayName ?? null,
+          pictureUrl: profile?.pictureUrl ?? null,
+          baseUrl,
+        })
+      }
+      if (msgs.length > 0) {
+        if (isGroup && gid) {
+          await flushQueueOnReply(env, gid, replyToken, msgs.slice(0, 5))
+        } else {
+          await replyMessage(env, replyToken, msgs.slice(0, 5))
+        }
+      }
+    } catch {
+      await replyMessage(env, replyToken, [
+        { type: 'text', text: 'この操作でエラーが発生しました。「ヘルプ」で開き直せます。' },
+      ])
+    }
+    return
+  }
+
   // 以下はグループ限定の既存処理(チェス・オセロ)。
   if (source.type !== 'group') return
   const groupId = source.groupId
@@ -1012,7 +1122,26 @@ async function routeCommand(env: Bindings, ctx: CommandCtx): Promise<LineMessage
     return [{ type: 'text', text: `テスト成功 (${new Date().toISOString()})` }]
   }
 
+  // `ヘルプ` は横スワイプのメニューカルーセルを出す。
+  // 文字のコマンド一覧は、メニューの「ガイド → 全コマンド」から見られる。
+  // 既存の別名 `help` もそのまま同じ扱い。新しい呼び名は追加していない。
+  // メニューの組み立てに失敗しても、従来のテキストヘルプへ必ず落ちる。
   if (text === 'ヘルプ' || text.toLowerCase() === 'help') {
+    try {
+      const menu = handleMenuText(
+        {
+          isGroup: ctx.isGroup,
+          groupId: ctx.groupId,
+          userId: ctx.userId,
+          displayName: ctx.displayName,
+          siteUrl: SITE_URL,
+        },
+        text === 'ヘルプ' ? 'ヘルプ' : 'help'
+      )
+      if (menu && menu.length > 0) return menu
+    } catch {
+      /* メニューの不具合でヘルプ自体が止まらないよう、下のテキストへ落ちる */
+    }
     return [{ type: 'text', text: HELP_TEXT }]
   }
 

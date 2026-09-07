@@ -1,0 +1,254 @@
+{
+  "type": "flex",
+  "altText": "タグ名を送る（葉っぱもち Bot）",
+  "contents": {
+    "type": "bubble",
+    "size": "mega",
+    "header": {
+      "type": "box",
+      "layout": "horizontal",
+      "backgroundColor": "#EAF6FD",
+      "paddingAll": "md",
+      "contents": [
+        {
+          "type": "text",
+          "text": "葉っぱもち Bot",
+          "size": "xs",
+          "color": "#4A7C97",
+          "flex": 1,
+          "wrap": false
+        },
+        {
+          "type": "text",
+          "text": "グループ",
+          "size": "xs",
+          "color": "#4A7C97",
+          "align": "end",
+          "flex": 0
+        }
+      ]
+    },
+    "body": {
+      "type": "box",
+      "layout": "vertical",
+      "backgroundColor": "#FFFFFF",
+      "paddingAll": "lg",
+      "contents": [
+        {
+          "type": "text",
+          "text": "タグ名を送る",
+          "size": "xl",
+          "weight": "bold",
+          "color": "#123A56",
+          "wrap": true
+        },
+        {
+          "type": "text",
+          "text": "操作に対応するコマンドとタグ名を、グループに送ってね。",
+          "size": "sm",
+          "color": "#456B82",
+          "wrap": true,
+          "margin": "sm"
+        },
+        {
+          "type": "box",
+          "layout": "vertical",
+          "margin": "lg",
+          "spacing": "sm",
+          "contents": [
+            {
+              "type": "box",
+              "layout": "vertical",
+              "contents": [
+                {
+                  "type": "box",
+                  "layout": "baseline",
+                  "margin": "none",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "追加",
+                      "size": "xxs",
+                      "color": "#7C9AAD",
+                      "flex": 3,
+                      "wrap": true
+                    },
+                    {
+                      "type": "text",
+                      "text": "タグ追加 お知らせ",
+                      "size": "xxs",
+                      "color": "#123A56",
+                      "flex": 7,
+                      "align": "end",
+                      "wrap": true
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "box",
+              "layout": "vertical",
+              "contents": [
+                {
+                  "type": "separator",
+                  "color": "#E8F2F8",
+                  "margin": "none"
+                },
+                {
+                  "type": "box",
+                  "layout": "baseline",
+                  "margin": "sm",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "削除",
+                      "size": "xxs",
+                      "color": "#7C9AAD",
+                      "flex": 3,
+                      "wrap": true
+                    },
+                    {
+                      "type": "text",
+                      "text": "タグ削除 お知らせ",
+                      "size": "xxs",
+                      "color": "#123A56",
+                      "flex": 7,
+                      "align": "end",
+                      "wrap": true
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "box",
+              "layout": "vertical",
+              "contents": [
+                {
+                  "type": "separator",
+                  "color": "#E8F2F8",
+                  "margin": "none"
+                },
+                {
+                  "type": "box",
+                  "layout": "baseline",
+                  "margin": "sm",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "ふつうの会話",
+                      "size": "xxs",
+                      "color": "#7C9AAD",
+                      "flex": 3,
+                      "wrap": true
+                    },
+                    {
+                      "type": "text",
+                      "text": "入力待ちにはしないので、いつでも送れます",
+                      "size": "xxs",
+                      "color": "#123A56",
+                      "flex": 7,
+                      "align": "end",
+                      "wrap": true
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "box",
+          "layout": "vertical",
+          "margin": "lg",
+          "spacing": "sm",
+          "contents": [
+            {
+              "type": "box",
+              "layout": "horizontal",
+              "backgroundColor": "#0E9AD6",
+              "borderColor": "#0E9AD6",
+              "borderWidth": "1px",
+              "cornerRadius": "md",
+              "paddingAll": "md",
+              "alignItems": "center",
+              "contents": [
+                {
+                  "type": "text",
+                  "text": "タグ一覧を見る",
+                  "size": "sm",
+                  "weight": "bold",
+                  "color": "#FFFFFF",
+                  "wrap": true,
+                  "flex": 1
+                },
+                {
+                  "type": "text",
+                  "text": "›",
+                  "size": "sm",
+                  "color": "#FFFFFF",
+                  "align": "end",
+                  "flex": 0
+                }
+              ],
+              "action": {
+                "type": "postback",
+                "data": "hm|x|タグ一覧"
+              }
+            },
+            {
+              "type": "box",
+              "layout": "horizontal",
+              "backgroundColor": "#F2F9FD",
+              "borderColor": "#D6E9F5",
+              "borderWidth": "1px",
+              "cornerRadius": "md",
+              "paddingAll": "md",
+              "alignItems": "center",
+              "contents": [
+                {
+                  "type": "text",
+                  "text": "戻る",
+                  "size": "sm",
+                  "weight": "bold",
+                  "color": "#1B5E80",
+                  "wrap": true,
+                  "flex": 1
+                },
+                {
+                  "type": "text",
+                  "text": "›",
+                  "size": "sm",
+                  "color": "#1B5E80",
+                  "align": "end",
+                  "flex": 0
+                }
+              ],
+              "action": {
+                "type": "postback",
+                "data": "hm|n|Q07"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "footer": {
+      "type": "box",
+      "layout": "vertical",
+      "backgroundColor": "#FFFFFF",
+      "paddingAll": "md",
+      "contents": [
+        {
+          "type": "text",
+          "text": "© 2026 HappaMochi Bot",
+          "size": "xxs",
+          "color": "#8FAEC0",
+          "align": "center",
+          "wrap": false
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,355 @@
+{
+  "type": "flex",
+  "altText": "全コマンド（葉っぱもち Bot）",
+  "contents": {
+    "type": "bubble",
+    "size": "mega",
+    "header": {
+      "type": "box",
+      "layout": "horizontal",
+      "backgroundColor": "#EAF6FD",
+      "paddingAll": "md",
+      "contents": [
+        {
+          "type": "text",
+          "text": "葉っぱもち Bot",
+          "size": "xs",
+          "color": "#4A7C97",
+          "flex": 1,
+          "wrap": false
+        },
+        {
+          "type": "text",
+          "text": "ガイド",
+          "size": "xs",
+          "color": "#4A7C97",
+          "align": "end",
+          "flex": 0
+        }
+      ]
+    },
+    "body": {
+      "type": "box",
+      "layout": "vertical",
+      "backgroundColor": "#FFFFFF",
+      "paddingAll": "lg",
+      "contents": [
+        {
+          "type": "text",
+          "text": "全コマンド",
+          "size": "xl",
+          "weight": "bold",
+          "color": "#123A56",
+          "wrap": true
+        },
+        {
+          "type": "text",
+          "text": "コマンドは、このグループのメッセージとして送れます。太字部分は自分の言葉に置き換えてね。",
+          "size": "sm",
+          "color": "#456B82",
+          "wrap": true,
+          "margin": "sm"
+        },
+        {
+          "type": "box",
+          "layout": "vertical",
+          "margin": "lg",
+          "spacing": "sm",
+          "contents": [
+            {
+              "type": "box",
+              "layout": "vertical",
+              "contents": [
+                {
+                  "type": "box",
+                  "layout": "baseline",
+                  "margin": "none",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "ページ",
+                      "size": "xxs",
+                      "color": "#7C9AAD",
+                      "flex": 3,
+                      "wrap": true
+                    },
+                    {
+                      "type": "text",
+                      "text": "3 / 4",
+                      "size": "xxs",
+                      "color": "#123A56",
+                      "flex": 7,
+                      "align": "end",
+                      "wrap": true
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "box",
+              "layout": "vertical",
+              "contents": [
+                {
+                  "type": "separator",
+                  "color": "#E8F2F8",
+                  "margin": "none"
+                },
+                {
+                  "type": "box",
+                  "layout": "baseline",
+                  "margin": "sm",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "オセロ",
+                      "size": "xxs",
+                      "color": "#7C9AAD",
+                      "flex": 3,
+                      "wrap": true
+                    },
+                    {
+                      "type": "text",
+                      "text": "オセロ開始 / オセロ参加 / オセロ終了 / オセロ戦績",
+                      "size": "xxs",
+                      "color": "#123A56",
+                      "flex": 7,
+                      "align": "end",
+                      "wrap": true
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "box",
+              "layout": "vertical",
+              "contents": [
+                {
+                  "type": "separator",
+                  "color": "#E8F2F8",
+                  "margin": "none"
+                },
+                {
+                  "type": "box",
+                  "layout": "baseline",
+                  "margin": "sm",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "オセロの打ち方",
+                      "size": "xxs",
+                      "color": "#7C9AAD",
+                      "flex": 3,
+                      "wrap": true
+                    },
+                    {
+                      "type": "text",
+                      "text": "盤面のマスをタップ",
+                      "size": "xxs",
+                      "color": "#123A56",
+                      "flex": 7,
+                      "align": "end",
+                      "wrap": true
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "box",
+              "layout": "vertical",
+              "contents": [
+                {
+                  "type": "separator",
+                  "color": "#E8F2F8",
+                  "margin": "none"
+                },
+                {
+                  "type": "box",
+                  "layout": "baseline",
+                  "margin": "sm",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "チェス",
+                      "size": "xxs",
+                      "color": "#7C9AAD",
+                      "flex": 3,
+                      "wrap": true
+                    },
+                    {
+                      "type": "text",
+                      "text": "チェス / 盤面 / チェス ヘルプ（別名: チェスヘルプ）",
+                      "size": "xxs",
+                      "color": "#123A56",
+                      "flex": 7,
+                      "align": "end",
+                      "wrap": true
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "box",
+          "layout": "vertical",
+          "margin": "lg",
+          "spacing": "sm",
+          "contents": [
+            {
+              "type": "box",
+              "layout": "horizontal",
+              "backgroundColor": "#F2F9FD",
+              "borderColor": "#D6E9F5",
+              "borderWidth": "1px",
+              "cornerRadius": "md",
+              "paddingAll": "md",
+              "alignItems": "center",
+              "contents": [
+                {
+                  "type": "text",
+                  "text": "前のページ",
+                  "size": "sm",
+                  "weight": "bold",
+                  "color": "#1B5E80",
+                  "wrap": true,
+                  "flex": 1
+                },
+                {
+                  "type": "text",
+                  "text": "›",
+                  "size": "sm",
+                  "color": "#1B5E80",
+                  "align": "end",
+                  "flex": 0
+                }
+              ],
+              "action": {
+                "type": "postback",
+                "data": "hm|n|H03:2"
+              }
+            },
+            {
+              "type": "box",
+              "layout": "horizontal",
+              "backgroundColor": "#F2F9FD",
+              "borderColor": "#D6E9F5",
+              "borderWidth": "1px",
+              "cornerRadius": "md",
+              "paddingAll": "md",
+              "alignItems": "center",
+              "contents": [
+                {
+                  "type": "text",
+                  "text": "次のページ",
+                  "size": "sm",
+                  "weight": "bold",
+                  "color": "#1B5E80",
+                  "wrap": true,
+                  "flex": 1
+                },
+                {
+                  "type": "text",
+                  "text": "›",
+                  "size": "sm",
+                  "color": "#1B5E80",
+                  "align": "end",
+                  "flex": 0
+                }
+              ],
+              "action": {
+                "type": "postback",
+                "data": "hm|n|H03:4"
+              }
+            },
+            {
+              "type": "box",
+              "layout": "horizontal",
+              "backgroundColor": "#F2F9FD",
+              "borderColor": "#D6E9F5",
+              "borderWidth": "1px",
+              "cornerRadius": "md",
+              "paddingAll": "md",
+              "alignItems": "center",
+              "contents": [
+                {
+                  "type": "text",
+                  "text": "使い方へ",
+                  "size": "sm",
+                  "weight": "bold",
+                  "color": "#1B5E80",
+                  "wrap": true,
+                  "flex": 1
+                },
+                {
+                  "type": "text",
+                  "text": "›",
+                  "size": "sm",
+                  "color": "#1B5E80",
+                  "align": "end",
+                  "flex": 0
+                }
+              ],
+              "action": {
+                "type": "postback",
+                "data": "hm|n|H01"
+              }
+            },
+            {
+              "type": "box",
+              "layout": "horizontal",
+              "backgroundColor": "#F2F9FD",
+              "borderColor": "#D6E9F5",
+              "borderWidth": "1px",
+              "cornerRadius": "md",
+              "paddingAll": "md",
+              "alignItems": "center",
+              "contents": [
+                {
+                  "type": "text",
+                  "text": "戻る",
+                  "size": "sm",
+                  "weight": "bold",
+                  "color": "#1B5E80",
+                  "wrap": true,
+                  "flex": 1
+                },
+                {
+                  "type": "text",
+                  "text": "›",
+                  "size": "sm",
+                  "color": "#1B5E80",
+                  "align": "end",
+                  "flex": 0
+                }
+              ],
+              "action": {
+                "type": "postback",
+                "data": "hm|n|M06"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "footer": {
+      "type": "box",
+      "layout": "vertical",
+      "backgroundColor": "#FFFFFF",
+      "paddingAll": "md",
+      "contents": [
+        {
+          "type": "text",
+          "text": "© 2026 HappaMochi Bot",
+          "size": "xxs",
+          "color": "#8FAEC0",
+          "align": "center",
+          "wrap": false
+        }
+      ]
+    }
+  }
+}
