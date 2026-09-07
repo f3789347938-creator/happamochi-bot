@@ -48,13 +48,22 @@
   - ベストスコアと音の設定だけを、その端末のlocalStorageに保存する。
     サーバーには何も送らない(BotのD1とは無関係)。課金・ランキング・
     ユーザー情報の取得はしていない。
-  - **LIFF(LINEミニアプリ)対応**: `src/features/menu/gameLink.ts` の
-    `LIFF_ID` が空のあいだは通常のHTTPS URLで開く(LINEの内蔵ブラウザ)。
-    LINE DevelopersでミニアプリチャネルとLIFF IDを取得して設定すると、
-    自動的に `https://liff.line.me/<LIFF ID>` へ切り替わり、LINEアプリの中で
-    「✕ / タイトル / ドメイン」のヘッダー付きで開くようになる。
-    LIFF IDは公開して良い値。チャネルシークレットやアクセストークンは書かない。
-    - LIFFのエンドポイントURLに登録する値: `https://line-group-bbs.pages.dev/static/game/`
+  - **LIFF設定済み**: LINEアプリの中で「✕ / タイトル / ドメイン」のヘッダー付きで開く。
+    - LIFF ID: `2011492233-0cUBhY55`（公開して良い値）
+    - LIFF URL: `https://liff.line.me/2011492233-0cUBhY55`
+    - チャネル: プロバイダー `nano` の LINEログインチャネル「葉っぱ」
+      （Messaging APIチャネルにはLIFFを追加できないため別チャネル。
+      LINEミニアプリチャネルは審査が必要だったのでLINEログインで作成）
+    - エンドポイントURL: `https://line-group-bbs.pages.dev/static/game/`
+    - サイズ `Full` / Scope は `profile` のみ（`openid`か`profile`のどちらかが必須）
+    - モジュールモードはオフ（オンにすると閉じるボタンが消える）
+    - 設定箇所は2つ。両方に同じLIFF IDを入れる:
+      1. `src/features/menu/gameLink.ts` の `LIFF_ID` … Flexボタンのリンク先を
+         `liff.line.me` に切り替える。空ならHTTPS URLのまま。
+      2. `public/static/game/line-config.js` の `liffId` … ゲーム側でLIFF SDKを
+         読み込んで `liff.init()` する。空ならSDKを読み込まない。
+    - ゲームは `liff.getProfile()` を呼ばないので、名前やアイコンは取得しない。
+    - チャネルシークレットやアクセストークンはクライアントに書かない。
 - **ヘルプメニュー**: `ヘルプ`(既存の別名 `help` も同じ)を送ると、横スワイプの
   カード6枚(名言カード / ステータス / ゲーム / ランキング / グループ設定 / ガイド)が出る。
   そこから各機能の案内へ進める。文字のコマンド一覧は「ガイド → 全コマンド」に4ページで載せた。

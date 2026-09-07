@@ -15,7 +15,7 @@
 // LIFF_ID が空のあいだは 2 で動く。値を入れると自動的に 1 に切り替わる。
 // LIFF IDは公開して良い値(パスワードではない)なので、ここに直接書いてよい。
 // チャネルシークレットやアクセストークンは絶対に書かない。
-export const LIFF_ID = ''
+export const LIFF_ID = '2011492233-0cUBhY55'
 
 /** ゲームの実体を配信しているURL。LIFFのエンドポイントにもこれを登録する。 */
 export function gamePageUrl(siteUrl: string): string {
