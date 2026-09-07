@@ -99,9 +99,10 @@ export function mainScreens(personalRankingUrl: string): ScreenDef[] {
         { label: 'チェス', value: '2人募集・盤面・ヘルプ' },
       ],
       buttons: [
-        // 対局を勝手に始めないよう、案内画面へ送る(仕様 LINK-04)
-        { label: 'オセロ', data: nav('G20'), kind: 'primary' },
-        { label: 'チェス', data: nav('G21'), kind: 'sub' },
+        // 押した人が対局したいと明示したボタンなので、既存コマンドをそのまま実行する。
+        // 遊び方の説明は「遊び方」ボタンに分けてある。
+        { label: 'オセロ', data: runExisting('オセロ開始'), kind: 'primary' },
+        { label: 'チェス', data: runExisting('チェス'), kind: 'sub' },
         { label: '遊び方', data: nav('G01'), kind: 'sub' },
       ],
     },
@@ -341,10 +342,12 @@ export const screenG01: ScreenDef = {
     { label: 'チェス', value: '募集カードから参加。操作は「チェス ヘルプ」で確認' },
   ],
   buttons: [
-    { label: 'オセロの送り方', data: nav('G20'), kind: 'primary' },
-    { label: 'チェスの送り方', data: nav('G21'), kind: 'sub' },
+    { label: 'オセロを始める', data: runExisting('オセロ開始'), kind: 'primary' },
+    { label: 'チェスを募集する', data: runExisting('チェス'), kind: 'sub' },
     // チェス ヘルプは表示のみなので既存カードをそのまま出せる
     { label: 'チェスの操作方法', data: runExisting('チェス ヘルプ'), kind: 'sub' },
+    { label: 'オセロの詳しい遊び方', data: nav('G20'), kind: 'sub' },
+    { label: 'チェスの詳しい遊び方', data: nav('G21'), kind: 'sub' },
     BACK('M03'),
   ],
 }
@@ -353,7 +356,7 @@ export const screenG20: ScreenDef = {
   id: 'G20',
   category: 'ゲーム',
   title: 'オセロ',
-  body: '対局はグループに直接コマンドを送って始めます。ボタンでは開始しません。',
+  body: '2人で交互に石を置いて、多く取ったほうが勝ちです。',
   rows: [
     { label: 'はじめる', value: 'オセロ開始（送った人が黒番）' },
     { label: '参加する', value: 'オセロ参加（白番）' },
@@ -362,7 +365,9 @@ export const screenG20: ScreenDef = {
     { label: '打ち方', value: '盤面のマスをタップ' },
   ],
   buttons: [
-    { label: '自分の戦績を見る', data: runExisting('オセロ戦績'), kind: 'primary' },
+    { label: 'オセロを始める', data: runExisting('オセロ開始'), kind: 'primary' },
+    { label: '白番で参加する', data: runExisting('オセロ参加'), kind: 'sub' },
+    { label: '自分の戦績を見る', data: runExisting('オセロ戦績'), kind: 'sub' },
     { label: '遊び方に戻る', data: nav('G01'), kind: 'sub' },
     BACK('M03'),
   ],
@@ -372,14 +377,16 @@ export const screenG21: ScreenDef = {
   id: 'G21',
   category: 'ゲーム',
   title: 'チェス',
-  body: '対局はグループに直接コマンドを送って始めます。ボタンでは募集しません。',
+  body: 'グループ内の2人で対局します。募集すると、別の人が参加ボタンを押して始まります。',
   rows: [
     { label: '募集する', value: 'チェス（グループ内の2人で対局）' },
     { label: '盤面を出す', value: '盤面' },
     { label: '操作を見る', value: 'チェス ヘルプ' },
   ],
   buttons: [
-    { label: 'チェスの操作方法', data: runExisting('チェス ヘルプ'), kind: 'primary' },
+    { label: 'チェスを募集する', data: runExisting('チェス'), kind: 'primary' },
+    { label: '今の盤面を見る', data: runExisting('盤面'), kind: 'sub' },
+    { label: 'チェスの操作方法', data: runExisting('チェス ヘルプ'), kind: 'sub' },
     { label: '遊び方に戻る', data: nav('G01'), kind: 'sub' },
     BACK('M03'),
   ],

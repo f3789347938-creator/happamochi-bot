@@ -201,19 +201,45 @@ async function main() {
 
   console.log('\n=== 4. ボタンで状態を変えない ===')
   {
-    // オセロ・チェスは案内画面に留まり、対局を作らない
-    const g20 = await menu('hm|n|G20')
-    const t20 = texts(g20.body.would_reply_with).join('\n')
-    ok(g20.body.ran_existing_command === null, 'オセロ案内は既存コマンドを実行しない')
-    ok(t20.includes('オセロ開始'), '送り方として「オセロ開始」を案内している')
-    ok(t20.includes('ボタンでは開始しません'), 'ボタンで開始しないと明記している')
-    const g21 = await menu('hm|n|G21')
-    const t21 = texts(g21.body.would_reply_with).join('\n')
-    ok(g21.body.ran_existing_command === null, 'チェス案内は既存コマンドを実行しない')
-    ok(t21.includes('ボタンでは募集しません'), 'ボタンで募集しないと明記している')
+    // ゲームはボタンから始められる(押した人が対局したいと明示した操作)
+    for (const [cmd, label] of [['オセロ開始', 'オセロ'], ['オセロ参加', 'オセロ参加'], ['チェス', 'チェス']]) {
+      const r = await menu(`hm|x|${cmd}`)
+      ok(
+        r.body.ran_existing_command === cmd,
+        `ボタンから「${label}」を始められる`,
+        `ran=${r.body.ran_existing_command}`
+      )
+    }
+    // メインメニューのゲームカードから直接始まる
+    const main = await menu('hm|n|M')
+    const mainDatas = datas(main.body.would_reply_with)
+    ok(mainDatas.includes('hm|x|オセロ開始'), 'メニューのオセロボタンが「オセロ開始」を呼ぶ')
+    ok(mainDatas.includes('hm|x|チェス'), 'メニューのチェスボタンが「チェス」を呼ぶ')
+    // 遊び方は別ボタンとして残っている
+    ok(mainDatas.includes('hm|n|G01'), '「遊び方」は別ボタンとして残っている')
 
-    // 許可リストに無いコマンドはボタンから実行できない
-    for (const bad of ['オセロ開始', 'チェス', '共通称号装備 夜型', '取り消し通知オフ', 'めいく:test', '誕生日登録 1/1']) {
+    // 対局の終了はボタンに置かない(他人が進行中の対局を消せてしまう)
+    const endBtn = await menu('hm|x|オセロ終了')
+    ok(
+      endBtn.body.ran_existing_command === null,
+      '「オセロ終了」はボタンからは実行されない',
+      `ran=${endBtn.body.ran_existing_command}`
+    )
+
+    // 個人トークではゲームを始めない
+    const dmGame = await menu('hm|x|オセロ開始', { dm: true })
+    ok(
+      dmGame.body.ran_existing_command === null,
+      '個人トークではゲームを始めない',
+      `ran=${dmGame.body.ran_existing_command}`
+    )
+    ok(
+      texts(dmGame.body.would_reply_with).join('').includes('グループ'),
+      '個人トークではグループで遊ぶよう案内する'
+    )
+
+    // ゲーム以外の状態変更はボタンから実行できない
+    for (const bad of ['共通称号装備 夜型', '取り消し通知オフ', 'めいく:test', '誕生日登録 1/1', '称号装備 伝説の勇者', 'タグ追加 test', 'オセロ終了']) {
       const r = await menu(`hm|x|${bad}`)
       ok(
         r.body.ran_existing_command === null,
@@ -225,8 +251,10 @@ async function main() {
     const screens = ['M', 'Q01', 'Q02', 'Q06', 'Q07', 'Q08', 'G01', 'G20', 'G21', 'R01', 'C01', 'C02', 'C03', 'C04', 'C05', 'H01', 'H03']
     // 完全一致で判定する。「チェス ヘルプ」は表示だけで安全なので、
     // 「チェス」の前方一致で巻き込んではいけない。
+    // ゲームの開始・参加はボタンに載って良い(利用者が明示した操作)。
+    // それ以外の状態変更が混ざっていないかを見る。
     const dangerous = new Set([
-      'オセロ開始', 'オセロ参加', 'オセロ終了', 'チェス', '盤面',
+      'オセロ終了',
       '称号装備', '共通称号装備', '誕生日登録', '誕生日登録解除',
       'タグ追加', 'タグ削除', '取り消し通知オン', '取り消し通知オフ',
       'ウェルカムオン', 'ウェルカムオフ', 'ウェルカムメッセージ解除',

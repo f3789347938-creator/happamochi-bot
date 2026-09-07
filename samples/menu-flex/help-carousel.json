@@ -623,7 +623,7 @@
                   ],
                   "action": {
                     "type": "postback",
-                    "data": "hm|n|G20"
+                    "data": "hm|x|オセロ開始"
                   }
                 },
                 {
@@ -656,7 +656,7 @@
                   ],
                   "action": {
                     "type": "postback",
-                    "data": "hm|n|G21"
+                    "data": "hm|x|チェス"
                   }
                 },
                 {

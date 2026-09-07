@@ -141,7 +141,7 @@
               "contents": [
                 {
                   "type": "text",
-                  "text": "オセロの送り方",
+                  "text": "オセロを始める",
                   "size": "sm",
                   "weight": "bold",
                   "color": "#FFFFFF",
@@ -159,7 +159,7 @@
               ],
               "action": {
                 "type": "postback",
-                "data": "hm|n|G20"
+                "data": "hm|x|オセロ開始"
               }
             },
             {
@@ -174,7 +174,7 @@
               "contents": [
                 {
                   "type": "text",
-                  "text": "チェスの送り方",
+                  "text": "チェスを募集する",
                   "size": "sm",
                   "weight": "bold",
                   "color": "#1B5E80",
@@ -192,7 +192,7 @@
               ],
               "action": {
                 "type": "postback",
-                "data": "hm|n|G21"
+                "data": "hm|x|チェス"
               }
             },
             {
@@ -226,6 +226,72 @@
               "action": {
                 "type": "postback",
                 "data": "hm|x|チェス ヘルプ"
+              }
+            },
+            {
+              "type": "box",
+              "layout": "horizontal",
+              "backgroundColor": "#F2F9FD",
+              "borderColor": "#D6E9F5",
+              "borderWidth": "1px",
+              "cornerRadius": "md",
+              "paddingAll": "md",
+              "alignItems": "center",
+              "contents": [
+                {
+                  "type": "text",
+                  "text": "オセロの詳しい遊び方",
+                  "size": "sm",
+                  "weight": "bold",
+                  "color": "#1B5E80",
+                  "wrap": true,
+                  "flex": 1
+                },
+                {
+                  "type": "text",
+                  "text": "›",
+                  "size": "sm",
+                  "color": "#1B5E80",
+                  "align": "end",
+                  "flex": 0
+                }
+              ],
+              "action": {
+                "type": "postback",
+                "data": "hm|n|G20"
+              }
+            },
+            {
+              "type": "box",
+              "layout": "horizontal",
+              "backgroundColor": "#F2F9FD",
+              "borderColor": "#D6E9F5",
+              "borderWidth": "1px",
+              "cornerRadius": "md",
+              "paddingAll": "md",
+              "alignItems": "center",
+              "contents": [
+                {
+                  "type": "text",
+                  "text": "チェスの詳しい遊び方",
+                  "size": "sm",
+                  "weight": "bold",
+                  "color": "#1B5E80",
+                  "wrap": true,
+                  "flex": 1
+                },
+                {
+                  "type": "text",
+                  "text": "›",
+                  "size": "sm",
+                  "color": "#1B5E80",
+                  "align": "end",
+                  "flex": 0
+                }
+              ],
+              "action": {
+                "type": "postback",
+                "data": "hm|n|G21"
               }
             },
             {

@@ -57,9 +57,10 @@ export interface MenuCtx {
  * ここに無いコマンドはボタンから実行しない。
  *
  * 除外しているもの(状態を変えるので、ボタンからは実行しない):
- *   オセロ開始 / オセロ参加 / オセロ終了 / チェス / 盤面(対局作成に絡む) /
  *   称号装備 / 共通称号装備 / 誕生日登録 / ウェルカム各種 / 取り消し通知各種 /
  *   タグ追加 / タグ削除 / めいく(画像生成と保存を行う)
+ *
+ * ゲームの開始は下の GAME_START_COMMANDS で別枠にしている。
  */
 const SAFE_EXISTING_COMMANDS = new Set([
   'ステータス',
@@ -74,7 +75,23 @@ const SAFE_EXISTING_COMMANDS = new Set([
   'めいく装飾',
   'チェス ヘルプ',
   'オセロ戦績',
+  '盤面',
 ])
+
+/**
+ * ゲームの開始・参加。押した本人が「対局したい」と明示したボタンなので、
+ * 既存コマンドの処理をそのまま実行する。
+ *
+ * ここに入れてよい理由:
+ *   ・ボタンのラベルが「オセロ」「チェス」で、押す意味が対局開始だと分かる
+ *     (遊び方の案内は「遊び方」ボタンに分けてある)
+ *   ・実行するのは既存コマンドそのままなので、重複対局の拒否・グループ外の
+ *     案内・タイムアウト処理といった既存の判定がすべてそのまま働く
+ *   ・購入や装備のように取り返しがつかない操作ではない(終了コマンドがある)
+ *
+ * それでも「終了」はボタンに置かない。進行中の対局を他の人が消せてしまうため。
+ */
+const GAME_START_COMMANDS = new Set(['オセロ開始', 'オセロ参加', 'チェス'])
 
 /** 設定変更の許可リスト。確認カードの文言と、実行に使う既存コマンド。 */
 interface OpDef {
@@ -401,9 +418,19 @@ export async function handleMenuPostback(
   // --- 表示だけの既存コマンドを実行して、既存カードをそのまま出す ---
   if (kind === 'x') {
     const cmd = rest
-    if (!SAFE_EXISTING_COMMANDS.has(cmd)) {
+    const isGameStart = GAME_START_COMMANDS.has(cmd)
+    if (!SAFE_EXISTING_COMMANDS.has(cmd) && !isGameStart) {
       // 許可リストに無いものは実行しない(状態変更を防ぐ)
       return { messages: [card(screenX('X02', 'この操作はボタンからは実行できません。'))] }
+    }
+    // 対局はグループ内だけ。個人トークでは既存コマンドが案内を返すので
+    // そのまま渡してよいが、案内文はグループ前提なのでここで補足する。
+    if (isGameStart && !ctx.isGroup) {
+      return {
+        messages: [
+          card(screenX('X02', 'ゲームはグループのトークで遊ぶ機能です。グループに招待してから使ってください。')),
+        ],
+      }
     }
     return { runExisting: cmd }
   }

@@ -44,7 +44,7 @@
         },
         {
           "type": "text",
-          "text": "対局はグループに直接コマンドを送って始めます。ボタンでは開始しません。",
+          "text": "2人で交互に石を置いて、多く取ったほうが勝ちです。",
           "size": "sm",
           "color": "#456B82",
           "wrap": true,
@@ -246,7 +246,7 @@
               "contents": [
                 {
                   "type": "text",
-                  "text": "自分の戦績を見る",
+                  "text": "オセロを始める",
                   "size": "sm",
                   "weight": "bold",
                   "color": "#FFFFFF",
@@ -258,6 +258,72 @@
                   "text": "›",
                   "size": "sm",
                   "color": "#FFFFFF",
+                  "align": "end",
+                  "flex": 0
+                }
+              ],
+              "action": {
+                "type": "postback",
+                "data": "hm|x|オセロ開始"
+              }
+            },
+            {
+              "type": "box",
+              "layout": "horizontal",
+              "backgroundColor": "#F2F9FD",
+              "borderColor": "#D6E9F5",
+              "borderWidth": "1px",
+              "cornerRadius": "md",
+              "paddingAll": "md",
+              "alignItems": "center",
+              "contents": [
+                {
+                  "type": "text",
+                  "text": "白番で参加する",
+                  "size": "sm",
+                  "weight": "bold",
+                  "color": "#1B5E80",
+                  "wrap": true,
+                  "flex": 1
+                },
+                {
+                  "type": "text",
+                  "text": "›",
+                  "size": "sm",
+                  "color": "#1B5E80",
+                  "align": "end",
+                  "flex": 0
+                }
+              ],
+              "action": {
+                "type": "postback",
+                "data": "hm|x|オセロ参加"
+              }
+            },
+            {
+              "type": "box",
+              "layout": "horizontal",
+              "backgroundColor": "#F2F9FD",
+              "borderColor": "#D6E9F5",
+              "borderWidth": "1px",
+              "cornerRadius": "md",
+              "paddingAll": "md",
+              "alignItems": "center",
+              "contents": [
+                {
+                  "type": "text",
+                  "text": "自分の戦績を見る",
+                  "size": "sm",
+                  "weight": "bold",
+                  "color": "#1B5E80",
+                  "wrap": true,
+                  "flex": 1
+                },
+                {
+                  "type": "text",
+                  "text": "›",
+                  "size": "sm",
+                  "color": "#1B5E80",
                   "align": "end",
                   "flex": 0
                 }
