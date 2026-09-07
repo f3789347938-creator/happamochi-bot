@@ -18,6 +18,7 @@
 //      確認意図はサーバー(menu_confirmations)に保存し、押した本人・
 //      グループ・期限を照合してから既存の処理を呼ぶ。
 import type { Btn, Row } from './flex'
+import { gameOpenUrl } from './gameLink'
 
 /** 画面ID。既存接続点(S/G/H の一部)も遷移先として登場する。 */
 export type ScreenId = string
@@ -59,7 +60,7 @@ const BACK = (id: ScreenId): Btn => ({ label: '戻る', data: nav(id), kind: 'su
 // 6枚を横スワイプ。`ヘルプ` でこれを出す。
 export const MAIN_IDS = ['M01', 'M02', 'M03', 'M04', 'M05', 'M06'] as const
 
-export function mainScreens(personalRankingUrl: string): ScreenDef[] {
+export function mainScreens(personalRankingUrl: string, siteUrl: string): ScreenDef[] {
   return [
     {
       id: 'M01',
@@ -95,13 +96,15 @@ export function mainScreens(personalRankingUrl: string): ScreenDef[] {
       title: 'ゲーム',
       body: 'グループのみんなと、ひと勝負。',
       rows: [
+        { label: 'ひとりで', value: 'もち合体パズル（LINEの中で遊べる）' },
         { label: 'オセロ', value: '開始・参加・盤面・戦績' },
         { label: 'チェス', value: '2人募集・盤面・ヘルプ' },
       ],
       buttons: [
+        // LINEの中でそのまま開くWebゲーム。ひとりで遊べる。
+        { label: 'もち合体パズル', data: '', uri: gameOpenUrl(siteUrl), kind: 'primary' },
         // 押した人が対局したいと明示したボタンなので、既存コマンドをそのまま実行する。
-        // 遊び方の説明は「遊び方」ボタンに分けてある。
-        { label: 'オセロ', data: runExisting('オセロ開始'), kind: 'primary' },
+        { label: 'オセロ', data: runExisting('オセロ開始'), kind: 'sub' },
         { label: 'チェス', data: runExisting('チェス'), kind: 'sub' },
         { label: '遊び方', data: nav('G01'), kind: 'sub' },
       ],
@@ -332,24 +335,52 @@ export const screenQ08: ScreenDef = {
 // G20・G21 はカタログには無い追加画面。カタログの G02・G03 は「既存出力への
 // 接続点」だが、オセロ・チェスの既存コマンドは実行すると対局を作ってしまう。
 // ボタンから状態を変えるのは禁止(LINK-04)なので、代わりに送り方を案内する。
-export const screenG01: ScreenDef = {
-  id: 'G01',
-  category: 'ゲーム',
-  title: 'ゲームの遊び方',
-  body: '遊び方を確認したら、いつものゲーム画面へ。',
-  rows: [
-    { label: 'オセロ', value: '開始・参加はコマンドから。石は盤面のマスをタップ' },
-    { label: 'チェス', value: '募集カードから参加。操作は「チェス ヘルプ」で確認' },
-  ],
-  buttons: [
-    { label: 'オセロを始める', data: runExisting('オセロ開始'), kind: 'primary' },
-    { label: 'チェスを募集する', data: runExisting('チェス'), kind: 'sub' },
-    // チェス ヘルプは表示のみなので既存カードをそのまま出せる
-    { label: 'チェスの操作方法', data: runExisting('チェス ヘルプ'), kind: 'sub' },
-    { label: 'オセロの詳しい遊び方', data: nav('G20'), kind: 'sub' },
-    { label: 'チェスの詳しい遊び方', data: nav('G21'), kind: 'sub' },
-    BACK('M03'),
-  ],
+export function screenG01(siteUrl: string): ScreenDef {
+  return {
+    id: 'G01',
+    category: 'ゲーム',
+    title: 'ゲームの遊び方',
+    body: '遊び方を確認したら、いつものゲーム画面へ。',
+    rows: [
+      { label: 'もち合体パズル', value: 'ひとり用。LINEの中でそのまま遊べる' },
+      { label: 'オセロ', value: '2人用。石は盤面のマスをタップ' },
+      { label: 'チェス', value: '2人用。募集カードから参加' },
+    ],
+    buttons: [
+      { label: 'もち合体パズルで遊ぶ', data: '', uri: gameOpenUrl(siteUrl), kind: 'primary' },
+      { label: 'オセロを始める', data: runExisting('オセロ開始'), kind: 'sub' },
+      { label: 'チェスを募集する', data: runExisting('チェス'), kind: 'sub' },
+      // チェス ヘルプは表示のみなので既存カードをそのまま出せる
+      { label: 'チェスの操作方法', data: runExisting('チェス ヘルプ'), kind: 'sub' },
+      { label: 'もち合体パズルの遊び方', data: nav('G22'), kind: 'sub' },
+      BACK('M03'),
+    ],
+  }
+}
+
+// もち合体パズルの遊び方。ゲーム本体はLINEの中で開くWebページなので、
+// ここでは操作とルールの説明だけを出す。
+export function screenG22(siteUrl: string): ScreenDef {
+  return {
+    id: 'G22',
+    category: 'ゲーム',
+    title: 'もち合体パズル',
+    body: '同じもちをくっつけて、大きくしていくひとり用のパズルです。',
+    rows: [
+      { label: '動かす', value: '指で左右にドラッグして、離すと落ちる' },
+      { label: '合体', value: '同じもち2個がくっつくと次のもちになる' },
+      { label: '進化', value: '白 → さくら → 葉っぱ → きなこ → こんがり' },
+      { label: '点数', value: '10 / 30 / 70 / 150 / 500点' },
+      { label: '連鎖', value: '続けて合体すると追加点（最大20点）' },
+      { label: 'おわり', value: '点線を超えたままにすると終了' },
+      { label: '記録', value: 'ベストスコアは自分の端末に保存されます' },
+    ],
+    buttons: [
+      { label: 'あそぶ', data: '', uri: gameOpenUrl(siteUrl), kind: 'primary' },
+      { label: 'ゲームの遊び方に戻る', data: nav('G01'), kind: 'sub' },
+      BACK('M03'),
+    ],
+  }
 }
 
 export const screenG20: ScreenDef = {

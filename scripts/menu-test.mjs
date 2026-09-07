@@ -218,6 +218,27 @@ async function main() {
     // 遊び方は別ボタンとして残っている
     ok(mainDatas.includes('hm|n|G01'), '「遊び方」は別ボタンとして残っている')
 
+    // もち合体パズル(LINEの中で開くWebゲーム)のリンク
+    const uris = []
+    const collectUris = (n) => {
+      if (Array.isArray(n)) return n.forEach(collectUris)
+      if (n && typeof n === 'object') {
+        if (n.type === 'uri' && n.uri) uris.push(n.uri)
+        Object.values(n).forEach(collectUris)
+      }
+    }
+    collectUris(main.body.would_reply_with)
+    ok(
+      uris.some((u) => u.includes('/static/game/') || u.includes('liff.line.me')),
+      'ゲームカードにもち合体パズルのリンクがある',
+      uris.join(', ')
+    )
+    const g22 = await menu('hm|n|G22')
+    const t22 = texts(g22.body.would_reply_with).join('\n')
+    ok(t22.includes('もち合体パズル'), 'もち合体パズルの遊び方画面が開ける')
+    ok(t22.includes('白') && t22.includes('こんがり'), '進化の順番が書かれている')
+    ok(g22.body.ran_existing_command === null, '遊び方画面は既存コマンドを実行しない')
+
     // 対局の終了はボタンに置かない(他人が進行中の対局を消せてしまう)
     const endBtn = await menu('hm|x|オセロ終了')
     ok(
@@ -248,7 +269,7 @@ async function main() {
       )
     }
     // メニュー画面のボタンに、状態を変える既存コマンドが仕込まれていないか
-    const screens = ['M', 'Q01', 'Q02', 'Q06', 'Q07', 'Q08', 'G01', 'G20', 'G21', 'R01', 'C01', 'C02', 'C03', 'C04', 'C05', 'H01', 'H03']
+    const screens = ['M', 'Q01', 'Q02', 'Q06', 'Q07', 'Q08', 'G01', 'G20', 'G21', 'G22', 'R01', 'C01', 'C02', 'C03', 'C04', 'C05', 'H01', 'H03']
     // 完全一致で判定する。「チェス ヘルプ」は表示だけで安全なので、
     // 「チェス」の前方一致で巻き込んではいけない。
     // ゲームの開始・参加はボタンに載って良い(利用者が明示した操作)。
@@ -409,7 +430,7 @@ async function main() {
   {
     // 全画面が開けて、ボタンのリンク先が実在する
     const ids = ['M', 'M01', 'Q01', 'Q02', 'Q03', 'Q04', 'Q05', 'Q06', 'Q07', 'Q08',
-      'G01', 'G20', 'G21', 'R01', 'C01', 'C02', 'C03', 'C04', 'C05', 'H01', 'H03']
+      'G01', 'G20', 'G21', 'G22', 'R01', 'C01', 'C02', 'C03', 'C04', 'C05', 'H01', 'H03']
     const broken = []
     const navTargets = new Set()
     for (const id of ids) {

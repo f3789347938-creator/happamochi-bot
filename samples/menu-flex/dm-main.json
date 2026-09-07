@@ -531,6 +531,41 @@
                       "contents": [
                         {
                           "type": "text",
+                          "text": "ひとりで",
+                          "size": "xxs",
+                          "color": "#7C9AAD",
+                          "flex": 3,
+                          "wrap": true
+                        },
+                        {
+                          "type": "text",
+                          "text": "もち合体パズル（LINEの中で遊べる）",
+                          "size": "xxs",
+                          "color": "#123A56",
+                          "flex": 7,
+                          "align": "end",
+                          "wrap": true
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "contents": [
+                    {
+                      "type": "separator",
+                      "color": "#E8F2F8",
+                      "margin": "none"
+                    },
+                    {
+                      "type": "box",
+                      "layout": "baseline",
+                      "margin": "sm",
+                      "contents": [
+                        {
+                          "type": "text",
                           "text": "オセロ",
                           "size": "xxs",
                           "color": "#7C9AAD",
@@ -605,7 +640,7 @@
                   "contents": [
                     {
                       "type": "text",
-                      "text": "オセロ",
+                      "text": "もち合体パズル",
                       "size": "sm",
                       "weight": "bold",
                       "color": "#FFFFFF",
@@ -617,6 +652,40 @@
                       "text": "›",
                       "size": "sm",
                       "color": "#FFFFFF",
+                      "align": "end",
+                      "flex": 0
+                    }
+                  ],
+                  "action": {
+                    "type": "uri",
+                    "label": "もち合体パズル",
+                    "uri": "https://line-group-bbs.pages.dev/static/game/"
+                  }
+                },
+                {
+                  "type": "box",
+                  "layout": "horizontal",
+                  "backgroundColor": "#F2F9FD",
+                  "borderColor": "#D6E9F5",
+                  "borderWidth": "1px",
+                  "cornerRadius": "md",
+                  "paddingAll": "md",
+                  "alignItems": "center",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "オセロ",
+                      "size": "sm",
+                      "weight": "bold",
+                      "color": "#1B5E80",
+                      "wrap": true,
+                      "flex": 1
+                    },
+                    {
+                      "type": "text",
+                      "text": "›",
+                      "size": "sm",
+                      "color": "#1B5E80",
                       "align": "end",
                       "flex": 0
                     }

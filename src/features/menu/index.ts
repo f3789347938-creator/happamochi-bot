@@ -26,6 +26,7 @@ import {
   screenG01,
   screenG20,
   screenG21,
+  screenG22,
   screenH01,
   screenH03,
   screenQ01,
@@ -213,7 +214,7 @@ function card(def: ScreenDef, tokens: string[] = []): LineMessage {
 /** `ヘルプ` で出すメインカルーセル。 */
 export function buildMainMenu(ctx: MenuCtx): LineMessage {
   const url = `${ctx.siteUrl}/ranking/personal`
-  const defs = mainScreens(url)
+  const defs = mainScreens(url, ctx.siteUrl)
   const bubbles = defs.map((d, i) =>
     buildBubble({ ...d, pageLabel: `${String(i + 1).padStart(2, '0')} / 0${defs.length}` })
   )
@@ -250,11 +251,13 @@ async function screenById(
     case 'Q08':
       return [card(screenQ08)]
     case 'G01':
-      return [card(screenG01)]
+      return [card(screenG01(ctx.siteUrl))]
     case 'G20':
       return [card(screenG20)]
     case 'G21':
       return [card(screenG21)]
+    case 'G22':
+      return [card(screenG22(ctx.siteUrl))]
     case 'R01':
       return [card(screenR01(url))]
     case 'C01': {

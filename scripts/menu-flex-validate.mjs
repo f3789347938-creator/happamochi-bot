@@ -71,6 +71,7 @@ const CASES = [
   ['G01-games', () => fetchMenu('hm|n|G01')],
   ['G20-othello', () => fetchMenu('hm|n|G20')],
   ['G21-chess', () => fetchMenu('hm|n|G21')],
+  ['G22-mochi-puzzle', () => fetchMenu('hm|n|G22')],
   ['R01-ranking', () => fetchMenu('hm|n|R01')],
   ['C01-settings', () => fetchMenu('hm|n|C01')],
   ['C02-birthday', () => fetchMenu('hm|n|C02')],
