@@ -261,11 +261,11 @@ Cloudflare Workers上で本物のPNG画像を動的生成する仕組み。「Wo
 - **Platform**: Cloudflare Pages (プロジェクト `line-group-bbs`)
 - **Production URL**: https://line-group-bbs.pages.dev
 - **Status**: ✅ 本番デプロイ済み(2026-09-07)。`ヘルプ`を横スワイプのメニューに変更し、
-  新規の案内画面32種を追加。デプロイID `16a81056`。マイグレーション
+  新規の案内画面32種を追加。ゲームはメニューのボタンから直接始められる。デプロイID `2b694495`。マイグレーション
   `0017_menu_confirmations.sql`を本番D1に適用済み。適用前後で既存データは無変化
   (title_master 5件、group_activities 45,580件、common_title_master 300件、
-  daily_fortune_sent 47件)。自動テストは menu 105項目 + 個人ステータス 89項目 +
-  チェス 90項目 = 284項目すべて成功。新規Flex 34種はLINE公式の検証APIで全件受理
+  daily_fortune_sent 47件)。自動テストは menu 110項目 + 個人ステータス 89項目 +
+  チェス 90項目 = 289項目すべて成功。新規Flex 35種はLINE公式の検証APIで全件受理
   (最大17,256バイト / 上限30,000)。本番の既存ページはすべて200、不正署名は401、
   デバッグ用エンドポイントは本番IDで403。
   ⚠️ **実機のLINEアプリでの表示は未確認**(検証用の端末がないため)。
