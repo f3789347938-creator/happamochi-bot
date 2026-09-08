@@ -81,6 +81,13 @@ async function main() {
   {
     const t0 = texts(cards[0]).join(' ')
     ok(t0.includes('ヘルプ'), '1枚目がヘルプの見出し', t0.slice(0, 80))
+    // カテゴリで分けず、2枚目以降はすべて「コマンド一覧」
+    const titles = cards.slice(1).map((c) => c.header?.contents?.[0]?.text)
+    ok(
+      titles.every((t) => t === 'コマンド一覧'),
+      '2枚目以降はすべて「コマンド一覧」(カテゴリ分けしていない)',
+      JSON.stringify(titles)
+    )
     ok(t0.includes('ようこそ'), '1枚目にようこその文がある', t0.slice(0, 100))
     // イラスト
     const imgs = nodes(cards[0]).filter((x) => x.type === 'image')
@@ -127,12 +134,29 @@ async function main() {
     ok(bad.length === 0, `全${cmds.length}個のボタンが実際に動く`, `無反応: ${JSON.stringify(bad)}`)
   }
 
+  console.log('\n=== 3b. 詰めて並んでいる ===')
+  {
+    // カテゴリで分けず上から詰める。1枚に7行入れて枚数を減らす。
+    const rows = cards
+      .slice(1)
+      .map((c) => (c.body?.contents?.[0]?.contents ?? []).filter((x) => x.type === 'box').length)
+    ok(
+      rows.every((n) => n >= 5),
+      '各カードに5行以上入っている(詰まっている)',
+      JSON.stringify(rows)
+    )
+    ok(cards.length <= 6, 'カード枚数が6枚以内', `${cards.length}枚`)
+    // 同じコマンドが2回出ていないこと
+    const all = msgActions.map((a) => a.text)
+    ok(new Set(all).size === all.length, 'コマンドの重複がない', `${all.length}個`)
+  }
+
   console.log('\n=== 4. 引数が必要なコマンドは押せるボタンにしない ===')
   {
     // 「めいく:本文」のように、そのまま送っても成立しないものは
     // 押せるボタンにしてはいけない(押して無反応だと壊れて見える)。
     const sent = msgActions.map((a) => a.text)
-    const needsArg = ['めいく:本文', 'タグ追加 タグ名', '称号検索 文字', '誕生日登録 9/7']
+    const needsArg = ['めいく:本文', 'タグ追加 タグ名', '称号検索 文字', '誕生日登録 9/7', 'めいくbold虹7:文']
     for (const na of needsArg) {
       ok(!sent.includes(na), `「${na}」は押せるボタンにしていない`)
     }

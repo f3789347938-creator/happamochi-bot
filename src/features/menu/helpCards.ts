@@ -43,88 +43,51 @@ interface Cmd {
   noAction?: boolean
 }
 
-/** コマンド一覧のページ。1枚のカードに5件まで。 */
-const PAGES: { title: string; items: Cmd[] }[] = [
-  {
-    title: 'コマンド一覧',
-    items: [
-      { label: 'ヘルプ', desc: 'このメニューを開く' },
-      { label: 'ステータス', desc: '自分のレベル・EXP・ポイント' },
-      { label: 'ランキング', desc: '各種ランキングを表示' },
-      { label: 'お知らせ', desc: '直近のお知らせを表示' },
-      { label: 'テスト', desc: '生存確認（ok を返す）' },
-    ],
-  },
-  {
-    title: 'コマンド一覧',
-    items: [
-      { label: '着せ替え', desc: 'カードの見た目を変える' },
-      { label: '共通称号一覧', desc: '手に入る称号を見る' },
-      { label: '共通称号確認', desc: '今つけている称号を確認' },
-      { label: '称号一覧', desc: 'このグループの称号（旧方式）' },
-      { label: '称号確認', desc: 'このグループの称号を確認' },
-    ],
-  },
-  {
-    title: 'ゲーム',
-    items: [
-      { label: 'オセロ', desc: '対局を募集する', send: 'オセロ開始' },
-      { label: 'オセロ参加', desc: '募集中の対局に入る' },
-      { label: 'オセロ戦績', desc: '自分の勝敗数を見る' },
-      { label: 'チェス', desc: '対局を募集する' },
-      { label: '盤面', desc: 'チェスの今の盤面を出す' },
-    ],
-  },
-  {
-    title: '名言カード',
-    items: [
-      { label: 'めいく装飾', desc: '使える装飾の一覧を見る' },
-      { label: 'めいく:本文', desc: '文字を入れて画像を作る', noAction: true },
-      {
-        label: '返信して めいく',
-        desc: 'その発言の画像を作る',
-        noAction: true,
-      },
-      {
-        label: 'めいく装飾:本文',
-        desc: '装飾つきで作る',
-        noAction: true,
-      },
-      {
-        label: 'めいくbold虹7:こんにちは',
-        desc: '入力例（太字・虹色・フォント7）',
-        noAction: true,
-      },
-    ],
-  },
-  {
-    title: 'グループ設定',
-    items: [
-      { label: 'ウェルカムオン', desc: '参加時のあいさつを出す（初期はオフ）' },
-      { label: 'ウェルカムオフ', desc: '参加時のあいさつを止める' },
-      { label: '取り消し通知オン', desc: '送信取消を知らせる' },
-      { label: '取り消し通知オフ', desc: '送信取消を知らせない' },
-    ],
-  },
-  {
-    title: 'そのほか',
-    items: [
-      { label: 'タグ一覧', desc: 'このグループのタグを見る' },
-      { label: 'タグ追加 タグ名', desc: 'タグを足す', noAction: true },
-      {
-        label: '誕生日登録 9/7',
-        desc: '誕生日を登録（日付は自分のものに）',
-        noAction: true,
-      },
-      { label: '誕生日登録解除', desc: '登録した誕生日を消す' },
-      {
-        label: '称号検索 文字',
-        desc: '共通称号を名前で探す',
-        noAction: true,
-      },
-    ],
-  },
+// コマンドは1本の並びで持つ。カテゴリごとに分けず、
+// 上から順に詰めて7件ずつのカードに切る(見本と同じく全部「コマンド一覧」)。
+// 説明が短いものを詰めるほど1枚に入るので、説明は簡潔にしている。
+const COMMANDS: Cmd[] = [
+  { label: 'ヘルプ', desc: 'このメニューを開く' },
+  { label: 'ステータス', desc: '自分のレベル・EXP・ポイント' },
+  { label: 'ランキング', desc: '各種ランキングを表示' },
+  { label: 'お知らせ', desc: '直近のお知らせを表示' },
+  { label: '着せ替え', desc: 'カードの見た目を変える' },
+  { label: '共通称号一覧', desc: '手に入る称号を見る' },
+  { label: '共通称号確認', desc: '今つけている称号を確認' },
+  { label: '称号一覧', desc: 'グループの称号（旧方式）' },
+  { label: '称号確認', desc: 'グループの称号を確認' },
+  { label: '称号検索 文字', desc: '称号を名前で探す', noAction: true },
+  { label: 'オセロ', desc: '対局を募集する', send: 'オセロ開始' },
+  { label: 'オセロ参加', desc: '募集中の対局に入る' },
+  { label: 'オセロ戦績', desc: '自分の勝敗数を見る' },
+  { label: 'チェス', desc: '対局を募集する' },
+  { label: '盤面', desc: 'チェスの盤面を出す' },
+  { label: 'めいく装飾', desc: '使える装飾の一覧' },
+  { label: 'めいく:本文', desc: '文字を入れて画像を作る', noAction: true },
+  { label: '返信して めいく', desc: 'その発言の画像を作る', noAction: true },
+  { label: 'めいくbold虹7:文', desc: '装飾つきの書き方', noAction: true },
+  { label: 'タグ一覧', desc: 'グループのタグを見る' },
+  { label: 'タグ追加 タグ名', desc: 'タグを足す', noAction: true },
+  { label: 'ウェルカムオン', desc: '参加時のあいさつを出す' },
+  { label: 'ウェルカムオフ', desc: 'あいさつを止める' },
+  { label: '取り消し通知オン', desc: '送信取消を知らせる' },
+  { label: '取り消し通知オフ', desc: '知らせない' },
+  { label: '誕生日登録 9/7', desc: '誕生日を登録', noAction: true },
+  { label: '誕生日登録解除', desc: '登録した誕生日を消す' },
+  { label: 'テスト', desc: '生存確認（ok を返す）' },
 ]
+
+/** 1枚のカードに入れる件数 */
+const PER_CARD = 7
+
+/** カテゴリで分けず、上から順に詰めたページ */
+const PAGES: { title: string; items: Cmd[] }[] = (() => {
+  const out: { title: string; items: Cmd[] }[] = []
+  for (let i = 0; i < COMMANDS.length; i += PER_CARD) {
+    out.push({ title: 'コマンド一覧', items: COMMANDS.slice(i, i + PER_CARD) })
+  }
+  return out
+})()
 
 /** 上下の青帯にはさまれた白いカード領域 */
 function panel(contents: Record<string, any>[]): Record<string, any> {
@@ -147,7 +110,7 @@ function cmdRow(cmd: Cmd, isFirst: boolean): Record<string, any>[] {
 
   // 2行目以降は上に細い区切り線を入れる(見本と同じ)
   if (!isFirst) {
-    out.push({ type: 'separator', color: C.divider, margin: 'md' })
+    out.push({ type: 'separator', color: C.divider, margin: 'sm' })
   }
 
   // 押せるものは message アクションを付ける。
@@ -187,7 +150,7 @@ function cmdRow(cmd: Cmd, isFirst: boolean): Record<string, any>[] {
     layout: 'horizontal',
     spacing: 'md',
     alignItems: 'center',
-    paddingTop: isFirst ? '0px' : '10px',
+    paddingTop: isFirst ? '0px' : '7px',
     paddingBottom: '0px',
     contents: [
       chip,
