@@ -577,6 +577,37 @@ function stoneIcon(color: Color, size = 18): Record<string, any> {
   }
 }
 
+// 表示名をカードに載せる前に短くする。
+//
+// なぜ必要か: この盤面カードは 8x8=64マスをそれぞれ box で描くため、
+// それだけで約27,000バイトあり、Flexの上限30,000バイトぎりぎりで動いている。
+// LINEの表示名は20文字までだが、絵文字(特に「👨‍👩‍👧‍👦」のような結合絵文字)は
+// 1文字で25バイト前後になるため、名前2つで実測30,557バイト = 上限超えになり、
+// LINEが400を返してカードが1枚も届かなくなる。
+//
+// 名前は識別できれば足りるので、バイト数で切って上限に余裕を作る。
+// 文字単位で切ると絵文字が壊れるので、コードポイント単位で組み立てる。
+const NAME_MAX_BYTES = 48
+
+// Flexの上限は30,000バイト。余裕を持たせた実質上限。
+const FLEX_SAFE_BYTES = 29800
+
+function flexBytes(contents: Record<string, any>): number {
+  return new TextEncoder().encode(JSON.stringify(contents)).length
+}
+
+function shortenName(name: string): string {
+  const enc = new TextEncoder()
+  if (enc.encode(name).length <= NAME_MAX_BYTES) return name
+  let out = ''
+  // [...name] はサロゲートペアを分割しないので、絵文字が壊れない
+  for (const ch of name) {
+    if (enc.encode(out + ch).length > NAME_MAX_BYTES - 1) break
+    out += ch
+  }
+  return `${out}…`
+}
+
 // A single player's card in the scoreboard row: stone icon, name, score.
 // The card currently on-turn is highlighted with a gold border/background;
 // a finished game instead highlights the winner in gold.
@@ -607,8 +638,8 @@ function playerCard(
 
 function renderScoreboard(game: OthelloGame): Record<string, any> {
   const { black, white } = countPieces(game.board)
-  const blackName = game.black_name ?? '黒番'
-  const whiteName = game.white_name ?? '白番'
+  const blackName = shortenName(game.black_name ?? '黒番')
+  const whiteName = shortenName(game.white_name ?? '白番')
 
   let blackHighlight: boolean
   let whiteHighlight: boolean
@@ -643,6 +674,25 @@ function statusMessage(game: OthelloGame): string | null {
   return null
 }
 
+// 対局が終わったカードの下に出すボタン。
+//
+// action は `postback` ではなく `message` を使う。押すと本当に「オセロ戦績」
+// というメッセージがグループに送信されるので、
+//   ・トークに「オセロ戦績」という発言として残り、他の人にもコマンド名が伝わる
+//     (「そんなコマンドがあると知らない人が多い」ため、これが目的)
+//   ・既存の `オセロ戦績` コマンドがそのまま動く。専用の分岐を足さずに済む
+// 普通の発言と同じ扱いになるので EXP・ポイントも加算されるが、
+// これはユーザーの明示的な判断で許容している。
+function recordButton(): Record<string, any> {
+  return {
+    type: 'button',
+    style: 'primary',
+    color: HEADER_BG,
+    height: 'sm',
+    action: { type: 'message', label: '📊 オセロ戦績', text: 'オセロ戦績' },
+  }
+}
+
 export function buildOthelloMessage(game: OthelloGame, note?: string): LineMessage {
   const bodyContents: Record<string, any>[] = [renderScoreboard(game)]
 
@@ -669,32 +719,67 @@ export function buildOthelloMessage(game: OthelloGame, note?: string): LineMessa
   // right under the scoreboard already covers those cases).
   let headerText = '🎲 オセロ'
   if (game.status === 'playing') {
-    const turnName = (game.turn === 'B' ? game.black_name : game.white_name) ?? (game.turn === 'B' ? '黒番' : '白番')
+    // ヘッダーにも名前が入るので、ここも短くしてカードのサイズを抑える
+    const turnName = shortenName(
+      (game.turn === 'B' ? game.black_name : game.white_name) ?? (game.turn === 'B' ? '黒番' : '白番')
+    )
     headerText = `${turnName}の番です`
   }
 
-  return {
-    type: 'flex',
-    altText: 'オセロ',
-    contents: {
-      type: 'bubble',
-      size: 'giga',
-      header: {
-        type: 'box',
-        layout: 'vertical',
-        backgroundColor: HEADER_BG,
-        paddingAll: 'md',
-        contents: [
-          { type: 'text', text: headerText, color: '#ffffff', weight: 'bold', size: 'md', align: 'center' },
-        ],
-      },
-      body: {
-        type: 'box',
-        layout: 'vertical',
-        spacing: 'md',
-        paddingAll: 'md',
-        contents: bodyContents,
-      },
+  const bubble: Record<string, any> = {
+    type: 'bubble',
+    size: 'giga',
+    header: {
+      type: 'box',
+      layout: 'vertical',
+      backgroundColor: HEADER_BG,
+      paddingAll: 'md',
+      contents: [
+        { type: 'text', text: headerText, color: '#ffffff', weight: 'bold', size: 'md', align: 'center' },
+      ],
+    },
+    body: {
+      type: 'box',
+      layout: 'vertical',
+      spacing: 'md',
+      paddingAll: 'md',
+      contents: bodyContents,
     },
   }
+
+  // 戦績ボタンは対局が終わったときだけ出す。
+  // 対局中(playing)や相手待ち(waiting)では盤面に集中させたいので出さない。
+  if (game.status === 'finished') {
+    bubble.footer = {
+      type: 'box',
+      layout: 'vertical',
+      spacing: 'sm',
+      paddingAll: 'md',
+      contents: [
+        recordButton(),
+        {
+          type: 'text',
+          text: '押すと自分の勝敗数が出ます',
+          size: 'xxs',
+          align: 'center',
+          color: '#888888',
+          wrap: true,
+        },
+      ],
+    }
+
+    // 最後の保険。盤面だけで約27,000バイトあり上限30,000に近いので、
+    // 想定外の理由で膨らんだ場合は説明文を落として、ボタン(=本体)を残す。
+    // 超えたままLINEに送ると400で「カードが1枚も届かない」ため、
+    // 少し寂しくなってもカードが出るほうを選ぶ。
+    if (flexBytes(bubble) > FLEX_SAFE_BYTES) {
+      bubble.footer.contents = [recordButton()]
+    }
+    // それでも収まらないなら footer 自体を諦める(盤面と勝敗表示を守る)。
+    if (flexBytes(bubble) > FLEX_SAFE_BYTES) {
+      delete bubble.footer
+    }
+  }
+
+  return { type: 'flex', altText: 'オセロ', contents: bubble }
 }

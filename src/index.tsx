@@ -609,6 +609,49 @@ app.post('/debug/profile', async (c) => {
   return c.json({ error: 'unknown op' }, 400)
 })
 
+// オセロの盤面カードを、状態(waiting/playing/finished)ごとに生成して返す。
+// 「戦績ボタンが終局のときだけ出る」ことの自動テスト用。
+//
+// DBは一切読み書きしない。渡された状態からカードを組むだけなので、
+// 進行中の対局や戦績データに影響しない。
+app.post('/debug/othello-card', async (c) => {
+  const { status, board, turn, blackName, whiteName } = await c.req.json<{
+    status?: 'waiting' | 'playing' | 'finished'
+    board?: string
+    turn?: 'B' | 'W'
+    blackName?: string
+    whiteName?: string
+  }>()
+  const st = status ?? 'playing'
+  if (st !== 'waiting' && st !== 'playing' && st !== 'finished') {
+    return c.json({ error: 'bad status' }, 400)
+  }
+  // 既定は初期配置。board を渡せば任意の盤面(終局形など)を試せる。
+  const initial =
+    '.'.repeat(27) + 'WB' + '.'.repeat(6) + 'BW' + '.'.repeat(27)
+  const b = board ?? initial
+  if (b.length !== 64 || /[^.BW]/.test(b)) return c.json({ error: 'bad board' }, 400)
+
+  try {
+    const message = buildOthelloMessage({
+      group_id: 'Cothello_test_card',
+      board: b,
+      turn: turn ?? 'B',
+      black_user_id: 'Uothello_test_black',
+      black_name: blackName ?? '黒プレイヤー',
+      white_user_id: st === 'waiting' ? null : 'Uothello_test_white',
+      white_name: st === 'waiting' ? null : (whiteName ?? '白プレイヤー'),
+      status: st,
+      last_move_at: null,
+      last_reject_user_id: null,
+      last_reject_at: null,
+    })
+    return c.json({ message })
+  } catch (e: any) {
+    return c.json({ error: String(e?.message ?? e) }, 500)
+  }
+})
+
 // 実際にLINEへ送ろうとした返信を数える。歓迎メッセージの二重送信テスト用。
 // 自動テスト専用。テスト用IDの接頭辞に限定し、本番のグループでは動かない。
 app.post('/debug/reply-logs', async (c) => {
@@ -1445,10 +1488,28 @@ async function routeCommand(env: Bindings, ctx: CommandCtx): Promise<LineMessage
     return [{ type: 'text', text: result.ok ? 'オセロを終了しました' : result.reason }]
   }
 
+  // 対局終了カードの「📊 オセロ戦績」ボタンからも、この同じ処理に入る。
+  // ボタンは message アクションなので、押すと本当に「オセロ戦績」が送信され、
+  // ここを通る(専用の分岐は無い)。出るのは押した本人の戦績。
   if (text === 'オセロ戦績' && ctx.isGroup && ctx.groupId && ctx.userId) {
     const record = await getOthelloRecord(env, ctx.groupId, ctx.userId)
-    if (!record) return [{ type: 'text', text: 'まだ対局結果がありません' }]
-    return [{ type: 'text', text: `オセロ戦績\n勝ち: ${record.wins}\n負け: ${record.losses}\n引き分け: ${record.draws}` }]
+    // ボタン経由だと、まだ一度も対局していない人が押すことが多い。
+    // 「無い」で終わらせず、遊び方まで案内する。
+    if (!record) {
+      return [
+        {
+          type: 'text',
+          text: 'まだ対局結果がありません\n「オセロ開始」で募集できます（対局が終わると勝敗が記録されます）',
+        },
+      ]
+    }
+    const { wins, losses, draws } = record
+    return [
+      {
+        type: 'text',
+        text: `オセロ戦績\n勝ち: ${wins}\n負け: ${losses}\n引き分け: ${draws}\n\n（全${wins + losses + draws}戦）`,
+      },
+    ]
   }
 
   const tagAddMatch = text.match(/^タグ追加\s*(.+)$/)
