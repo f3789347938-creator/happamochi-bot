@@ -18,6 +18,15 @@ import { registerBirthday, unregisterBirthday, checkAndQueueBirthdays } from './
 // 個人ステータス(レベル/EXP/ポイント)・着せ替え・共通称号。
 // 既存のグループ別称号(features/titles.ts)とは別系統の独立モジュール。
 import { addExpForMessage } from './features/profile/core'
+import {
+  verifyLiffToken,
+  isPlausibleScore,
+  submitScore,
+  getRanking as getMochiRanking,
+  getMyScore as getMyMochiScore,
+} from './features/mochiScore'
+import { buildRankingCarousel } from './features/rankingCards'
+import { renderMochiRankingPage } from './features/mochiRankingPage'
 import { handleProfileText, handleProfilePostback } from './features/profile'
 import { renderPersonalRankingPage, renderPublicStatusPage } from './features/profile/page'
 // ヘルプメニュー(横スワイプのカルーセル + 案内画面)。
@@ -166,6 +175,102 @@ app.get('/ranking', async (c) => {
 })
 
 app.get('/ranking/rules', (c) => c.html(renderRankingRulesPage()))
+
+// もち合体パズルのスコアランキング(公開ページ)。
+// 「ランキング」カードの「ランキングをもっと見る」の行き先。
+app.get('/ranking/mochi', async (c) => {
+  return c.html(await renderMochiRankingPage(c.env, SITE_URL))
+})
+
+// ─── もち合体パズル(LIFFミニゲーム)のスコアランキング ───
+//
+// なりすまし対策: 「誰のスコアか」はクライアントに決めさせない。
+// リクエストからは userId を一切読まず、アクセストークンをLINEに検証させて
+// 得られた userId でだけ書き込む。詳細は features/mochiScore.ts の冒頭。
+app.post('/api/mochi/score', async (c) => {
+  let body: { accessToken?: string; score?: unknown; merges?: unknown; stage?: unknown }
+  try {
+    body = await c.req.json()
+  } catch {
+    return c.json({ error: 'bad json' }, 400)
+  }
+
+  // 値の形が正しいかを先に見る(LINEへの問い合わせを無駄に増やさない)
+  if (!isPlausibleScore(body.score, body.merges, body.stage)) {
+    return c.json({ error: 'invalid score' }, 400)
+  }
+  if (typeof body.accessToken !== 'string' || !body.accessToken) {
+    return c.json({ error: 'login required' }, 401)
+  }
+
+  const user = await verifyLiffToken(body.accessToken)
+  if (!user) return c.json({ error: 'invalid token' }, 401)
+
+  try {
+    const r = await submitScore(
+      c.env,
+      user,
+      body.score as number,
+      body.merges as number,
+      body.stage as number
+    )
+    return c.json({ ok: true, best: r.best, updated: r.updated, rank: r.rank })
+  } catch (e: any) {
+    return c.json({ error: String(e?.message ?? e) }, 500)
+  }
+})
+
+// 上位の一覧。読むだけなのでログイン不要。
+app.get('/api/mochi/ranking', async (c) => {
+  try {
+    const limit = parseInt(c.req.query('limit') || '20', 10)
+    const rows = await getMochiRanking(c.env, Number.isFinite(limit) ? limit : 20)
+    return c.json({
+      ranking: rows.map((r, i) => ({
+        rank: i + 1,
+        name: r.display_name ?? '名前なし',
+        picture: r.picture_url,
+        score: r.best_score,
+        merges: r.best_merges,
+        stage: r.best_stage,
+        plays: r.plays,
+      })),
+    })
+  } catch (e: any) {
+    return c.json({ error: String(e?.message ?? e) }, 500)
+  }
+})
+
+// 本人の記録と順位。こちらは本人確認が必要。
+app.post('/api/mochi/me', async (c) => {
+  let body: { accessToken?: string }
+  try {
+    body = await c.req.json()
+  } catch {
+    return c.json({ error: 'bad json' }, 400)
+  }
+  if (typeof body.accessToken !== 'string' || !body.accessToken) {
+    return c.json({ error: 'login required' }, 401)
+  }
+  const user = await verifyLiffToken(body.accessToken)
+  if (!user) return c.json({ error: 'invalid token' }, 401)
+  try {
+    const mine = await getMyMochiScore(c.env, user.userId)
+    if (!mine) return c.json({ me: null })
+    return c.json({
+      me: {
+        rank: mine.rank,
+        name: mine.row.display_name ?? '名前なし',
+        score: mine.row.best_score,
+        merges: mine.row.best_merges,
+        stage: mine.row.best_stage,
+        plays: mine.row.plays,
+      },
+    })
+  } catch (e: any) {
+    return c.json({ error: String(e?.message ?? e) }, 500)
+  }
+})
 
 // ─── 名言カードギャラリー ───
 // 「めいく」コマンドで生成された名言カード(quote_images)を一覧表示する
@@ -1285,12 +1390,21 @@ async function routeCommand(env: Bindings, ctx: CommandCtx): Promise<LineMessage
   // グループ発言数ランキング。既存に同名コマンドは存在しない
   // (週間個人ランキングは自動配信で、コマンドは未実装だった)ので
   // 新規追加している。失敗しても他の応答を巫がないよう try/catch で囲う。
+  // 「ランキング」は横スワイプのカルーセルで返す。
+  //   1枚目: 葉っぱもちランキング(個人のLv / 累計EXP)
+  //   2枚目: もち合体パズル(ゲームのスコア)
+  // カードの組み立てが何かの理由で失敗した場合は、
+  // 従来の文字だけのグループランキングに必ず落とす(無反応にはしない)。
   if ((text === 'ランキング' || text === '順位') && ctx.isGroup && ctx.groupId) {
     try {
-      const reply = await buildGroupRankingReply(env, ctx.groupId, SITE_URL)
-      return [{ type: 'text', text: reply }]
+      return [await buildRankingCarousel(env, SITE_URL, ctx.userId ?? null)]
     } catch {
-      return [{ type: 'text', text: 'ランキングの取得に失敗しました。' }]
+      try {
+        const reply = await buildGroupRankingReply(env, ctx.groupId, SITE_URL)
+        return [{ type: 'text', text: reply }]
+      } catch {
+        return [{ type: 'text', text: 'ランキングの取得に失敗しました。' }]
+      }
     }
   }
 
