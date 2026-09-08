@@ -110,22 +110,37 @@ const first = (r) => (r.would_reply_with ?? [])[0]
 const allText = (r) => texts(r.would_reply_with ?? []).join('\n')
 
 async function main() {
-  console.log('=== 1. ヘルプがメニューカルーセルになる ===')
+  console.log('=== 1. ヘルプがコマンド一覧のカルーセルになる ===')
   {
+    // 「ヘルプ」の出力は、押せるコマンド一覧のカルーセルに差し替えた。
+    // 詳しい検証は scripts/help-card-test.mjs 側で行う。
+    // ここでは入口が生きていることと、従来メニューが残っていることを見る。
     const r = await simulate('ヘルプ')
     const m = first(r)
     ok(m?.type === 'flex', 'ヘルプでFlexが返る', `type=${m?.type}`)
     ok(m?.contents?.type === 'carousel', 'カルーセル形式である', `${m?.contents?.type}`)
-    ok(m?.contents?.contents?.length === 6, 'カードが6枚', `${m?.contents?.contents?.length}`)
+    ok((m?.contents?.contents?.length ?? 0) >= 2, 'カードが2枚以上ある', `${m?.contents?.contents?.length}`)
     const t = allText(r)
-    for (const title of ['名言カード', 'ステータス', 'ゲーム', 'ランキング', 'グループ設定', 'ガイド']) {
-      ok(t.includes(title), `「${title}」のカードがある`)
-    }
+    ok(t.includes('葉っぱもち'), 'Bot名が入っている')
     ok(t.includes('© 2026 HappaMochi Bot'), 'フッターの著作権表記がある')
-    ok(t.includes('01 / 06') && t.includes('06 / 06'), 'ページ番号が入っている')
     // 英語の別名も残っている
     const r2 = await simulate('help')
-    ok(first(r2)?.contents?.type === 'carousel', '既存の別名 help も同じメニューを出す')
+    ok(first(r2)?.contents?.type === 'carousel', '既存の別名 help も同じものを出す')
+  }
+
+  console.log('\n=== 1b. 従来のカード型メニューが残っている ===')
+  {
+    // 案内画面の「戻る」から開く従来メニュー(hm|n|M)は消していない。
+    const { status, body } = await menu('hm|n|M')
+    const m = (body.would_reply_with ?? [])[0]
+    ok(status === 200, '従来メニューのPostbackが動く', `status=${status}`)
+    ok(m?.contents?.type === 'carousel', '従来メニューがカルーセルで返る', `${m?.contents?.type}`)
+    ok(m?.contents?.contents?.length === 6, '従来メニューは6枚のまま', `${m?.contents?.contents?.length}`)
+    const t = texts(body.would_reply_with ?? []).join('\n')
+    for (const title of ['名言カード', 'ステータス', 'ゲーム', 'ランキング', 'グループ設定', 'ガイド']) {
+      ok(t.includes(title), `従来メニューに「${title}」がある`)
+    }
+    ok(t.includes('01 / 06') && t.includes('06 / 06'), '従来メニューのページ番号が入っている')
   }
 
   console.log('\n=== 2. 全コマンド一覧が「ガイド → 全コマンド」から見られる ===')

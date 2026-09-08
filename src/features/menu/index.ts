@@ -13,6 +13,7 @@
 //   ・Flexの中に入力欄は作らない。次の雑談を本文として勝手に拾わない。
 import type { LineEnv, LineMessage } from '../../lib/line'
 import { buildCard, buildCarousel, buildBubble } from './flex'
+import { buildHelpCarousel } from './helpCards'
 import {
   H03_PAGE_COUNT,
   MAIN_IDS,
@@ -370,7 +371,12 @@ function confirmCard(op: string, def: OpDef, id: string, before: string): LineMe
  */
 export function handleMenuText(ctx: MenuCtx, raw: string): LineMessage[] | null {
   const t = raw.trim()
-  if (t === 'ヘルプ' || t.toLowerCase() === 'help') return [buildMainMenu(ctx)]
+  // 「ヘルプ」はコマンド一覧のカルーセルを返す。
+  // 各コマンドが押せるボタンになっているので、コマンド名を知らなくても使える。
+  //
+  // 従来のカード型メニュー(buildMainMenu)は消していない。案内画面の
+  // 「戻る」やPostback(hm|n|M)から今までどおり開ける。
+  if (t === 'ヘルプ' || t.toLowerCase() === 'help') return [buildHelpCarousel(ctx.siteUrl)]
   return null
 }
 
