@@ -141,7 +141,135 @@ async function main() {
     ok(cards.length <= 12, 'カルーセルの枚数が上限12以内', `${cards.length}枚`)
   }
 
-  console.log('\n=== 6. 別名「順位」も同じものを返す ===')
+  console.log('\n=== 6. 見本と同じ色配置・構造になっている ===')
+  {
+    const BLUE = '#039BE5'
+    const BODY_BG = '#E1F5FE'
+    const ROW_BG = '#FFFFFF'
+    const BORDER = '#BFE3EF'
+
+    for (const [i, label] of [[0, '1枚目'], [1, '2枚目']]) {
+      const c = cards[i]
+
+      // カード幅。mega より一段細い kilo にそろえる(見本の幅に合わせる)
+      ok(c?.size === 'kilo', `${label}の size が kilo`, `size=${c?.size}`)
+
+      // 上帯・主ボタン・下帯が同じ青
+      const btn = (c?.body?.contents ?? []).find((x) => x.type === 'button')
+      ok(c?.header?.backgroundColor === BLUE, `${label}の上帯が ${BLUE}`, `${c?.header?.backgroundColor}`)
+      ok(btn?.color === BLUE, `${label}の主ボタンが同じ青`, `${btn?.color}`)
+      ok(c?.footer?.backgroundColor === BLUE, `${label}の下帯が同じ青`, `${c?.footer?.backgroundColor}`)
+
+      // 本文の土台は水色、各順位行は白(ここが見本との一番大きな違いだった)
+      ok(c?.body?.backgroundColor === BODY_BG, `${label}の本文が水色 ${BODY_BG}`, `${c?.body?.backgroundColor}`)
+      const rows = (c?.body?.contents ?? []).filter((x) => x.type === 'box')
+      ok(rows.length > 0, `${label}に行がある`)
+      ok(
+        rows.every((r) => r.backgroundColor === ROW_BG),
+        `${label}の各行が白`,
+        JSON.stringify(rows.map((r) => r.backgroundColor))
+      )
+      ok(
+        rows.every((r) => r.borderColor === BORDER && r.borderWidth === '1px'),
+        `${label}の各行が薄い水色の細枠`,
+        JSON.stringify(rows.map((r) => `${r.borderColor}/${r.borderWidth}`))
+      )
+      // 角丸は小さく(見本は control 程度)。'md' のような大きい丸みは使わない
+      ok(
+        rows.every((r) => /^[0-9]+px$/.test(r.cornerRadius ?? '') && parseInt(r.cornerRadius) <= 6),
+        `${label}の各行の角丸が小さい`,
+        JSON.stringify(rows.map((r) => r.cornerRadius))
+      )
+
+      // 下端の青帯は左右いっぱい(paddingを左右に付けると両端が白く残る)
+      ok(c?.footer?.paddingAll === '0px', `${label}の下帯が左右いっぱい`, `pad=${c?.footer?.paddingAll}`)
+      const ft = c?.footer?.contents?.[0]
+      ok(ft?.color === '#FFFFFF', `${label}の著作権文字が白`, `${ft?.color}`)
+      ok(ft?.align === 'center', `${label}の著作権文字が中央`, `${ft?.align}`)
+      ok(ft?.weight === 'bold', `${label}の著作権文字が太字`, `${ft?.weight}`)
+      ok(ft?.text === '© 2026 HappaMochi Bot', `${label}の表記が正式名`, `${ft?.text}`)
+
+      // ボタンは本文側(水色の上)に置く。footer に入れると青帯と重なる
+      ok(btn !== undefined, `${label}のボタンが本文側にある`)
+      ok(
+        (c?.footer?.contents ?? []).every((x) => x.type !== 'button'),
+        `${label}の下帯にボタンが入っていない`
+      )
+    }
+
+    // 参照元のBot名や根拠のない名前が混ざっていないこと
+    const all = texts(msg.contents).join(' ')
+    ok(!all.includes('nano-bot'), '根拠のない nano-bot 表記が残っていない')
+    ok(!all.includes('uparupa'), '参照元の Bot 名をコピーしていない')
+  }
+
+  console.log('\n=== 6b. 行の中身が見本の並びになっている ===')
+  {
+    const c = cards[0]
+    const rows = (c?.body?.contents ?? []).filter((x) => x.type === 'box')
+    const r0 = rows[0]
+    ok(r0?.layout === 'horizontal', '行は横並び', `${r0?.layout}`)
+    ok(r0?.alignItems === 'center', '行の中身は縦中央ぞろえ', `${r0?.alignItems}`)
+
+    // 「順位数字 → アバター → 名前と数値」の順
+    const kinds = (r0?.contents ?? []).map((x) => x.type)
+    ok(kinds.length === 3, '行は3列(順位/アバター/文字)', JSON.stringify(kinds))
+
+    // アバターは正方形・小さい角丸・細枠。丸アイコンにしない
+    const av = r0?.contents?.[1]
+    ok(av?.width === av?.height, 'アバターが正方形', `${av?.width} x ${av?.height}`)
+    ok(
+      parseInt(av?.cornerRadius ?? '99') <= 6,
+      'アバターの角丸が小さい(丸アイコンでない)',
+      `${av?.cornerRadius}`
+    )
+    ok(av?.borderColor === '#BFE3EF', 'アバターに薄い水色の枠', `${av?.borderColor}`)
+
+    // 順位数字は名前より控えめ(小さめ)。金銀銅
+    const rankText = r0?.contents?.[0]?.contents?.[0]
+    const nameText = r0?.contents?.[2]?.contents?.[0]
+    const order = ['xxs', 'xs', 'sm', 'md', 'lg', 'xl', 'xxl']
+    ok(
+      order.indexOf(rankText?.size) < order.indexOf(nameText?.size),
+      '順位数字が名前より小さい',
+      `順位=${rankText?.size} 名前=${nameText?.size}`
+    )
+    ok(rankText?.color === '#D4AF37', '1位が金色', `${rankText?.color}`)
+    ok(rows[1]?.contents?.[0]?.contents?.[0]?.color === '#949DA3', '2位が銀色')
+    ok(rows[2]?.contents?.[0]?.contents?.[0]?.color === '#B87939', '3位が銅色')
+
+    // 名前は濃いグレーの太字、数値は灰色の通常の太さ
+    ok(nameText?.color === '#333333' && nameText?.weight === 'bold', '名前が濃いグレーの太字')
+    const subText = r0?.contents?.[2]?.contents?.[1]
+    ok(subText?.color === '#6F858B', '数値が灰色', `${subText?.color}`)
+    ok(subText?.weight !== 'bold', '数値は太字にしない', `${subText?.weight}`)
+
+    // 高さは固定しない(端末の文字サイズを大きくすると切れるため)
+    ok(
+      rows.every((r) => r.height === undefined),
+      '行に固定の高さを付けていない(文字切れ防止)'
+    )
+  }
+
+  console.log('\n=== 6c. 数値の表記 ===')
+  {
+    const t1 = texts(cards[0]).join(' ')
+    const t2 = texts(cards[1]).join(' ')
+    // exp: / best: のコロン付き。既存の値の意味は変えない
+    if (/exp/.test(t1)) {
+      ok(/exp:\s/.test(t1), 'EXPが「exp: 」形式', t1.slice(0, 120))
+      ok(!/exp\s\d/.test(t1), '古い「exp 316」形式が残っていない', t1.slice(0, 120))
+    } else {
+      ok(true, 'EXP行なし(記録0件のためスキップ)')
+    }
+    if (/best/.test(t2)) {
+      ok(/best:\s/.test(t2), 'スコアが「best: 」形式', t2.slice(0, 120))
+    } else {
+      ok(true, 'スコア行なし(記録0件のためスキップ)')
+    }
+  }
+
+  console.log('\n=== 7. 別名「順位」も同じものを返す ===')
   {
     const r2 = await simulate('順位')
     const m2 = r2.would_reply_with?.[0]
@@ -152,7 +280,7 @@ async function main() {
     )
   }
 
-  console.log('\n=== 7. アイコンが無い人でも崩れない ===')
+  console.log('\n=== 8. アイコンが無い人でも崩れない ===')
   {
     // アイコンが無い場合は画像ではなく頭文字の箱を出す。
     // 行の数(順位の数字)とアイコン枠の数が一致していれば崩れていない。
@@ -170,7 +298,7 @@ async function main() {
     }
   }
 
-  console.log('\n=== 8. もっと見るページが表示できる ===')
+  console.log('\n=== 9. もっと見るページが表示できる ===')
   {
     for (const [label, path] of [
       ['もち合体パズルのページ', '/ranking/mochi'],
