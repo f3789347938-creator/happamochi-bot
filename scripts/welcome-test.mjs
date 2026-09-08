@@ -28,9 +28,13 @@ const ok = (cond, label, extra = '') => {
 let seq = 0
 const sign = (b) => crypto.createHmac('sha256', SECRET).update(b).digest('base64')
 
-// 同期処理されるテスト用ID接頭辞を使う
-const G = 'Cpf_test_welcome1'
-const G2 = 'Cpf_test_welcome2'
+// 同期処理されるテスト用ID接頭辞を使う。
+// 「初期状態(設定行が無い)では送らない」を検証するため、
+// グループIDは実行ごとに変える。固定IDだと前回の「ウェルカムオン」が
+// 設定テーブルに残り、2回目以降は初期状態ではなくなってしまう。
+const RUN = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`
+const G = `Cpf_test_welcome1_${RUN}`
+const G2 = `Cpf_test_welcome2_${RUN}`
 const U = 'Upf_test_newbie_0000000000000001'
 
 async function post(events) {

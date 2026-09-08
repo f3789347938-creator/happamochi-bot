@@ -32,14 +32,32 @@
 <canvas id="game-canvas" tabindex="0" role="application" aria-label="もち合体パズル" aria-describedby="control-hint keyboard-hint"></canvas>
 <div id="loading" class="loading"><span class="loading-orbit" aria-hidden="true"></span><p>おもちを準備しています…</p></div>
 <div id="load-error" class="load-error" hidden><p>おもちを読み込めませんでした。</p><button id="reload-button" class="primary-button" type="button">もう一度読み込む</button></div>
+<button id="start-screen" class="start-screen" type="button" hidden aria-label="タップしてもち合体パズルを始める">
+<canvas id="start-mochi" class="start-mochi" width="200" height="200" aria-hidden="true"></canvas>
+<span class="start-title">もち合体パズル</span>
+<span class="start-lead">同じもちをくっつけて、大きくしよう</span>
+<span class="start-tap">タップしてはじめる</span>
+<span class="start-best" id="start-best" hidden></span>
+</button>
 <div id="danger-note" class="danger-note" aria-live="polite" hidden>あふれそう！</div>
 </div>
+<section class="skill-panel" aria-label="おもちのスキル">
+  <div class="power-heading"><label for="power-gauge">もちパワー</label><span>合体で +5</span><strong id="power-value">0 / 100</strong></div>
+  <progress id="power-gauge" value="0" max="100">0 / 100</progress>
+  <div id="skill-buttons" class="skill-buttons">
+    <button type="button" class="skill-button" data-skill="roll" disabled title="離れた同じ種類を最大3組合体。同じ種類が2個以上必要（70消費）"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2 12h6m-3-3 3 3-3 3M22 12h-6m3-3-3 3 3 3M12 3v3m0 12v3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="skill-name">超合体</span><span class="skill-cost">70</span><span class="skill-caption">最大3組</span></button>
+    <button type="button" class="skill-button" data-skill="snack" disabled title="選んだもちと周囲を最大6個消す（90消費）"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M19 5l-2 2M7 17l-2 2" stroke-linecap="round"/></svg><span class="skill-name">もちボム</span><span class="skill-cost">90</span><span class="skill-caption">最大6個</span></button>
+    <button type="button" class="skill-button" data-skill="evolve" disabled title="選んだもちを1段階進化。王様もち以外に使える（60消費）"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m6 10 6-6 6 6m-6-6v15M5 21h14" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="skill-name">もち進化</span><span class="skill-cost">60</span><span class="skill-caption">1段階UP</span></button>
+  </div>
+  <div id="target-controls" class="snack-controls" hidden><p><strong id="selection-title">もちを選んでね</strong><span>選んでいる間は一時停止</span></p><button id="cancel-target" type="button">やめる</button></div>
+  <p id="skill-status" class="skill-status" role="status">スキルは全種類合わせて、残り3回</p>
+</section>
 <div class="under-board"><p id="control-hint">左右に動かして、指を離す</p><p id="keyboard-hint">PCでは ← → とスペースでも遊べます</p></div>
 </div>
 <aside class="evolution-panel" aria-labelledby="evolution-title">
-<div class="evolution-heading"><h2 id="evolution-title">もちの進化</h2><span>5種類</span></div>
-<ol id="evolution" class="evolution-list"></ol>
-<p class="evolution-note">同じもちをくっつけて、<br class="desktop-break">大きくしよう。</p>
+<div class="evolution-heading"><h2 id="evolution-title">もちの進化</h2><span id="stage-count">11種類</span></div>
+<ol id="evolution" class="evolution-list" tabindex="0" aria-label="全11種類のもちの進化順"></ol>
+<p class="evolution-note"><span class="mobile-evolution-hint">横にスワイプで11種類を見る</span><span>最後の王様もちを目指そう。</span></p>
 <div class="desktop-tip"><span>ちょっとしたコツ</span><p>「つぎ」のもちも見ながら、<br>同じもちの近くに落としてみよう。</p><button id="how-to-link" type="button">遊び方を見る <span aria-hidden="true">↗</span></button></div>
 </aside>
 </section>
@@ -49,12 +67,13 @@
 <button class="dialog-close" type="button" data-close="help-dialog" aria-label="遊び方を閉じる">×</button>
 <span class="dialog-eyebrow">あそびかた</span><h2 id="help-title">同じもちを、ぴたっ。</h2>
 <div class="merge-example" aria-hidden="true"><canvas data-mochi="1" width="112" height="112"></canvas><span>＋</span><canvas data-mochi="1" width="112" height="112"></canvas><span>→</span><canvas data-mochi="2" width="144" height="144"></canvas></div>
-<ol class="help-steps"><li><strong>指で左右に動かして、離す</strong><p>好きな位置からおもちを落とせます。タップでもOK。</p></li><li><strong>同じもち2個で、ひとつ大きく</strong><p>合体が続くと連鎖ボーナス。こんがりもち2個は消えて、500点以上のボーナスになります。</p></li><li><strong>点線を超えたままだと、おしまい</strong><p>赤い表示がいっぱいになる前に、合体でスペースを作りましょう。</p></li></ol>
+<ol class="help-steps"><li><strong>指で左右に動かして、離す</strong><p>好きな位置からおもちを落とせます。タップでもOK。</p></li><li><strong>同じもち2個で、ひとつ大きく</strong><p>合体が続くと連鎖ボーナス。<span id="final-merge-rule">王様もち2個は消えて、1,500点以上のボーナスになります。</span></p></li><li><strong>点線を超えたままだと、おしまい</strong><p>赤い表示がいっぱいになる前に、合体でスペースを作りましょう。</p></li></ol>
+<div class="help-skills"><h3>ためたパワーで、ピンチを切り抜けよう。</h3><p>スキルは全種類合わせて1プレイ3回まで。パワーは0からスタートし、自然な合体ごとに5増えます（最大100）。</p><dl><div><dt>超合体 · 70</dt><dd>離れた同じもちを、最大3組まとめて合体。大きいもちのペアから優先します。同じもちが2個あれば使えます。</dd></div><div><dt>もちボム · 90</dt><dd>選んだもちと近くのもちを最大6個消去。光ったもちが消える対象です。消去自体の得点は増えません。</dd></div><div><dt>もち進化 · 60</dt><dd>好きなもち1個を1段階進化させます。進化したもちが同種に触れれば、さらに合体できます。王様もちは進化できません。</dd></div></dl><p>どれかを使ったら、もちを8個落とすまで全スキルがお休み。待ち時間や合体だけでは解除されません。再使用には必要なパワーもためてください。</p><p>超合体でも得点は入ります。スキル自体からはパワーを獲得できませんが、その後の自然な合体ではたまります。</p><p>対象を選ぶ間は一時停止。キャンセルならパワーと回数は減らず、お休みも始まりません。</p><p>PCは1・2・3でスキルを選択。対象は矢印で選び、Enterで決定、Escapeでキャンセルできます。</p></div>
 <button class="primary-button" type="button" data-close="help-dialog">わかった、遊ぶ</button>
 <p class="dialog-footnote">ベストスコアは、この端末のブラウザに保存されます。</p>
 </dialog>
 <dialog id="pause-dialog" class="game-dialog compact-dialog" aria-labelledby="pause-title">
-<canvas class="dialog-mochi" data-mochi="2" width="224" height="224" aria-hidden="true"></canvas>
+<canvas class="dialog-mochi" data-mochi="3" width="224" height="224" aria-hidden="true"></canvas>
 <span class="dialog-eyebrow">ひとやすみ</span><h2 id="pause-title">ちょっと、ひとやすみ。</h2>
 <button id="resume-button" class="primary-button" type="button">つづきから遊ぶ</button>
 <button id="restart-button" class="text-button" type="button">はじめからやり直す</button>
@@ -64,10 +83,16 @@
 <button id="confirm-restart" class="primary-button" type="button">はじめから遊ぶ</button><button id="cancel-restart" class="text-button" type="button">つづきを遊ぶ</button>
 </dialog>
 <dialog id="over-dialog" class="game-dialog compact-dialog" aria-labelledby="over-title">
-<canvas id="result-mochi" class="dialog-mochi" width="224" height="224" aria-hidden="true"></canvas>
-<span id="result-eyebrow" class="dialog-eyebrow">おつかれさま！</span><h2 id="over-title">おもちがいっぱい。</h2>
-<span class="result-label">今回のスコア</span><strong id="result-score" class="result-score">0</strong>
-<p id="result-summary" class="result-summary"></p>
+<span id="result-eyebrow" class="dialog-eyebrow">おつかれさま！</span><h2 id="over-title">今回のもち記録</h2>
+<div class="sr-only"><span>今回のスコア</span><strong id="result-score">0</strong><p id="result-summary"></p></div>
+<canvas id="result-card" class="result-card" width="960" height="1040" role="img" aria-label="今回の結果カード"></canvas>
+<a id="line-share-button" class="line-share-button" target="_blank" rel="noopener noreferrer">LINEでシェア</a>
+<p class="share-description">LINEにはスコア・もち名・合体回数を送ります。</p>
+<div class="image-share-actions">
+  <button id="image-share-button" class="result-action" type="button" hidden disabled>画像をシェア</button>
+  <a id="image-save-button" class="result-action" aria-disabled="true" tabindex="-1">画像を保存</a>
+</div>
+<p id="share-status" class="share-status" role="status"></p>
 <button id="play-again-button" class="primary-button" type="button">もう一度遊ぶ</button>
 <p class="dialog-footnote">ベスト <span id="result-best">0</span></p>
 </dialog>
