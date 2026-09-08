@@ -609,6 +609,27 @@ app.post('/debug/profile', async (c) => {
   return c.json({ error: 'unknown op' }, 400)
 })
 
+// 実際にLINEへ送ろうとした返信を数える。歓迎メッセージの二重送信テスト用。
+// 自動テスト専用。テスト用IDの接頭辞に限定し、本番のグループでは動かない。
+app.post('/debug/reply-logs', async (c) => {
+  const { groupId, needle } = await c.req.json<{ groupId?: string; needle?: string }>()
+  const gid = groupId ?? ''
+  if (!gid.startsWith('Cpf_test_') && !gid.startsWith('Cmenu_test_')) {
+    return c.json({ error: 'test ids only' }, 403)
+  }
+  try {
+    const row = await c.env.DB.prepare(
+      `SELECT COUNT(*) AS count FROM reply_api_logs
+        WHERE group_id = ? AND message_preview LIKE ?`
+    )
+      .bind(gid, `%${needle ?? ''}%`)
+      .first<{ count: number }>()
+    return c.json({ count: row?.count ?? 0 })
+  } catch (e: any) {
+    return c.json({ error: String(e?.message ?? e) }, 500)
+  }
+})
+
 // ヘルプメニューのPostbackが生成する内容を、LINEへ送らずに確認する。
 // 自動テスト専用。テスト用IDの接頭辞に限定し、本番の利用者IDでは動かない。
 app.post('/debug/menu', async (c) => {
@@ -814,7 +835,23 @@ async function handleEvent(env: Bindings, event: any, baseUrl: string) {
 async function handleMemberJoined(env: Bindings, event: any) {
   const groupId = event.source.groupId
   if (!groupId) return
+
   const joined = event.joined?.members ?? []
+
+  // Webhook再送対策: 同じ memberJoined イベントを2回処理しない。
+  // LINEは応答が遅い・失敗したと判断すると同じイベントを再送するため、
+  // 重複排除が無いと歓迎メッセージが2通続けて出てしまう(実際に発生した)。
+  //
+  // webhookEventId が無いイベントでも取りこぼさないよう、
+  // 「グループ + 参加した人 + 分単位の時刻」でも一度だけに絞る。
+  // (markEventProcessed は ID が null のとき素通りさせる作りのため)
+  const idKey = event.webhookEventId
+    ? `mj_${event.webhookEventId}`
+    : `mj_${groupId}_${joined.map((m: any) => m?.userId ?? '?').sort().join('_')}_${Math.floor(
+        (event.timestamp ?? Date.now()) / 60000
+      )}`
+  const fresh = await markEventProcessed(env, idKey)
+  if (!fresh) return
   const resolved = await Promise.all(
     joined.map(async (m: any) => {
       const p = await getProfile(env, m.userId, groupId)
@@ -1477,8 +1514,9 @@ const HELP_TEXT = `葉っぱもち Bot ヘルプ
 【取り消し通知】
 メッセージが削除されると自動で通知(取り消し通知オフ/オンで切替)
 
-【ウェルカム】
-ウェルカムオン/オフ - 新メンバー歓迎メッセージの切替
+【ウェルカム】(初期はオフ)
+ウェルカムオン - 新メンバーへの歓迎メッセージを送る
+ウェルカムオフ - 送らないようにする(初期状態)
 ウェルカムメッセージ設定 [本文] - カスタム歓迎文を設定
 ウェルカムメッセージ解除 - カスタム歓迎文を解除してデフォルトに戻す
 

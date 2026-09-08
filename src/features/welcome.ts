@@ -13,7 +13,11 @@ export async function buildWelcomeMessages(
     .bind(groupId)
     .first<{ enabled: number; custom_message: string | null }>()
 
-  if (setting && setting.enabled === 0) return null
+  // 既定はオフ。設定行が無いグループでは歓迎メッセージを送らない。
+  // (以前は行が無いと送る=既定オンだったため、何も設定していない
+  //  グループでも参加のたびに送られていた)
+  // 「ウェルカムオン」と送ったグループだけ送る。
+  if (!setting || setting.enabled === 0) return null
 
   const names = joinedMembers.map((m) => m.displayName || '新しいメンバー').join('、')
   const custom = setting?.custom_message
