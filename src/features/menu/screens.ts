@@ -487,7 +487,7 @@ export function screenC03(current: string): ScreenDef {
     id: 'C03',
     category: 'グループ',
     title: '取り消し通知',
-    body: 'メッセージが取り消されたときの通知を切り替えます。',
+    body: 'メッセージが取り消されたときの通知を切り替えます。初期はオフです。',
     rows: [{ label: '現在', value: current }],
     buttons: [
       { label: '通知をオンにする', data: confirmOp('unsend_on'), kind: 'primary' },

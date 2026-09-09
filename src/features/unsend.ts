@@ -19,13 +19,18 @@ export async function handleUnsend(env: LineEnv, event: UnsendEvent) {
   const messageId = event.unsend.messageId
   if (!groupId) return // unsend outside a group isn't handled
 
-  // Is this group opted out of unsend notifications?
+  // 取り消し通知を出すグループかどうか。設定はグループごとに独立している。
+  //
+  // 既定はオフ。設定行が無いグループでは通知しない。
+  // (以前は行が無いと通知する=既定オンだったため、何も設定していない
+  //  グループでも取り消しのたびに通知が出ていた。ウェルカムメッセージと
+  //  同じ考え方に揃え、「取り消し通知オン」を送ったグループだけ通知する)
   const setting = await env.DB.prepare(
     `SELECT enabled FROM unsend_restore_settings WHERE group_id = ?`
   )
     .bind(groupId)
     .first<{ enabled: number }>()
-  if (setting && setting.enabled === 0) {
+  if (!setting || setting.enabled === 0) {
     await debugLog(env, messageId, groupId, 0, 'Notifications disabled for this group')
     return
   }

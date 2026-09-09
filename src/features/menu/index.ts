@@ -131,8 +131,9 @@ async function readUnsend(env: LineEnv, groupId?: string): Promise<string> {
     )
       .bind(groupId)
       .first<{ enabled: number }>()
-    // 既存の unsend.ts は「行が無い」または enabled=1 を有効として扱う。
-    if (!row) return 'オン（初期設定）'
+    // unsend.ts と同じ既定にそろえる。
+    // 行が無いグループは「オフ」(「取り消し通知オン」を送るまで通知しない)。
+    if (!row) return 'オフ（初期設定）'
     return row.enabled === 0 ? 'オフ' : 'オン'
   } catch {
     return '取得できません'

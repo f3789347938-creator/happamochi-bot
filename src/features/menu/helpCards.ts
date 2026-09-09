@@ -70,7 +70,7 @@ const COMMANDS: Cmd[] = [
   { label: 'タグ追加 タグ名', desc: 'タグを足す', noAction: true },
   { label: 'ウェルカムオン', desc: '参加時のあいさつを出す' },
   { label: 'ウェルカムオフ', desc: 'あいさつを止める' },
-  { label: '取り消し通知オン', desc: '送信取消を知らせる' },
+  { label: '取り消し通知オン', desc: '送信取消を知らせる（初期はオフ）' },
   { label: '取り消し通知オフ', desc: '知らせない' },
   { label: '誕生日登録 9/7', desc: '誕生日を登録', noAction: true },
   { label: '誕生日登録解除', desc: '登録した誕生日を消す' },
