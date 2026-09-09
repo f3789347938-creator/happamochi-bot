@@ -188,6 +188,73 @@ async function main() {
     ok(t.includes('オフ（初期設定）') || t.includes('オフ'), 'メニューの表示が既定オフと一致する')
   }
 
+
+  console.log('\n=== 9. 取り消し通知も初期オフ(グループごとに独立) ===')
+  {
+    // 新しく入ったグループ(=設定行が無い)では通知しないこと。
+    // 通知はキューに積まれ次の発言のReplyに便乗して送られる仕組みなので、
+    // 送信件数ではなく unsend.ts の判定ログで確かめる。
+    const mkGroup = () =>
+      `Cpf_test_uns_${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`
+
+    const unsendEvent = (group, messageId) => ({
+      type: 'unsend',
+      mode: 'active',
+      timestamp: Date.now(),
+      source: { type: 'group', groupId: group, userId: U },
+      webhookEventId: `us_${++seq}_${Date.now()}`,
+      deliveryContext: { isRedelivery: false },
+      unsend: { messageId },
+    })
+
+    const judge = async (group) => {
+      const res = await fetch(`${BASE}/debug/unsend-log`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ groupId: group }),
+      })
+      if (!res.ok) return '(取得できません)'
+      return (await res.json()).note ?? '(なし)'
+    }
+
+    // 取り消す対象の発言を、messageId を指定して送る
+    const msgWithId = (text, group, messageId) => ({
+      type: 'message',
+      mode: 'active',
+      timestamp: Date.now(),
+      source: { type: 'group', groupId: group, userId: U },
+      webhookEventId: `wm_${++seq}_${Date.now()}`,
+      deliveryContext: { isRedelivery: false },
+      replyToken: `wm_rt_${++seq}_${Date.now()}`,
+      message: { id: messageId, type: 'text', text },
+    })
+
+    // 何も設定していないグループ
+    {
+      const g = mkGroup()
+      const mid = `um_${Date.now()}_${seq}`
+      await post([msgWithId('消される発言', g, mid)])
+      await post([unsendEvent(g, mid)])
+      const note = await judge(g)
+      ok(
+        /disabled/.test(note),
+        '何も設定していないグループでは取り消し通知を出さない(既定オフ)',
+        note
+      )
+    }
+
+    // オンにしたグループ
+    {
+      const g = mkGroup()
+      await post([msg('取り消し通知オン', { group: g })])
+      const mid = `um_${Date.now()}_${seq}`
+      await post([msgWithId('消される発言', g, mid)])
+      await post([unsendEvent(g, mid)])
+      const note = await judge(g)
+      ok(/SUCCESS/.test(note), 'オンにしたグループでは取り消し通知を出す', note)
+    }
+  }
+
   console.log('\n=== 結果 ===')
   console.log(`  成功 ${pass} / 失敗 ${fail}`)
   if (failures.length > 0) {

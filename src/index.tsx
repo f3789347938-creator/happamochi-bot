@@ -757,6 +757,29 @@ app.post('/debug/othello-card', async (c) => {
   }
 })
 
+// 取り消し通知の判定結果(unsend.ts が残すログ)を読む。
+// 通知はキューに積まれ次の発言のReplyに便乗して送られるため、
+// 送信件数では「判定がオン/オフどちらだったか」が分かりにくい。
+// 自動テスト専用。テスト用IDの接頭辞に限定し、本番のグループでは動かない。
+app.post('/debug/unsend-log', async (c) => {
+  const { groupId } = await c.req.json<{ groupId?: string }>()
+  const gid = groupId ?? ''
+  if (!gid.startsWith('Cpf_test_') && !gid.startsWith('Cmenu_test_')) {
+    return c.json({ error: 'test ids only' }, 403)
+  }
+  try {
+    const row = await c.env.DB.prepare(
+      `SELECT error_message AS note, found_in_db
+         FROM unsend_debug_logs WHERE group_id = ? ORDER BY id DESC LIMIT 1`
+    )
+      .bind(gid)
+      .first<{ note: string; found_in_db: number }>()
+    return c.json({ note: row?.note ?? null, found: row?.found_in_db ?? null })
+  } catch (e: any) {
+    return c.json({ error: String(e?.message ?? e) }, 500)
+  }
+})
+
 // 実際にLINEへ送ろうとした返信を数える。歓迎メッセージの二重送信テスト用。
 // 自動テスト専用。テスト用IDの接頭辞に限定し、本番のグループでは動かない。
 app.post('/debug/reply-logs', async (c) => {
