@@ -62,7 +62,7 @@ async function main() {
   ok(msg?.type === 'flex', 'Flexで返る', `type=${msg?.type}`)
   ok(msg?.contents?.type === 'carousel', '横スワイプのカルーセルである', `${msg?.contents?.type}`)
   const cards = msg?.contents?.contents ?? []
-  ok(cards.length === 2, 'カードが2枚', `枚数=${cards.length}`)
+  ok(cards.length === 3, 'カードが3枚(葉っぱもち・パズル・サバイバル)', `枚数=${cards.length}`)
 
   console.log('\n=== 2. それぞれのカードの中身 ===')
   {
@@ -100,7 +100,7 @@ async function main() {
   {
     const acts = actions(msg.contents)
     const uris = acts.filter((a) => a.type === 'uri').map((a) => a.uri)
-    ok(uris.length === 2, 'もっと見るボタンが2つある', `個数=${uris.length}`)
+    ok(uris.length === 3, 'もっと見るボタンが3つある', `個数=${uris.length}`)
     ok(
       uris.some((u) => u.endsWith('/ranking/personal')),
       '1枚目は個人ランキングページへ',

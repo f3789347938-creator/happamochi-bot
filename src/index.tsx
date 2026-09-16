@@ -27,6 +27,21 @@ import {
 } from './features/mochiScore'
 import { buildRankingCarousel } from './features/rankingCards'
 import { renderMochiRankingPage } from './features/mochiRankingPage'
+import { renderSurvivorRankingPage } from './features/survivorRankingPage'
+import { survivorOpenUrl, isSurvivorLiffConfigured } from './features/menu/gameLink'
+import {
+  SurvivorError,
+  ensurePlayer as ensureSurvivorPlayer,
+  startRun as startSurvivorRun,
+  finishRun as finishSurvivorRun,
+  abandonRun as abandonSurvivorRun,
+  getPlayer as getSurvivorPlayer,
+  getSurvivorRanking,
+  getMySurvivor,
+  weekAt as survivorWeekAt,
+  validateReport as survivorValidateReport,
+  RULESET as SURVIVOR_RULESET,
+} from './features/survivor'
 import { handleProfileText, handleProfilePostback } from './features/profile'
 import { renderPersonalRankingPage, renderPublicStatusPage } from './features/profile/page'
 // ヘルプメニュー(横スワイプのカルーセル + 案内画面)。
@@ -182,6 +197,11 @@ app.get('/ranking/mochi', async (c) => {
   return c.html(await renderMochiRankingPage(c.env, SITE_URL))
 })
 
+// もち軍団サバイバルのランキングページ
+app.get('/ranking/survivor', async (c) => {
+  return c.html(await renderSurvivorRankingPage(c.env, SITE_URL))
+})
+
 // ─── もち合体パズル(LIFFミニゲーム)のスコアランキング ───
 //
 // なりすまし対策: 「誰のスコアか」はクライアントに決めさせない。
@@ -266,6 +286,178 @@ app.post('/api/mochi/me', async (c) => {
         stage: mine.row.best_stage,
         plays: mine.row.plays,
       },
+    })
+  } catch (e: any) {
+    return c.json({ error: String(e?.message ?? e) }, 500)
+  }
+})
+
+// ─── もち軍団サバイバル(LIFFミニゲーム) ───
+//
+// 引き継ぎパック v14 のWorkerは、プレイヤーIDをこう取っていた:
+//     request.headers.get('oai-authenticated-user-id')
+// これは別サービス専用のヘッダーで、LINEでは自分で付けるだけで偽装できる。
+// なので、もち合体パズルと同じ verifyLiffToken() に置き換えてある。
+// どのAPIも userId をリクエストから読まない。
+//
+// パスは /api/survivor/* 。既存の /api/mochi/* とは分けている。
+//
+// 認証を1か所にまとめる小さなヘルパー。
+// 戻り値が Response ならそれをそのまま返す(=拒否)。
+async function survivorAuth(c: any) {
+  let body: Record<string, any>
+  try {
+    body = await c.req.json()
+  } catch {
+    return { error: c.json({ error: 'bad json' }, 400) }
+  }
+  if (typeof body.accessToken !== 'string' || !body.accessToken) {
+    return { error: c.json({ error: '記録を使うにはLINEでログインしてください。' }, 401) }
+  }
+  const user = await verifyLiffToken(body.accessToken)
+  if (!user) return { error: c.json({ error: 'ログインを確認できませんでした。' }, 401) }
+  return { user, body }
+}
+
+// エラーの出し方を1か所にまとめる。SurvivorError は想定内の拒否なので
+// そのstatusとメッセージを返し、それ以外は500にして中身を漏らさない。
+function survivorFail(c: any, e: any) {
+  if (e instanceof SurvivorError) return c.json({ error: e.message }, e.status as any)
+  console.error('survivor error', e?.message ?? e)
+  return c.json({ error: '記録を保存できませんでした。もう一度試してください。' }, 500)
+}
+
+// 自分の情報。初回はここでプレイヤー行が作られる。
+app.post('/api/survivor/me', async (c) => {
+  const a = await survivorAuth(c)
+  if ('error' in a) return a.error
+  try {
+    const now = Date.now()
+    await ensureSurvivorPlayer(c.env, a.user, now)
+    const p = await getSurvivorPlayer(c.env, a.user.userId)
+    const active = await c.env.DB.prepare(
+      `SELECT id, mode FROM survivor_runs WHERE owner = ? AND finished_at IS NULL`
+    ).bind(a.user.userId).first<{ id: string; mode: string }>()
+    return c.json({
+      account: a.user.userId,
+      profile: p
+        ? {
+            nickname: p.display_name ?? 'もち',
+            title: p.title,
+            outfit: p.outfit,
+            killEffect: p.effect,
+            bestScore: p.best_score,
+            records: {
+              seconds: p.best_seconds,
+              cleanBosses: p.clean_bosses,
+              maxAttackKills: p.max_attack_kills,
+              bossKills: p.boss_kills,
+              treasures: p.treasures,
+              commanders: p.commanders,
+              traps: p.traps,
+            },
+            unlocked: [],
+          }
+        : null,
+      week: survivorWeekAt(now),
+      challengeBest: 0,
+      active: active ?? null,
+    })
+  } catch (e) {
+    return survivorFail(c, e)
+  }
+})
+
+// 出撃開始。二重出撃は409で拒否される。
+app.post('/api/survivor/runs/start', async (c) => {
+  const a = await survivorAuth(c)
+  if ('error' in a) return a.error
+  try {
+    const now = Date.now()
+    await ensureSurvivorPlayer(c.env, a.user, now)
+    return c.json(await startSurvivorRun(c.env, a.user, a.body, now))
+  } catch (e) {
+    return survivorFail(c, e)
+  }
+})
+
+// 出撃終了。ここで戦績の検算が走る。
+app.post('/api/survivor/runs/finish', async (c) => {
+  const a = await survivorAuth(c)
+  if ('error' in a) return a.error
+  try {
+    return c.json({ ...(await finishSurvivorRun(c.env, a.user, a.body, Date.now())), unlocked: [] })
+  } catch (e) {
+    return survivorFail(c, e)
+  }
+})
+
+// 進んでいない出撃の取り消し。確定した戦績は消えない。
+app.post('/api/survivor/runs/abandon', async (c) => {
+  const a = await survivorAuth(c)
+  if ('error' in a) return a.error
+  try {
+    await abandonSurvivorRun(c.env, a.user, a.body.id)
+    return c.json({ ok: true })
+  } catch (e) {
+    return survivorFail(c, e)
+  }
+})
+
+// ランキング。自分の順位も一緒に返す。
+app.post('/api/survivor/leaderboard', async (c) => {
+  const a = await survivorAuth(c)
+  if ('error' in a) return a.error
+  try {
+    const rows = await getSurvivorRanking(c.env, 50)
+    const mine = await getMySurvivor(c.env, a.user.userId)
+    return c.json({
+      rows: rows.map((r, i) => ({
+        place: i + 1,
+        nickname: r.display_name ?? '名前なし',
+        title: '',
+        score: r.best_score,
+        seconds: r.best_seconds,
+        kills: r.boss_kills,
+        own: r.user_id === a.user.userId,
+      })),
+      own: mine && mine.rank ? { place: mine.rank, score: mine.row.best_score } : null,
+      week: survivorWeekAt(),
+      mode: 'normal',
+      period: 'all',
+    })
+  } catch (e) {
+    return survivorFail(c, e)
+  }
+})
+
+// 見た目の変更。今は実績未実装なので名前のみ受け付ける。
+app.post('/api/survivor/profile', async (c) => {
+  const a = await survivorAuth(c)
+  if ('error' in a) return a.error
+  try {
+    const p = await getSurvivorPlayer(c.env, a.user.userId)
+    return c.json({ profile: p ? { nickname: p.display_name ?? 'もち', title: p.title, outfit: p.outfit, killEffect: p.effect, bestScore: p.best_score, unlocked: [] } : null })
+  } catch (e) {
+    return survivorFail(c, e)
+  }
+})
+
+// 読むだけのランキング(ログイン不要)。Webページ側で使う。
+app.get('/api/survivor/ranking', async (c) => {
+  try {
+    const limit = parseInt(c.req.query('limit') || '20', 10)
+    const rows = await getSurvivorRanking(c.env, Number.isFinite(limit) ? limit : 20)
+    return c.json({
+      ranking: rows.map((r, i) => ({
+        rank: i + 1,
+        name: r.display_name ?? '名前なし',
+        picture: r.picture_url,
+        score: r.best_score,
+        seconds: r.best_seconds,
+        bossKills: r.boss_kills,
+        plays: r.plays,
+      })),
     })
   } catch (e: any) {
     return c.json({ error: String(e?.message ?? e) }, 500)
@@ -712,6 +904,43 @@ app.post('/debug/profile', async (c) => {
   }
 
   return c.json({ error: 'unknown op' }, 400)
+})
+
+// サバイバルの戦績検算(validateReport)をテストから叩くための入口。
+//
+// 本来これは finish の中でだけ動くが、finish を呼ぶには本物のLINEトークンが
+// 要るのでテストから到達できない。検算はチート対策の要なので、
+// ロジック単体を確かめられるようにここに出しておく。
+//
+// DBは一切読み書きしない。渡された値を計算するだけ。
+app.post('/debug/survivor-validate', async (c) => {
+  let body: { report?: unknown; run?: any; now?: number }
+  try {
+    body = await c.req.json()
+  } catch {
+    return c.json({ error: 'bad json' }, 400)
+  }
+  const now = typeof body.now === 'number' ? body.now : Date.now()
+  const run = {
+    started_at: body.run?.started_at ?? now - 100_000,
+    mode: body.run?.mode ?? 'normal',
+    weapon: body.run?.weapon ?? 'kunai',
+    seconds: body.run?.seconds ?? 0,
+    score: body.run?.score ?? 0,
+    kills: body.run?.kills ?? 0,
+  }
+  try {
+    const r = survivorValidateReport(body.report, run, now)
+    return c.json({ ok: true, report: r })
+  } catch (e: any) {
+    return c.json({ ok: false, status: e?.status ?? 500, error: e?.message ?? String(e) })
+  }
+})
+
+// 週の計算(weekAt)の確認用。こちらもDBに触らない。
+app.get('/debug/survivor-week', (c) => {
+  const t = parseInt(c.req.query('t') || '', 10)
+  return c.json(survivorWeekAt(Number.isFinite(t) ? t : Date.now()))
 })
 
 // オセロの盤面カードを、状態(waiting/playing/finished)ごとに生成して返す。
@@ -1429,6 +1658,19 @@ async function routeCommand(env: Bindings, ctx: CommandCtx): Promise<LineMessage
         return [{ type: 'text', text: 'ランキングの取得に失敗しました。' }]
       }
     }
+  }
+
+  // もち軍団サバイバル。もち合体パズルと同じ要領で、LINEの中で開くWebゲーム。
+  // SURVIVOR_LIFF_ID が空のあいだは通常のHTTPS URL(内蔵ブラウザ)で開く。
+  if (text === 'サバイバル' || text === 'もち軍団サバイバル') {
+    return [
+      {
+        type: 'text',
+        text: isSurvivorLiffConfigured()
+          ? `もち軍団サバイバル\n指でスライドして動くだけ、攻撃は自動だよ。\n倒れるまでスコアに挑戦しよう！\n\n${survivorOpenUrl(SITE_URL)}`
+          : `もち軍団サバイバル\n指でスライドして動くだけ、攻撃は自動だよ。\n倒れるまでスコアに挑戦しよう！\n\n${survivorOpenUrl(SITE_URL)}\n\n※いまは記録とランキングの登録がまだ使えません（LINEログインの設定待ち）。ゲームはこのまま遊べます。`,
+      },
+    ]
   }
 
   if (text === 'お知らせ') {

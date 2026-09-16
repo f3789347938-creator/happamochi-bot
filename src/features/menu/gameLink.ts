@@ -33,3 +33,35 @@ export function gameOpenUrl(siteUrl: string): string {
 
 /** LIFFとして登録済みかどうか。案内文の出し分けに使う。 */
 export const isLiffConfigured = (): boolean => LIFF_ID.length > 0
+
+// ─── もち軍団サバイバル ──────────────────────────────────────
+//
+// 2本目のゲーム。パズルと同じ要領で出す。
+//
+// 1つのLINEログインチャネルには LIFFアプリを30個まで追加できるので、
+// ミニアプリ化も審査もせずに、同じチャネルへ2個目を足すだけでよい。
+// (根拠: LINE Developers「LIFFアプリをチャネルに追加する」)
+//
+// ★ここが空のあいだは、通常のHTTPS URL(LINEの内蔵ブラウザ)で開く。
+//   その状態でもゲームは遊べる。ランキングと記録だけログインが要るので
+//   そこが無効になる。LIFF IDを入れると自動でLIFF起動に切り替わる。
+//
+//   LINE Developers で2個目のLIFFアプリを追加し、
+//   エンドポイントURLに次を登録してからIDをここに貼る:
+//     https://line-group-bbs.pages.dev/static/survivor/
+export const SURVIVOR_LIFF_ID = ''
+
+/** サバイバルの実体を配信しているURL。LIFFのエンドポイントにもこれを登録する。 */
+export function survivorPageUrl(siteUrl: string): string {
+  return `${siteUrl}/static/survivor/`
+}
+
+/** Flexのボタンに載せるURL。LIFF IDがあればLINEミニアプリとして開く。 */
+export function survivorOpenUrl(siteUrl: string): string {
+  return SURVIVOR_LIFF_ID
+    ? `https://liff.line.me/${SURVIVOR_LIFF_ID}`
+    : survivorPageUrl(siteUrl)
+}
+
+/** サバイバルがLIFF登録済みか */
+export const isSurvivorLiffConfigured = (): boolean => SURVIVOR_LIFF_ID.length > 0

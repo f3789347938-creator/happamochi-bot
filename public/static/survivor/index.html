@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#122c2c">
+  <meta name="description" content="指1本で移動、攻撃はもちにおまかせ。広いフィールドで能力を育て、倒れるまでスコアに挑戦。">
+  <title>もち軍団サバイバル</title>
+  <link id="favicon" rel="icon" href="data:," type="image/png">
+  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./records.css">
+</head>
+<body>
+  <main class="shell" aria-label="もち軍団サバイバル">
+    <aside class="desktop-note" aria-hidden="true"><span class="edition">MOCHI ARMY</span><p>ちいさなもちの、<br>おおきな冒険。</p><span class="note-line"></span><small>移動だけで、戦える。<br>能力を選んで、自分だけの軍団へ。</small></aside>
+    <section class="game-frame" id="game-frame">
+      <header class="hud">
+        <div class="hud-top"><span class="brand"><span class="brand-icon sprite hero-sprite"></span><span>もち軍団<small>SURVIVAL</small></span></span><span id="wave-label" class="wave-label" aria-label="生存時間">00:00</span><button id="sound" class="icon-button" aria-label="音をオンにする" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path id="sound-waves" d="m16 9 5 6m0-6-5 6"/></svg></button><button id="pause" class="icon-button" aria-label="一時停止" disabled><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></button></div>
+        <div class="hud-status"><div class="health" role="meter" aria-label="体力" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><span class="heart" aria-hidden="true">♥</span><div class="health-track"><i id="health-fill"></i></div><span id="health-number">100</span></div><span id="score" class="score">0 <small>pt</small></span></div>
+        <div class="xp-line"><span id="level-label">Lv.1</span><div class="xp-track" role="progressbar" aria-label="次のレベルまでの経験値" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="xp-fill"></i></div></div>
+      </header>
+      <div id="arena" class="arena">
+        <canvas id="game" tabindex="0" aria-label="ゲーム画面。指でスライド、または矢印キー・WASDで移動。攻撃は自動。"></canvas>
+        <div id="best-progress" class="best-progress" aria-live="off" hidden></div><div id="record-notice" class="record-notice" aria-live="polite" hidden></div><div id="encounter-hud" class="encounter-hud" hidden><span id="encounter-name"></span><small id="encounter-detail"></small><button id="encounter-action" hidden>宝箱に挑む</button></div>
+        <div id="wave-banner" class="wave-banner" aria-live="polite"></div>
+        <div id="boss-hud" class="boss-hud" hidden><div><span>遺跡のぬし</span><b id="boss-name">紅蓮の鬼王</b></div><div class="boss-track"><i id="boss-fill"></i></div></div>
+        <div id="combo" class="combo" aria-hidden="true"></div><div class="battle-info"><span id="kill-count">撃破 0</span><span id="pressure-label">襲撃 1</span></div>
+        <div id="control-hint" class="control-hint"><span class="hint-ring">↔</span><span>好きな場所をスライドで移動<small>攻撃は自動</small></span></div>
+        <button id="hero-action" class="hero-action" hidden><span id="hero-action-name"></span><small id="hero-action-status"></small></button><div class="joystick" id="joystick" hidden><div id="joystick-knob"></div></div>
+      </div>
+      <footer class="loadout-footer"><div class="loadout-row"><span class="loadout-label">攻撃<small id="attack-count">1 / 6</small></span><div id="loadout" class="loadout"></div></div><div class="loadout-row"><span class="loadout-label">補助<small id="passive-count">0 / 6</small></span><div id="passive-loadout" class="loadout"></div></div></footer>
+      <div id="toast" class="toast" role="status"></div>
+      <div id="loading" class="loading"><span class="loading-orb"></span><p>もちたちを呼んでいます…</p></div>
+    </section>
+    <aside class="desktop-note note-right" aria-hidden="true"><span class="edition">HOW TO PLAY</span><p class="keys">W A S D<br>↑ ← ↓ →</p><small>キーで移動 · Escで一時停止<br>マウスのドラッグでも遊べます</small><span class="note-line"></span><small>攻撃6枠 ＋ 補助6枠<br>倒れるまで、スコアに挑戦</small></aside>
+  </main>
+
+  <dialog id="menu" class="game-dialog menu-dialog progression-menu" aria-labelledby="menu-title"><div id="home-body" class="dialog-inner"><h1 id="menu-title">もち軍団</h1></div></dialog>
+  <dialog id="loot-dialog" class="game-dialog loot-dialog" aria-labelledby="loot-title"><div class="dialog-inner"><span class="eyebrow">EQUIPMENT</span><h2 id="loot-title">装備を獲得</h2><div id="loot-icon" class="loot-icon"></div><h3 id="loot-name"></h3><p id="loot-description" class="dialog-note"></p><button id="loot-close" class="button primary">装備をみる</button></div></dialog>
+  <dialog id="choice-dialog" class="game-dialog choice-dialog" aria-labelledby="choice-title">
+    <div class="dialog-inner"><span class="eyebrow" id="choice-level">LEVEL UP</span><h2 id="choice-title">能力を選ぶ</h2><p class="dialog-note">選んでいる間は戦闘ストップ</p><div id="choices" class="choices"></div><p id="choice-foot" class="choice-foot">指を離してから選んでね</p></div>
+  </dialog>
+  <dialog id="pause-dialog" class="game-dialog pause-dialog" aria-labelledby="pause-title">
+    <div class="dialog-inner"><span class="eyebrow">TAKE A BREATH</span><h2 id="pause-title">ひとやすみ</h2><p class="dialog-note">戦闘は止まっています</p><button id="resume" class="button primary">つづける <span>→</span></button><button id="pause-book" class="button secondary">能力と進化をみる</button><button id="quit" class="text-button">撤退して報酬を持ち帰る</button><div id="quit-confirm" hidden><p class="dialog-note">ここまでの報酬を持ち帰って、冒険を終えますか？</p><button id="quit-yes" class="button secondary">報酬を持ち帰る</button><button id="quit-no" class="text-button">もどる</button></div></div>
+  </dialog>
+  <dialog id="book-dialog" class="game-dialog book-dialog" aria-labelledby="book-title"><div class="dialog-inner"><div class="book-heading"><div><span class="eyebrow">MOCHI GUIDE</span><h2 id="book-title">能力と進化</h2></div><button id="book-close" class="icon-button" aria-label="閉じる">✕</button></div><p class="dialog-note">基本は攻撃6枠＋補助6枠。SS武器は2枠で開始。<br>専用技能・進化はキャラや成長段階で変わる。<br>本家との残る違いは「再現状況」で確認。</p><nav class="book-filters" aria-label="能力図鑑の種類"><button data-book="main" aria-pressed="false">開始武器</button><button data-book="attack" aria-pressed="true">攻撃</button><button data-book="passive" aria-pressed="false">補助</button><button data-book="evolution" aria-pressed="false">進化</button><button data-book="hero" aria-pressed="false">専用</button><button data-book="coverage" aria-pressed="false">再現状況</button></nav><div id="ability-book"></div></div></dialog>
+  <dialog id="result-dialog" class="game-dialog result-dialog" aria-labelledby="result-title"><div class="dialog-inner"><span class="eyebrow" id="result-eyebrow"></span><div class="result-portrait sprite hero-sprite"></div><h2 id="result-title"></h2><p id="result-description" class="dialog-note"></p><div class="result-score"><span>SCORE</span><b id="result-score">0</b></div><div id="result-stats" class="result-stats"></div><div id="result-build" class="result-build"></div><div id="result-rewards"></div><div id="result-report"></div><div id="result-achievements" class="result-achievements"></div><p id="record-save-status" class="save-note" role="status"></p><button id="record-retry" class="text-button" hidden>記録を再送する</button><p id="result-save-status" class="save-note" role="status"></p><button id="retry" class="button secondary">もう一度出撃 <span>→</span></button><button id="change-weapon" class="button primary">拠点で装備・仲間を育てる</button><button id="share" class="button line-button">結果をLINEでシェア</button><button id="share-image" class="button secondary">戦績画像を保存・共有</button><button id="line-close" class="text-button" hidden>LINEに戻る</button><p id="share-message" class="share-message" role="status"></p></div></dialog>
+  <dialog id="revive-dialog" class="game-dialog revive-dialog" aria-labelledby="revive-title" aria-describedby="revive-description"><div class="dialog-inner">
+    <span class="eyebrow">ONE MORE CHANCE</span><div class="revive-portrait sprite hero-sprite" aria-hidden="true"></div>
+    <h2 id="revive-title">もう一度、立ち上がろう</h2><p id="revive-description" class="dialog-note">公式LINEをシェアすると<br>この出撃で1回だけ復活できます。</p>
+    <div class="revive-score"><span>現在のスコア</span><strong id="revive-score">0</strong><small id="revive-record"></small></div>
+    <div class="revive-benefits"><span><b>HP 50%</b>で復活</span><span><b>3秒間</b>無敵</span></div><p class="revive-keep">スキル・レベル・スコアはそのまま</p>
+    <button id="revive-share" class="button line-button" disabled>公式LINEをシェアして復活</button><p id="revive-message" class="revive-message" role="status"></p>
+    <button id="revive-end" class="button secondary">ここで終了して報酬を持ち帰る</button>
+  </div></dialog>
+  <noscript><p class="noscript">このゲームを遊ぶにはJavaScriptを有効にしてください。</p></noscript>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

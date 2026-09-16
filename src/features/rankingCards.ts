@@ -17,6 +17,7 @@
 import type { LineEnv, LineMessage } from '../lib/line'
 import { listRanking, getPersonalRank, countProfiles } from './profile/core'
 import { getRanking as getMochiRanking, getMyScore as getMyMochiScore } from './mochiScore'
+import { getSurvivorRanking, getMySurvivor } from './survivor'
 
 // このランキングカード専用の色。
 // 他のFlex(ステータス・メニュー・チェス等)と共有しないよう、
@@ -358,6 +359,33 @@ export async function buildRankingCarousel(
     mochiMine = ''
   }
 
+  // ─── 3枚目: もち軍団サバイバル ───
+  let survRows: Record<string, any>[]
+  let survMine = ''
+  try {
+    const top = await getSurvivorRanking(env, TOP_N)
+    survRows =
+      top.length > 0
+        ? top.map((r, i) =>
+            row(i + 1, r.display_name ?? '名前なし', `best: ${num(r.best_score)}`, r.picture_url)
+          )
+        : [emptyRow('まだ記録がありません\n「サバイバル」で遊べます')]
+
+    const countRow = await env.DB.prepare(
+      `SELECT COUNT(*) AS c FROM survivor_players WHERE best_score > 0`
+    ).first<{ c: number }>()
+    const players = countRow?.c ?? 0
+
+    const mine = userId ? await getMySurvivor(env, userId) : null
+    survMine =
+      mine !== null && mine.rank !== null
+        ? `あなたの順位: ${mine.rank}位 / ${num(players)}人`
+        : 'まだ順位がついてないよ' + (players > 0 ? ` / ${num(players)}人参加中` : '')
+  } catch {
+    survRows = [emptyRow('ランキングを取得できませんでした')]
+    survMine = ''
+  }
+
   return {
     type: 'flex',
     altText: 'ランキング',
@@ -366,6 +394,7 @@ export async function buildRankingCarousel(
       contents: [
         card('葉っぱもちランキング', happaRows, happaMine, `${siteUrl}/ranking/personal`),
         card('もち合体パズル', mochiRows, mochiMine, `${siteUrl}/ranking/mochi`),
+        card('もち軍団サバイバル', survRows, survMine, `${siteUrl}/ranking/survivor`),
       ],
     },
   }
