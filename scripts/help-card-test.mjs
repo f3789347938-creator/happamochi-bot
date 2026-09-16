@@ -88,7 +88,11 @@ async function main() {
       '2枚目以降はすべて「コマンド一覧」(カテゴリ分けしていない)',
       JSON.stringify(titles)
     )
-    ok(t0.includes('ようこそ'), '1枚目にようこその文がある', t0.slice(0, 100))
+    // 「葉っぱもちへようこそ」の見出しは仕様変更で削除した。
+    // 表紙は、見出し帯 + イラスト + 3行の紹介文 + ボタン。
+    ok(!t0.includes('ようこそ'), '1枚目に古い「ようこそ」見出しが残っていない')
+    ok(t0.includes('グループでも、1対1でも。'), '1枚目に新しい紹介文がある', t0.slice(0, 80))
+    ok(t0.includes('いつものトークで楽しもう。'), '紹介文が最後まで入っている')
     // イラスト
     const imgs = nodes(cards[0]).filter((x) => x.type === 'image')
     ok(imgs.length === 1, '1枚目にイラストが1つある', `個数=${imgs.length}`)
@@ -250,6 +254,67 @@ async function main() {
     // content-length は返らない場合があるので、実際に読んだバイト数で見る。
     const len = (await res.arrayBuffer()).byteLength
     ok(len > 0 && len < 200_000, `イラストが軽い (${Math.round(len / 1024)}KB)`)
+  }
+
+  console.log('\n=== 11. 4ページ構成と高さ揃え(デザイン指定) ===')
+  // 指定: 表紙 + コマンド一覧3ページ = 4枚。件数は 7 / 7 / 6。
+  {
+    const cards = msg.contents.contents
+    ok(cards.length === 4, 'カードは4枚', `${cards.length}枚`)
+
+    const rowsOf = (c) =>
+      c.body.contents[0].contents.filter(
+        (x) => x.type === 'box' && x.layout === 'horizontal'
+      )
+    const counts = cards.slice(1).map((c) => rowsOf(c).length)
+    ok(
+      JSON.stringify(counts) === JSON.stringify([7, 7, 6]),
+      '各ページの件数が 7 / 7 / 6',
+      JSON.stringify(counts)
+    )
+
+    // 掲載順も指定どおりか
+    const labelsOf = (c) => rowsOf(c).map((r) => r.contents[0].contents[0].text)
+    const expected = [
+      ['ヘルプ', 'ステータス', 'ランキング', 'お知らせ', '着せ替え', 'パズル', 'サバイバル'],
+      ['オセロ', 'オセロ参加', 'オセロ戦績', 'チェス', '盤面', 'めいく装飾', 'めいく:本文'],
+      ['返信して めいく', 'めいくbold虹7:文', 'ウェルカムオン', 'ウェルカムオフ', '取り消し通知オン', '取り消し通知オフ'],
+    ]
+    cards.slice(1).forEach((c, i) => {
+      ok(
+        JSON.stringify(labelsOf(c)) === JSON.stringify(expected[i]),
+        `${i + 2}枚目の掲載順が指定どおり`,
+        JSON.stringify(labelsOf(c))
+      )
+    })
+
+    // 全ページで上帯・下帯が揃っていること
+    ok(cards.every((c) => c.header && c.footer), '全ページに見出し帯とフッターがある')
+    ok(
+      cards.every((c) => c.size === cards[0].size),
+      '全ページで横幅(size)が同じ',
+      cards.map((c) => c.size).join(',')
+    )
+
+    // ★高さ揃えの肝★
+    // LINEはカルーセルを「一番高いカード」に自動で揃える。
+    // したがって高さを埋めるための詰め物は入れない。代わりに
+    //   ・表紙の画像を横長(5:3)にして高くしすぎない
+    //   ・白パネルに flex:1 を付けて余った高さを受け取る
+    // という作りにしてある。ここが崩れると2・3枚目の下に空白が出る。
+    const cover = cards[0].body.contents[0]
+    const img = cover.contents.find((x) => x.type === 'image')
+    ok(img.aspectRatio === '5:3', '表紙の画像が横長(5:3)で高さを押し上げない', img.aspectRatio)
+    ok(!('width' in img), '画像に width を付けていない(LINEで400になる)')
+    ok(
+      cards.every((c) => c.body.contents[0].flex === 1),
+      '全ページの白パネルが余白を受け取る(flex:1)'
+    )
+    // 高さを稼ぐための空要素を入れていないこと
+    const fillers = cards.flatMap((c) => nodes(c)).filter((x) => x.type === 'filler')
+    ok(fillers.length === 0, '高さ調整用の詰め物(filler)を使っていない', `${fillers.length}個`)
+    const spacers = cards.flatMap((c) => nodes(c)).filter((x) => x.type === 'spacer')
+    ok(spacers.length === 0, '非推奨のspacerを使っていない', `${spacers.length}個`)
   }
 
   console.log('\n=== 結果 ===')

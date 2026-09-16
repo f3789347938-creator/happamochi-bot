@@ -76,17 +76,18 @@ const COMMANDS: Cmd[] = [
   { label: '取り消し通知オフ', desc: '知らせない' },
 ]
 
-/** 1枚のカードに入れる件数 */
-const PER_CARD = 7
-
-/** カテゴリで分けず、上から順に詰めたページ */
-const PAGES: { title: string; items: Cmd[] }[] = (() => {
-  const out: { title: string; items: Cmd[] }[] = []
-  for (let i = 0; i < COMMANDS.length; i += PER_CARD) {
-    out.push({ title: 'コマンド一覧', items: COMMANDS.slice(i, i + PER_CARD) })
-  }
-  return out
-})()
+/**
+ * ページ構成。指定どおり 7 / 7 / 6 件で固定する。
+ *
+ * 自動で等分割していたが、件数が変わるたびに最後のページが
+ * スカスカになったり詰まりすぎたりした。掲載順も指定があるので、
+ * どのページに何を載せるかをここで明示して持つ。
+ */
+const PAGES: { title: string; items: Cmd[] }[] = [
+  { title: 'コマンド一覧', items: COMMANDS.slice(0, 7) },
+  { title: 'コマンド一覧', items: COMMANDS.slice(7, 14) },
+  { title: 'コマンド一覧', items: COMMANDS.slice(14) },
+]
 
 /** 上下の青帯にはさまれた白いカード領域 */
 function panel(contents: Record<string, any>[]): Record<string, any> {
@@ -99,6 +100,12 @@ function panel(contents: Record<string, any>[]): Record<string, any> {
     borderWidth: '1px',
     paddingAll: '10px',
     spacing: 'none',
+    // カルーセルはLINEが一番高いカードに揃える。その余った高さを
+    // この白パネルが受け取るようにして、どのページも白い領域が
+    // フッター直前まで届くようにする(4枚目は項目が6件なので
+    // 最後の行の下に白い余白が残るが、それは仕様どおり)。
+    // 中の行は flex 未指定=0 なので引き伸ばされない。
+    flex: 1,
     contents,
   }
 }
@@ -245,25 +252,21 @@ function welcomeCard(siteUrl: string): Record<string, any> {
         // 過去にチェスでこれを付けてHTTP 400になり実機が無反応になった)
         url: `${siteUrl}/static/${MASCOT_FILE}`,
         size: 'full',
-        aspectRatio: '1:1',
+        // ★高さ揃えの要★
+        // カルーセルの各カードは、LINE側が「一番高いカード」に自動で
+        // 引き伸ばして揃える。つまり表紙が高いと、2・3枚目の下に
+        // 不要な空白ができる(実際そうなっていた)。
+        // 1:1だと表紙だけ約90px高くなるので、5:3にして
+        // 7項目ページの高さに合わせる。画像は fit なので見切れない。
+        aspectRatio: '5:3',
         aspectMode: 'fit',
         margin: 'none',
       },
+      // 「葉っぱもちへようこそ」の見出しは指定により削除。
+      // 紹介文は3行で読ませたいので、改行位置を自分で決める。
       {
         type: 'text',
-        text: '葉っぱもちへようこそ',
-        size: 'md',
-        weight: 'bold',
-        color: C.name,
-        align: 'center',
-        margin: 'md',
-        wrap: true,
-      },
-      { type: 'separator', color: C.divider, margin: 'md' },
-      {
-        type: 'text',
-        text:
-          'グループにも1対1にも入れる LINE Bot。レベルアップ、ゲーム、ランキング、めいく機能まで、ぜんぶ入りだよ！',
+        text: 'グループでも、1対1でも。\nゲームやランキング、画像づくりを\nいつものトークで楽しもう。',
         size: 'xs',
         color: C.sub,
         wrap: true,
