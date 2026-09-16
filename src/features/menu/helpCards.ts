@@ -52,8 +52,6 @@ const COMMANDS: Cmd[] = [
   { label: 'ランキング', desc: '各種ランキングを表示' },
   { label: 'お知らせ', desc: '直近のお知らせを表示' },
   { label: '着せ替え', desc: 'カードの見た目を変える' },
-  { label: '共通称号一覧', desc: '手に入る称号を見る' },
-  { label: '共通称号確認', desc: '今つけている称号を確認' },
   { label: '称号一覧', desc: 'グループの称号（旧方式）' },
   { label: '称号確認', desc: 'グループの称号を確認' },
   { label: '称号検索 文字', desc: '称号を名前で探す', noAction: true },
@@ -80,7 +78,7 @@ const COMMANDS: Cmd[] = [
 ]
 
 /** 1枚のカードに入れる件数 */
-const PER_CARD = 6
+const PER_CARD = 7
 
 /** カテゴリで分けず、上から順に詰めたページ */
 const PAGES: { title: string; items: Cmd[] }[] = (() => {
