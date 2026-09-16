@@ -13,14 +13,17 @@
 import type { LineMessage } from '../../lib/line'
 
 const C = {
-  blue: '#039BE5',
-  onBlue: '#FFFFFF',
-  bodyBg: '#E1F5FE',
-  cardBg: '#FFFFFF',
-  border: '#BFE3EF',
-  name: '#333333',
-  sub: '#6F858B',
-  divider: '#E8F4FA',
+  // ★この3か所は同じ色を使う(指定)★
+  //   フッター背景 / 「公式サイトを見る」ボタン背景 / コマンド名の文字色
+  accent: '#039BE5',
+
+  cardBg: '#F1FAFE',   // カード背景(淡い水色)
+  itemBg: '#FFFFFF',   // 各コマンドの項目背景
+  head: '#123F58',     // 見出し
+  desc: '#425C6E',     // 説明文
+  line: '#CFE7F3',     // 細い枠線
+  onAccent: '#FFFFFF', // 青地の上の文字
+  arrow: '#9EC6DC',    // 右端の控えめな矢印
 }
 
 const FOOTER_TEXT = '© 2026 HappaMochi Bot'
@@ -30,7 +33,7 @@ const FOOTER_TEXT = '© 2026 HappaMochi Bot'
  * 末尾は画像の中身から作ったハッシュ。中身を変えたら必ずここも変える。
  * (LINEが同じURLの画像をキャッシュして古いまま表示するのを防ぐため)
  */
-const MASCOT_FILE = 'happamochi-2b2e5a62.jpg'
+const MASCOT_FILE = 'happamochi-e061df69.jpg'
 
 /** コマンド1行。左に青いボタン、右に説明文。 */
 interface Cmd {
@@ -66,229 +69,212 @@ const COMMANDS: Cmd[] = [
   { label: 'オセロ戦績', desc: '自分の勝敗数を見る' },
   { label: 'チェス', desc: '対局を募集する' },
   { label: '盤面', desc: 'チェスの盤面を出す' },
-  { label: 'めいく装飾', desc: '使える装飾の一覧' },
+  { label: 'めいく 装飾', desc: '使える装飾の一覧', send: 'めいく装飾' },
   { label: 'めいく:本文', desc: '文字を入れて画像を作る', noAction: true },
   { label: '返信して めいく', desc: 'その発言の画像を作る', noAction: true },
-  { label: 'めいくbold虹7:文', desc: '装飾つきの書き方', noAction: true },
+  { label: 'めいく bold虹7:文', desc: '装飾つきの書き方', noAction: true },
   { label: 'ウェルカムオン', desc: '参加時のあいさつを出す' },
   { label: 'ウェルカムオフ', desc: 'あいさつを止める' },
   { label: '取り消し通知オン', desc: '送信取消を知らせる（初期はオフ）' },
   { label: '取り消し通知オフ', desc: '知らせない' },
 ]
 
-/**
- * ページ構成。指定どおり 7 / 7 / 6 件で固定する。
- *
- * 自動で等分割していたが、件数が変わるたびに最後のページが
- * スカスカになったり詰まりすぎたりした。掲載順も指定があるので、
- * どのページに何を載せるかをここで明示して持つ。
- */
-const PAGES: { title: string; items: Cmd[] }[] = [
-  { title: 'コマンド一覧', items: COMMANDS.slice(0, 7) },
-  { title: 'コマンド一覧', items: COMMANDS.slice(7, 14) },
-  { title: 'コマンド一覧', items: COMMANDS.slice(14) },
-]
+/** 1ページに載せるコマンド数(指定: 必ず5件) */
+const PER_CARD = 5
 
-/** 上下の青帯にはさまれた白いカード領域 */
-function panel(contents: Record<string, any>[]): Record<string, any> {
+/**
+ * コマンド配列を5件ずつ自動でページに割る。
+ * 項目を増減しても、ここを手で直す必要はない。
+ * 見出しはすべて「コマンド一覧」(カテゴリ見出しは付けない)。
+ */
+const PAGES: { title: string; items: Cmd[] }[] = (() => {
+  const out: { title: string; items: Cmd[] }[] = []
+  for (let i = 0; i < COMMANDS.length; i += PER_CARD) {
+    out.push({ title: 'コマンド一覧', items: COMMANDS.slice(i, i + PER_CARD) })
+  }
+  return out
+})()
+
+/** ページ上部のブランド行(小さな葉っぱマーク + 葉っぱもち) */
+function brandRow(): Record<string, any> {
   return {
     type: 'box',
-    layout: 'vertical',
-    backgroundColor: C.cardBg,
-    cornerRadius: '5px',
-    borderColor: C.border,
-    borderWidth: '1px',
-    paddingAll: '10px',
-    spacing: 'none',
-    // カルーセルはLINEが一番高いカードに揃える。その余った高さを
-    // この白パネルが受け取るようにして、どのページも白い領域が
-    // フッター直前まで届くようにする(4枚目は項目が6件なので
-    // 最後の行の下に白い余白が残るが、それは仕様どおり)。
-    // 中の行は flex 未指定=0 なので引き伸ばされない。
-    flex: 1,
-    contents,
+    layout: 'baseline',
+    spacing: 'xs',
+    contents: [
+      { type: 'text', text: '🌿', size: 'xs', flex: 0 },
+      { type: 'text', text: '葉っぱもち', size: 'xs', color: C.desc, flex: 0 },
+    ],
   }
 }
 
-/** コマンド1行。青いボタン + 説明文。 */
-function cmdRow(cmd: Cmd, isFirst: boolean): Record<string, any>[] {
-  const out: Record<string, any>[] = []
-
-  // 2行目以降は上に細い区切り線を入れる(見本と同じ)
-  if (!isFirst) {
-    out.push({ type: 'separator', color: C.divider, margin: 'sm' })
+/** ページ見出し(「ヘルプ」「コマンド一覧」) */
+function pageTitle(title: string): Record<string, any> {
+  return {
+    type: 'text',
+    text: title,
+    size: 'xl',
+    weight: 'bold',
+    color: C.head,
+    margin: 'xs',
+    adjustMode: 'shrink-to-fit',
   }
+}
 
-  // 押せるものは message アクションを付ける。
-  // 引数が必要なコマンドは押しても動かないので、
-  // ボタンではなく色だけ同じの「見出し」として出す。
-  const chip: Record<string, any> = {
-    type: 'box',
-    layout: 'vertical',
-    width: '92px',
-    flex: 0,
-    backgroundColor: C.blue,
-    cornerRadius: '5px',
-    paddingTop: '7px',
-    paddingBottom: '7px',
-    paddingStart: '4px',
-    paddingEnd: '4px',
-    justifyContent: 'center',
-    contents: [
-      {
-        type: 'text',
-        text: cmd.label,
-        size: 'xs',
-        weight: 'bold',
-        color: C.onBlue,
-        align: 'center',
-        // 長いコマンド名でも枠から出ないよう縮小して収める
-        adjustMode: 'shrink-to-fit',
-      },
-    ],
-  }
-  if (!cmd.noAction) {
-    chip.action = { type: 'message', label: cmd.label, text: cmd.send ?? cmd.label }
-  }
-
-  out.push({
+/**
+ * コマンド1件のカード。
+ *   上段: 青・太字のコマンド名 / 下段: 小さい説明 / 右端: 控えめな矢印
+ * 左に丸アイコンなどは置かない。名前と説明は同じ左端に揃える。
+ */
+function cmdRow(cmd: Cmd): Record<string, any> {
+  const box: Record<string, any> = {
     type: 'box',
     layout: 'horizontal',
-    spacing: 'md',
+    backgroundColor: C.itemBg,
+    cornerRadius: '8px',
+    borderColor: C.line,
+    borderWidth: '1px',
+    paddingAll: '9px',
+    margin: 'sm',
+    spacing: 'none',
     alignItems: 'center',
-    paddingTop: isFirst ? '0px' : '7px',
-    paddingBottom: '0px',
     contents: [
-      chip,
       {
-        type: 'text',
-        text: cmd.desc,
-        size: 'xs',
-        color: C.sub,
+        // 名前と説明。左端を揃えるため同じ縦積みに入れる。
+        type: 'box',
+        layout: 'vertical',
         flex: 1,
-        wrap: true,
-        gravity: 'center',
+        spacing: 'none',
+        contents: [
+          {
+            type: 'text',
+            text: cmd.label,
+            size: 'sm',
+            weight: 'bold',
+            color: C.accent,
+            wrap: true,
+          },
+          {
+            type: 'text',
+            text: cmd.desc,
+            size: 'xxs',
+            color: C.desc,
+            wrap: true,
+            margin: 'xs',
+          },
+        ],
       },
+      // 右端の控えめな矢印
+      { type: 'text', text: '›', size: 'sm', color: C.arrow, flex: 0, align: 'end' },
     ],
-  })
-
-  return out
+  }
+  // 押せるものは、カード全体をタップでコマンド送信にする
+  if (!cmd.noAction) {
+    box.action = { type: 'message', label: cmd.label, text: cmd.send ?? cmd.label }
+  }
+  return box
 }
 
-/** カードの共通部分(上帯・下帯)を組む */
+/** カードの共通部分(本体 + 下端の青帯) */
 function bubble(title: string, body: Record<string, any>[]): Record<string, any> {
   return {
     type: 'bubble',
     size: 'kilo',
-    header: {
-      type: 'box',
-      layout: 'vertical',
-      backgroundColor: C.blue,
-      paddingAll: '0px',
-      paddingTop: '10px',
-      paddingBottom: '10px',
-      paddingStart: '10px',
-      paddingEnd: '10px',
-      contents: [
-        {
-          type: 'text',
-          text: title,
-          color: C.onBlue,
-          weight: 'bold',
-          size: 'md',
-          align: 'center',
-          adjustMode: 'shrink-to-fit',
-        },
-      ],
-    },
     body: {
       type: 'box',
       layout: 'vertical',
-      backgroundColor: C.bodyBg,
-      paddingAll: '8px',
-      spacing: 'sm',
-      contents: body,
+      backgroundColor: C.cardBg,
+      paddingAll: '12px',
+      spacing: 'none',
+      contents: [brandRow(), pageTitle(title), ...body],
     },
     footer: {
       type: 'box',
       layout: 'vertical',
-      backgroundColor: C.blue,
-      paddingAll: '0px',
-      paddingTop: '6px',
-      paddingBottom: '6px',
+      backgroundColor: C.accent,
+      paddingTop: '7px',
+      paddingBottom: '7px',
+      paddingStart: '0px',
+      paddingEnd: '0px',
       contents: [
         {
           type: 'text',
           text: FOOTER_TEXT,
           size: 'xxs',
-          weight: 'bold',
-          color: C.onBlue,
+          color: C.onAccent,
           align: 'center',
         },
       ],
     },
-    // styles は backgroundColor を各ブロックに直接指定しているので不要。
-    // 1枚あたりのバイト数を減らすため付けない
-    // (カード7枚だと上限30,000バイトに近づくため、無駄を削る)。
   }
 }
 
-/** 1枚目: ようこそカード */
+/**
+ * 1枚目: 表紙。
+ * 上から ブランド行 → 見出し「ヘルプ」 → もち画像 → 「葉っぱもちへようこそ」
+ *        → 紹介文3行 → 公式サイトボタン → 共通フッター。
+ */
 function welcomeCard(siteUrl: string): Record<string, any> {
-  return bubble('葉っぱもちのヘルプ', [
-    panel([
-      {
-        type: 'image',
-        // イラストは public/static/happamochi-<内容のハッシュ>.jpg。
-        //
-        // ★ファイル名にハッシュを入れている理由★
-        // LINEは一度表示した画像をURL単位でキャッシュする。サーバー側を
-        // 差し替えても、同じURLのままだと端末には古い画像が出続ける
-        // (実際にこれが起きた)。中身が変わればURLも変わるようにしておけば、
-        // 次から確実に新しい画像が表示される。
-        // 画像を差し替えるときは、新しいハッシュのファイル名にしてここも直す。
-        //
-        // image に width は付けない(LINEに存在しないプロパティ。
-        // 過去にチェスでこれを付けてHTTP 400になり実機が無反応になった)
-        url: `${siteUrl}/static/${MASCOT_FILE}`,
-        size: 'full',
-        // ★高さ揃えの要★
-        // カルーセルの各カードは、LINE側が「一番高いカード」に自動で
-        // 引き伸ばして揃える。つまり表紙が高いと、2・3枚目の下に
-        // 不要な空白ができる(実際そうなっていた)。
-        // 1:1だと表紙だけ約90px高くなるので、5:3にして
-        // 7項目ページの高さに合わせる。画像は fit なので見切れない。
-        aspectRatio: '5:3',
-        aspectMode: 'fit',
-        margin: 'none',
-      },
-      // 「葉っぱもちへようこそ」の見出しは指定により削除。
-      // 紹介文は3行で読ませたいので、改行位置を自分で決める。
-      {
-        type: 'text',
-        text: 'グループでも、1対1でも。\nゲームやランキング、画像づくりを\nいつものトークで楽しもう。',
-        size: 'xs',
-        color: C.sub,
-        wrap: true,
-        margin: 'md',
-      },
-    ]),
+  return bubble('ヘルプ', [
+    {
+      type: 'image',
+      // ★正式素材★ public/static/<MASCOT_FILE>
+      // キャラクター本体は一切加工していない(背景のみ透過処理し、
+      // カード背景 #F1FAFE に合成)。描き直しや顔・葉・足の変更はしない。
+      //
+      // ファイル名にハッシュを入れているのは、LINEが画像をURL単位で
+      // キャッシュするため。中身を変えたらURLも変わるようにして、
+      // 古い画像が出続けるのを防ぐ。
+      //
+      // image に width は付けない(LINEに存在しないプロパティ。
+      // 過去にチェスでこれを付けてHTTP 400になり実機が無反応になった)
+      url: `${siteUrl}/static/${MASCOT_FILE}`,
+      size: 'full',
+      // 縦横比を保ったまま収める。1:1 + fit なので葉や足が切れない。
+      // 高さは下の一覧ページに合わせて調整している。
+      aspectRatio: '1:1',
+      aspectMode: 'fit',
+      margin: 'md',
+    },
+    {
+      type: 'text',
+      text: '葉っぱもちへようこそ',
+      size: 'md',
+      weight: 'bold',
+      color: C.head,
+      margin: 'md',
+      wrap: true,
+    },
+    {
+      type: 'text',
+      text: 'グループでも、1対1でも。\nゲームやランキング、画像づくりを\nいつものトークで楽しもう。',
+      size: 'xxs',
+      color: C.desc,
+      wrap: true,
+      margin: 'sm',
+    },
+    // 余った高さはここが吸収する(ボタンを最下部に寄せる)
+    { type: 'filler', flex: 1 },
     {
       type: 'button',
       style: 'primary',
-      color: C.blue,
+      color: C.accent,
       height: 'sm',
-      margin: 'sm',
+      margin: 'md',
       action: { type: 'uri', label: '公式サイトを見る', uri: siteUrl },
     },
   ])
 }
 
-/** コマンド一覧カード */
+/** コマンド一覧カード(1ページ5件) */
 function commandCard(page: { title: string; items: Cmd[] }): Record<string, any> {
-  const rows: Record<string, any>[] = []
-  page.items.forEach((cmd, i) => rows.push(...cmdRow(cmd, i === 0)))
-  return bubble(page.title, [panel(rows)])
+  return bubble(page.title, [
+    ...page.items.map(cmdRow),
+    // 最後の項目とフッターの間に、接触しない程度の小さな余白。
+    // 5件未満のページでは、ここが余りを受け取って高さが揃う
+    // (項目そのものは引き伸ばさない)。
+    { type: 'filler', flex: 1 },
+  ])
 }
 
 // Flexの上限は30,000バイト。1枚あたり約4.8KBなので、

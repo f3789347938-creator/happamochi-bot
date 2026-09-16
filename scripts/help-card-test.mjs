@@ -82,22 +82,21 @@ async function main() {
     const t0 = texts(cards[0]).join(' ')
     ok(t0.includes('ヘルプ'), '1枚目がヘルプの見出し', t0.slice(0, 80))
     // カテゴリで分けず、2枚目以降はすべて「コマンド一覧」
-    const titles = cards.slice(1).map((c) => c.header?.contents?.[0]?.text)
+    // 見出しは青帯ではなく本文の上から2番目のテキスト
+    const titles = cards.slice(1).map((c) => c.body?.contents?.[1]?.text)
     ok(
       titles.every((t) => t === 'コマンド一覧'),
       '2枚目以降はすべて「コマンド一覧」(カテゴリ分けしていない)',
       JSON.stringify(titles)
     )
-    // 「葉っぱもちへようこそ」の見出しは仕様変更で削除した。
-    // 表紙は、見出し帯 + イラスト + 3行の紹介文 + ボタン。
-    ok(!t0.includes('ようこそ'), '1枚目に古い「ようこそ」見出しが残っていない')
-    ok(t0.includes('グループでも、1対1でも。'), '1枚目に新しい紹介文がある', t0.slice(0, 80))
+    ok(t0.includes('葉っぱもちへようこそ'), '1枚目に「葉っぱもちへようこそ」がある', t0.slice(0, 80))
+    ok(t0.includes('グループでも、1対1でも。'), '1枚目に紹介文がある', t0.slice(0, 80))
     ok(t0.includes('いつものトークで楽しもう。'), '紹介文が最後まで入っている')
     // イラスト
     const imgs = nodes(cards[0]).filter((x) => x.type === 'image')
     ok(imgs.length === 1, '1枚目にイラストが1つある', `個数=${imgs.length}`)
     ok(
-      imgs[0]?.url?.endsWith('/static/happamochi-2b2e5a62.jpg'),
+      imgs[0]?.url?.endsWith('/static/happamochi-e061df69.jpg'),
       'イラストが葉っぱもちの画像',
       `${imgs[0]?.url}`
     )
@@ -138,19 +137,20 @@ async function main() {
     ok(bad.length === 0, `全${cmds.length}個のボタンが実際に動く`, `無反応: ${JSON.stringify(bad)}`)
   }
 
-  console.log('\n=== 3b. 詰めて並んでいる ===')
+  console.log('\n=== 3b. 1ページ5件で詰まっている ===')
   {
-    // カテゴリで分けず上から詰める。1枚に7行入れて枚数を減らす。
-    const rows = cards
-      .slice(1)
-      .map((c) => (c.body?.contents?.[0]?.contents ?? []).filter((x) => x.type === 'box').length)
+    // 新デザイン: 各項目は白背景・角丸の横並びボックス
+    const itemsOf = (c) =>
+      (c.body?.contents ?? []).filter(
+        (x) => x.type === 'box' && x.layout === 'horizontal' && x.backgroundColor === '#FFFFFF'
+      )
+    const rows = cards.slice(1).map((c) => itemsOf(c).length)
     ok(
-      rows.every((n) => n >= 5),
-      '各カードに5行以上入っている(詰まっている)',
+      rows.every((n) => n === 5),
+      '一覧ページは必ず5項目',
       JSON.stringify(rows)
     )
-    ok(cards.length <= 6, 'カード枚数が6枚以内', `${cards.length}枚`)
-    // 同じコマンドが2回出ていないこと
+    ok(cards.length <= 12, 'カルーセルの上限内', `${cards.length}枚`)
     const all = msgActions.map((a) => a.text)
     ok(new Set(all).size === all.length, 'コマンドの重複がない', `${all.length}個`)
   }
@@ -200,18 +200,44 @@ async function main() {
     )
   }
 
-  console.log('\n=== 7. 見本と同じ色配置 ===')
+  console.log('\n=== 7. 指定どおりの配色 ===')
   {
-    const BLUE = '#039BE5'
+    // 指定: フッター背景 / 公式サイトボタン / コマンド名 は同じ #039BE5
+    const ACCENT = '#039BE5'
     for (const [i, c] of cards.entries()) {
-      ok(c.header?.backgroundColor === BLUE, `${i + 1}枚目の上帯が青`, `${c.header?.backgroundColor}`)
-      ok(c.body?.backgroundColor === '#E1F5FE', `${i + 1}枚目の本文が水色`, `${c.body?.backgroundColor}`)
-      ok(c.footer?.backgroundColor === BLUE, `${i + 1}枚目の下帯が青`, `${c.footer?.backgroundColor}`)
+      ok(c.body?.backgroundColor === '#F1FAFE', `${i + 1}枚目のカード背景が淡い水色`, `${c.body?.backgroundColor}`)
+      ok(c.footer?.backgroundColor === ACCENT, `${i + 1}枚目のフッターが#039BE5`, `${c.footer?.backgroundColor}`)
       const ft = c.footer?.contents?.[0]
       ok(ft?.text === '© 2026 HappaMochi Bot', `${i + 1}枚目の表記が正式名`, `${ft?.text}`)
       ok(ft?.color === '#FFFFFF' && ft?.align === 'center', `${i + 1}枚目の著作権が白・中央`)
-      ok(c.footer?.paddingAll === '0px', `${i + 1}枚目の下帯が左右いっぱい`)
+      // ページ番号は出さない
+      ok(!/\d+\s*\/\s*\d+/.test(ft?.text ?? ''), `${i + 1}枚目にページ番号がない`)
     }
+    // 公式サイトボタンが同じ青
+    const btn = (cards[0].body?.contents ?? []).find((x) => x.type === 'button')
+    ok(btn?.color === ACCENT, '公式サイトボタンが#039BE5', `${btn?.color}`)
+    // コマンド名が青、説明は濃い色。項目全体は白のまま塗りつぶさない。
+    const items = cards
+      .slice(1)
+      .flatMap((c) => (c.body?.contents ?? []).filter((x) => x.type === 'box' && x.backgroundColor === '#FFFFFF'))
+    ok(items.length === 20, '項目が20件ある', `${items.length}件`)
+    ok(
+      items.every((it) => it.contents[0].contents[0].color === ACCENT),
+      'コマンド名が#039BE5'
+    )
+    ok(
+      items.every((it) => it.contents[0].contents[1].color === '#425C6E'),
+      '説明文が落ち着いた濃い色'
+    )
+    ok(
+      items.every((it) => it.borderColor === '#CFE7F3' && it.cornerRadius),
+      '項目が細い枠線と角丸を持つ'
+    )
+    // 左のアイコンや丸背景を付けていないこと
+    ok(
+      items.every((it) => it.contents.length === 2),
+      '項目の左にアイコンや丸背景を置いていない'
+    )
     const all = texts(msg.contents).join(' ')
     ok(!all.includes('uparupa'), '参照元のBot名をコピーしていない')
     ok(!all.includes('nano-bot'), '根拠のない名前が入っていない')
@@ -243,7 +269,7 @@ async function main() {
 
   console.log('\n=== 10. イラストが配信されている ===')
   {
-    const res = await fetch(`${BASE}/static/happamochi-2b2e5a62.jpg`)
+    const res = await fetch(`${BASE}/static/happamochi-e061df69.jpg`)
     ok(res.status === 200, 'イラストが200で返る', `status=${res.status}`)
     ok(
       (res.headers.get('content-type') ?? '').includes('image/jpeg'),
@@ -256,29 +282,29 @@ async function main() {
     ok(len > 0 && len < 200_000, `イラストが軽い (${Math.round(len / 1024)}KB)`)
   }
 
-  console.log('\n=== 11. 4ページ構成と高さ揃え(デザイン指定) ===')
-  // 指定: 表紙 + コマンド一覧3ページ = 4枚。件数は 7 / 7 / 6。
+  console.log('\n=== 11. 5ページ構成・掲載順・高さ揃え(デザイン指定) ===')
   {
-    const cards = msg.contents.contents
-    ok(cards.length === 4, 'カードは4枚', `${cards.length}枚`)
+    // 指定: 表紙1 + 一覧4 = 5枚。一覧は必ず1ページ5項目。
+    ok(cards.length === 5, 'カードは5枚(表紙+一覧4)', `${cards.length}枚`)
 
-    const rowsOf = (c) =>
-      c.body.contents[0].contents.filter(
-        (x) => x.type === 'box' && x.layout === 'horizontal'
+    const itemsOf = (c) =>
+      (c.body?.contents ?? []).filter(
+        (x) => x.type === 'box' && x.layout === 'horizontal' && x.backgroundColor === '#FFFFFF'
       )
-    const counts = cards.slice(1).map((c) => rowsOf(c).length)
+    const counts = cards.slice(1).map((c) => itemsOf(c).length)
     ok(
-      JSON.stringify(counts) === JSON.stringify([7, 7, 6]),
-      '各ページの件数が 7 / 7 / 6',
+      JSON.stringify(counts) === JSON.stringify([5, 5, 5, 5]),
+      '各ページの件数が 5 / 5 / 5 / 5',
       JSON.stringify(counts)
     )
 
-    // 掲載順も指定どおりか
-    const labelsOf = (c) => rowsOf(c).map((r) => r.contents[0].contents[0].text)
+    // 掲載順(指定どおり)
+    const labelsOf = (c) => itemsOf(c).map((it) => it.contents[0].contents[0].text)
     const expected = [
-      ['ヘルプ', 'ステータス', 'ランキング', 'お知らせ', '着せ替え', 'パズル', 'サバイバル'],
-      ['オセロ', 'オセロ参加', 'オセロ戦績', 'チェス', '盤面', 'めいく装飾', 'めいく:本文'],
-      ['返信して めいく', 'めいくbold虹7:文', 'ウェルカムオン', 'ウェルカムオフ', '取り消し通知オン', '取り消し通知オフ'],
+      ['ヘルプ', 'ステータス', 'ランキング', 'お知らせ', '着せ替え'],
+      ['パズル', 'サバイバル', 'オセロ', 'オセロ参加', 'オセロ戦績'],
+      ['チェス', '盤面', 'めいく 装飾', 'めいく:本文', '返信して めいく'],
+      ['めいく bold虹7:文', 'ウェルカムオン', 'ウェルカムオフ', '取り消し通知オン', '取り消し通知オフ'],
     ]
     cards.slice(1).forEach((c, i) => {
       ok(
@@ -288,33 +314,39 @@ async function main() {
       )
     })
 
-    // 全ページで上帯・下帯が揃っていること
-    ok(cards.every((c) => c.header && c.footer), '全ページに見出し帯とフッターがある')
+    // 掲載しない項目が復活していないこと
+    const allLabels = cards.slice(1).flatMap(labelsOf)
+    for (const ng of ['称号一覧', '称号確認', '称号検索 文字']) {
+      ok(!allLabels.includes(ng), `「${ng}」を掲載していない`)
+    }
+
+    // 全ページで横幅・フッターが揃う
+    ok(cards.every((c) => c.footer), '全ページにフッターがある')
     ok(
       cards.every((c) => c.size === cards[0].size),
       '全ページで横幅(size)が同じ',
       cards.map((c) => c.size).join(',')
     )
 
-    // ★高さ揃えの肝★
-    // LINEはカルーセルを「一番高いカード」に自動で揃える。
-    // したがって高さを埋めるための詰め物は入れない。代わりに
-    //   ・表紙の画像を横長(5:3)にして高くしすぎない
-    //   ・白パネルに flex:1 を付けて余った高さを受け取る
-    // という作りにしてある。ここが崩れると2・3枚目の下に空白が出る。
-    const cover = cards[0].body.contents[0]
-    const img = cover.contents.find((x) => x.type === 'image')
-    ok(img.aspectRatio === '5:3', '表紙の画像が横長(5:3)で高さを押し上げない', img.aspectRatio)
-    ok(!('width' in img), '画像に width を付けていない(LINEで400になる)')
+    // ★高さ揃え★
+    // LINEはカルーセルを一番高いカードに自動で揃える。
+    // 余りは末尾の filler が受け取るので、項目そのものは引き伸ばされない。
+    cards.forEach((c, i) => {
+      const last = (c.body?.contents ?? []).slice(-1)[0]
+      const hasFiller = (c.body?.contents ?? []).some((x) => x.type === 'filler')
+      ok(hasFiller, `${i + 1}枚目に余白を受け取る filler がある`)
+    })
     ok(
-      cards.every((c) => c.body.contents[0].flex === 1),
-      '全ページの白パネルが余白を受け取る(flex:1)'
+      cards.slice(1).every((c) =>
+        itemsOf(c).every((it) => it.flex === undefined || it.flex === 0)
+      ),
+      '項目を縦に引き伸ばしていない'
     )
-    // 高さを稼ぐための空要素を入れていないこと
-    const fillers = cards.flatMap((c) => nodes(c)).filter((x) => x.type === 'filler')
-    ok(fillers.length === 0, '高さ調整用の詰め物(filler)を使っていない', `${fillers.length}個`)
-    const spacers = cards.flatMap((c) => nodes(c)).filter((x) => x.type === 'spacer')
-    ok(spacers.length === 0, '非推奨のspacerを使っていない', `${spacers.length}個`)
+
+    // 表紙の画像。正式素材をそのまま使い、縦横比を保つ。
+    const img = nodes(cards[0]).find((x) => x.type === 'image')
+    ok(img?.aspectMode === 'fit', '画像が縦横比を保って収まる(葉や足が切れない)', `${img?.aspectMode}`)
+    ok(!('width' in (img ?? {})), '画像に width を付けていない(LINEで400になる)')
   }
 
   console.log('\n=== 結果 ===')
