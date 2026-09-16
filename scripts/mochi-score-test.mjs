@@ -203,6 +203,27 @@ async function main() {
     ok(!/getProfile\s*\(/.test(gcode), 'game.js も getProfile を呼んでいない')
   }
 
+  console.log('\n=== 8. ランキング送信がゲームに繋がっている(実機で出た不具合) ===')
+  // ranking.mjs は前から置いてあったのに、ゲーム本体を新版へ差し替えたときに
+  // game.js からの呼び出しが消え、スコアが1件も保存されていなかった。
+  // 「APIが動く」だけでなく「ゲームがそれを呼ぶ」ところまで必ず見る。
+  {
+    const gj = await (await fetch(`${BASE}/static/game/game.js`)).text()
+    ok(/from '\.\/ranking\.mjs'/.test(gj), 'game.js が ranking.mjs を読み込んでいる')
+    ok(/submitScore\s*\(/.test(gj), 'game.js が submitScore を呼んでいる')
+    ok(/canSubmit\s*\(/.test(gj), 'LINE外では送らない判定をしている')
+    // ゲーム終了(over)のところで送っていること
+    // 呼び出しが「ゲーム終了(over)の分岐の中」にあることを確かめる。
+    // 定義(async function ...)ではなく実際の呼び出し位置を見る。
+    const overIdx = gj.indexOf("event.type === 'over'")
+    const callIdx = gj.indexOf('sendScoreToRanking()', overIdx)
+    ok(overIdx > 0 && callIdx > overIdx, 'ゲーム終了時に送信している', `over=${overIdx} call=${callIdx}`)
+  }
+  {
+    const html = await (await fetch(`${BASE}/static/game/index.html`)).text()
+    ok(/id="rank-status"/.test(html), '登録結果を出す場所が結果画面にある')
+  }
+
   console.log('\n=== 結果 ===')
   console.log(`  成功 ${pass} / 失敗 ${fail}`)
   if (failures.length > 0) {

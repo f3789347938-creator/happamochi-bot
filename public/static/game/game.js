@@ -2,6 +2,9 @@ import { MochiPhysics, STAGES, WORLD, POWER, SKILLS, SKILL_RULES, BLAST, clamp }
 import { MochiEffects } from './effects.mjs';
 import { LINE_CONFIG } from './line-config.js';
 import { snapshotResult, resultText, lineShareUrl, drawResultCard, canShareImage, shareResultImage } from './share.mjs';
+// ランキング送信。ranking.mjs は前から置いてあったが、ゲーム本体を新版に
+// 差し替えたときに呼び出しが消えてしまい、スコアが1件も保存されていなかった。
+import { canSubmit, submitScore } from './ranking.mjs';
 
 const $ = selector => document.querySelector(selector);
 const canvas = $('#game-canvas');
@@ -49,6 +52,29 @@ function clearResultSharing() {
   $('#image-save-button').removeAttribute('href'); $('#image-save-button').removeAttribute('download');
   $('#image-save-button').setAttribute('aria-disabled', 'true'); $('#image-save-button').tabIndex = -1;
   $('#share-status').textContent = '';
+}
+
+// 結果をランキングへ送る。
+// LINEの中で開いていない(＝ログインできない)ときは、何も言わずに送らない。
+// 通信に失敗してもゲームは続けられるよう、例外は全部ここで飲み込む。
+async function sendScoreToRanking() {
+  const el = $('#rank-status');
+  if (el) el.textContent = '';
+  try {
+    if (!canSubmit()) return;               // 普通のブラウザで遊んでいる場合
+    if (!(game.score > 0)) return;          // 0点は登録しない
+    if (el) el.textContent = 'ランキングに登録中…';
+    const r = await submitScore({
+      score: game.score,
+      merges: game.merges,
+      stage: game.highest,
+    });
+    // ranking.mjs は { ok, message } を返す。その文言をそのまま出す。
+    if (!el) return;
+    el.textContent = r && r.ok ? (r.message || 'ランキングに登録しました') : '';
+  } catch {
+    if (el) el.textContent = '';            // 失敗しても黙って続行
+  }
 }
 
 function prepareResultSharing() {
@@ -266,6 +292,8 @@ function handleEvent(event) {
     $('#result-summary').textContent = `${game.merges}回合体 · ${STAGES[game.highest].name}まで成長`;
     $('#result-eyebrow').textContent = game.score > bestAtStart ? 'ベスト更新！' : 'おつかれさま！';
     prepareResultSharing();
+    // 結果をランキングへ送る。失敗してもゲームの進行は止めない。
+    sendScoreToRanking();
     announce(`ゲーム終了。スコア ${game.score}点。もう一度遊べます。`);
     requestAnimationFrame(() => openDialog('over-dialog'));
   }
