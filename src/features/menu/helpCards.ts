@@ -1,7 +1,7 @@
 // 「ヘルプ」の返信カード(横スワイプのカルーセル)。
 //
 // 1枚目   … ようこそカード(イラスト + 説明 + 公式サイト)
-// 2枚目以降 … コマンド一覧。1コマンドが「青いボタン + 説明文」の1行になる
+// 2枚目以降 … コマンド一覧。白い項目内に「青いコマンド名 + 説明文」を縦に置く
 // 最下端   … カード下端いっぱいの青帯に白文字の著作権表示
 //
 // ボタンは message アクション。押すとそのコマンドが実際に発言として送信され、
@@ -35,11 +35,11 @@ const FOOTER_TEXT = '© 2026 HappaMochi Bot'
  */
 const MASCOT_FILE = 'happamochi-e061df69.jpg'
 
-/** コマンド1行。左に青いボタン、右に説明文。 */
+/** コマンド1件。上にコマンド名、下に説明文。 */
 interface Cmd {
   /** ボタンに出す文字。押すとこの文字がそのまま送信される */
   label: string
-  /** 右側の説明文 */
+  /** コマンド名の下に置く説明文 */
   desc: string
   /**
    * 実際に送信する文字。label と違う場合だけ指定する。
@@ -54,7 +54,7 @@ interface Cmd {
 }
 
 // コマンドは1本の並びで持つ。カテゴリごとに分けず、
-// 上から順に詰めて7件ずつのカードに切る(見本と同じく全部「コマンド一覧」)。
+// 上から順に詰めて5件ずつのカードに切る(見本と同じく全部「コマンド一覧」)。
 // 説明が短いものを詰めるほど1枚に入るので、説明は簡潔にしている。
 const COMMANDS: Cmd[] = [
   { label: 'ヘルプ', desc: 'このメニューを開く' },
@@ -134,7 +134,8 @@ function cmdRow(cmd: Cmd): Record<string, any> {
     cornerRadius: '8px',
     borderColor: C.line,
     borderWidth: '1px',
-    paddingAll: '9px',
+    // 固定の高さで切らず、文字と余白から項目の高さを決める。
+    paddingAll: '12px',
     margin: 'sm',
     spacing: 'none',
     alignItems: 'center',
@@ -149,7 +150,7 @@ function cmdRow(cmd: Cmd): Record<string, any> {
           {
             type: 'text',
             text: cmd.label,
-            size: 'sm',
+            size: '16px',
             weight: 'bold',
             color: C.accent,
             wrap: true,
@@ -157,7 +158,7 @@ function cmdRow(cmd: Cmd): Record<string, any> {
           {
             type: 'text',
             text: cmd.desc,
-            size: 'xxs',
+            size: '12px',
             color: C.desc,
             wrap: true,
             margin: 'xs',
@@ -229,9 +230,11 @@ function welcomeCard(siteUrl: string): Record<string, any> {
       // image に width は付けない(LINEに存在しないプロパティ。
       // 過去にチェスでこれを付けてHTTP 400になり実機が無反応になった)
       url: `${siteUrl}/static/${MASCOT_FILE}`,
-      size: 'full',
+      // 表紙が一覧の高さを押し広げないよう、画像の表示幅だけを抑える。
+      size: '160px',
+      align: 'center',
       // 縦横比を保ったまま収める。1:1 + fit なので葉や足が切れない。
-      // 高さは下の一覧ページに合わせて調整している。
+      // 素材そのものは変更せず、葉や足も含めて中央に収める。
       aspectRatio: '1:1',
       aspectMode: 'fit',
       margin: 'md',
@@ -248,7 +251,7 @@ function welcomeCard(siteUrl: string): Record<string, any> {
     {
       type: 'text',
       text: 'グループでも、1対1でも。\nゲームやランキング、画像づくりを\nいつものトークで楽しもう。',
-      size: 'xxs',
+      size: '12px',
       color: C.desc,
       wrap: true,
       margin: 'sm',
