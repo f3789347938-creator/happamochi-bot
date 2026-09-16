@@ -25,6 +25,13 @@ const C = {
 
 const FOOTER_TEXT = '© 2026 HappaMochi Bot'
 
+/**
+ * ヘルプの表紙に出すイラストのファイル名。
+ * 末尾は画像の中身から作ったハッシュ。中身を変えたら必ずここも変える。
+ * (LINEが同じURLの画像をキャッシュして古いまま表示するのを防ぐため)
+ */
+const MASCOT_FILE = 'happamochi-2b2e5a62.jpg'
+
 /** コマンド1行。左に青いボタン、右に説明文。 */
 interface Cmd {
   /** ボタンに出す文字。押すとこの文字がそのまま送信される */
@@ -228,10 +235,18 @@ function welcomeCard(siteUrl: string): Record<string, any> {
     panel([
       {
         type: 'image',
-        // イラストは public/static/happamochi.jpg。
+        // イラストは public/static/happamochi-<内容のハッシュ>.jpg。
+        //
+        // ★ファイル名にハッシュを入れている理由★
+        // LINEは一度表示した画像をURL単位でキャッシュする。サーバー側を
+        // 差し替えても、同じURLのままだと端末には古い画像が出続ける
+        // (実際にこれが起きた)。中身が変わればURLも変わるようにしておけば、
+        // 次から確実に新しい画像が表示される。
+        // 画像を差し替えるときは、新しいハッシュのファイル名にしてここも直す。
+        //
         // image に width は付けない(LINEに存在しないプロパティ。
         // 過去にチェスでこれを付けてHTTP 400になり実機が無反応になった)
-        url: `${siteUrl}/static/happamochi.jpg`,
+        url: `${siteUrl}/static/${MASCOT_FILE}`,
         size: 'full',
         aspectRatio: '1:1',
         aspectMode: 'fit',

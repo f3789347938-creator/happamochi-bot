@@ -93,7 +93,7 @@ async function main() {
     const imgs = nodes(cards[0]).filter((x) => x.type === 'image')
     ok(imgs.length === 1, '1枚目にイラストが1つある', `個数=${imgs.length}`)
     ok(
-      imgs[0]?.url?.endsWith('/static/happamochi.jpg'),
+      imgs[0]?.url?.endsWith('/static/happamochi-2b2e5a62.jpg'),
       'イラストが葉っぱもちの画像',
       `${imgs[0]?.url}`
     )
@@ -239,7 +239,7 @@ async function main() {
 
   console.log('\n=== 10. イラストが配信されている ===')
   {
-    const res = await fetch(`${BASE}/static/happamochi.jpg`)
+    const res = await fetch(`${BASE}/static/happamochi-2b2e5a62.jpg`)
     ok(res.status === 200, 'イラストが200で返る', `status=${res.status}`)
     ok(
       (res.headers.get('content-type') ?? '').includes('image/jpeg'),
