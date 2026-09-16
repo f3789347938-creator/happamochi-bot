@@ -105,10 +105,10 @@ async function main() {
   ok(p?.equipped_title === null, '共通称号の初期値は未設定')
   ok(!!p?.public_id && !p.public_id.includes('Upf_test'), '公開用IDがLINEのIDと別物')
 
-  // 10通送ったら10増える(獲得制限なし)
+  // 中身の違う10通は10増える(回数・時間による獲得制限は無い)
   for (let i = 0; i < 9; i++) await post([msg(`連投${i}`)])
   p = (await get(A)).profile
-  ok(p.total_exp === 10, '10通送れば10EXP(連呼制限なし)', `exp=${p.total_exp}`)
+  ok(p.total_exp === 10, '中身が違えば10通で10EXP(回数制限なし)', `exp=${p.total_exp}`)
   ok(p.points === 10, 'ポイントも10', `points=${p.points}`)
 
   // メッセージ種別で除外しない
@@ -126,6 +126,78 @@ async function main() {
   await post([msg('個人トーク', { group: null })])
   p = (await get(A)).profile
   ok(p.total_exp === 14, '個人トークも加算対象', `exp=${p.total_exp}`)
+
+  // =====================================================================
+  console.log('\n=== 1-b. 連呼対策(直前と同じ本文は加算しない) ===')
+  {
+    const U = 'Upf_test_rep1'
+    const me = (t, o = {}) => msg(t, { ...o, user: U })
+    // 同じ本文を5連投 → 1回だけ
+    for (let i = 0; i < 5; i++) await post([me('あ')])
+    let q = (await get(U)).profile
+    ok(q.total_exp === 1, '同じ本文5連投で1EXPだけ', `exp=${q.total_exp}`)
+    ok(q.points === 1, 'ポイントも1だけ', `points=${q.points}`)
+
+    // 違う本文を挟めば加算される
+    await post([me('い')])
+    q = (await get(U)).profile
+    ok(q.total_exp === 2, '違う本文なら加算される', `exp=${q.total_exp}`)
+
+    // 交互(あ→い→あ)は連続でないので全部加算
+    await post([me('あ')])
+    q = (await get(U)).profile
+    ok(q.total_exp === 3, '「あ→い→あ」は直前と違うので加算される', `exp=${q.total_exp}`)
+
+    // 前後の空白だけの違いは同一扱い
+    await post([me('  あ  ')])
+    q = (await get(U)).profile
+    ok(q.total_exp === 3, '前後の空白だけの違いは同じ本文とみなす', `exp=${q.total_exp}`)
+
+    // 1文字でも違えば別物
+    await post([me('ああ')])
+    q = (await get(U)).profile
+    ok(q.total_exp === 4, '「あ」と「ああ」は別の本文として加算', `exp=${q.total_exp}`)
+  }
+
+  {
+    // スタンプ・画像は本文が無いので常に加算され、連呼判定もリセットする
+    const U = 'Upf_test_rep2'
+    const me = (t, o = {}) => msg(t, { ...o, user: U })
+    await post([me('ほ')])
+    const st = me('x')
+    st.message = { id: String(Date.now() + ++seq), type: 'sticker', packageId: '1', stickerId: '1' }
+    await post([st])
+    const st2 = me('x')
+    st2.message = { id: String(Date.now() + ++seq), type: 'sticker', packageId: '1', stickerId: '1' }
+    await post([st2])
+    let q = (await get(U)).profile
+    ok(q.total_exp === 3, 'スタンプ連投は従来どおり加算される(本文が無いため)', `exp=${q.total_exp}`)
+
+    // 「ほ」→スタンプ→「ほ」は連続扱いにしない
+    await post([me('ほ')])
+    q = (await get(U)).profile
+    ok(q.total_exp === 4, '間にスタンプが入れば同じ本文でも加算される', `exp=${q.total_exp}`)
+  }
+
+  {
+    // 別人の発言は互いに影響しない(人単位で判定)
+    const U1 = 'Upf_test_rep3'
+    const U2 = 'Upf_test_rep4'
+    await post([msg('おなじ', { user: U1 })])
+    await post([msg('おなじ', { user: U2 })])
+    const q1 = (await get(U1)).profile
+    const q2 = (await get(U2)).profile
+    ok(q1.total_exp === 1 && q2.total_exp === 1, '別人が同じ本文を送っても双方に加算される', `${q1.total_exp}/${q2.total_exp}`)
+  }
+
+  {
+    // グループをまたいでも人単位で連呼判定する
+    const U = 'Upf_test_rep5'
+    await post([msg('また', { user: U })])
+    await post([msg('また', { user: U, group: G2 })])
+    const q = (await get(U)).profile
+    ok(q.total_exp === 1, '別グループでも同じ本文の連投は加算されない(人単位)', `exp=${q.total_exp}`)
+  }
 
   // =====================================================================
   console.log('\n=== 2. 二重加算の防止(1通を1回と数える) ===')

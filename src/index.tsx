@@ -921,6 +921,7 @@ app.post('/debug/profile', async (c) => {
       `DELETE FROM point_ledger WHERE user_id LIKE ?`,
       `DELETE FROM user_common_titles WHERE user_id LIKE ?`,
       `DELETE FROM exp_events WHERE user_id LIKE ?`,
+      `DELETE FROM exp_last_message WHERE user_id LIKE ?`,
     ]) {
       await c.env.DB.prepare(sql).bind(`${uid}%`).run()
     }
@@ -1319,14 +1320,20 @@ async function handleMessageEvent(env: Bindings, event: any, baseUrl: string) {
   //   ・本人が新しく送った1通につき EXP+1・ポイント+1。
   //   ・種類(文章/画像/スタンプ/コマンド)で除外しない。
   //   ・グループと個人トークの両方が対象。
-  //   ・獲得制限は付けない。ただし「1通を1回と数える」ため、
+  //   ・連呼対策として、直前と同じ本文のときだけ加算しない
+  //     (「あ」「あ」の2通目は付かない / 「あ」「い」「あ」は全部付く)。
+  //     回数・時間による獲得制限は付けない。
+  //   ・「1通を1回と数える」ため、
   //     webhookEventId(無ければ message.id)で二重加算だけ防ぐ。
   //   ・Bot自身の返信やボタン操作(Postback)はここを通らないので加算されない。
   // 失敗しても既存処理を止めないよう try/catch で完全に隔離する。
   if (userId) {
     try {
       const eventKey = event.webhookEventId ?? (message?.id ? `msg_${message.id}` : null)
-      await addExpForMessage(env, userId, eventKey, displayName, pictureUrl)
+      // 本文はテキストのときだけ渡す(連呼判定に使う)。
+      // スタンプ・画像などは本文が無いので null のまま = 従来どおり必ず加算。
+      const expText = message?.type === 'text' ? (message.text ?? null) : null
+      await addExpForMessage(env, userId, eventKey, displayName, pictureUrl, expText)
     } catch {
       /* EXP加算の失敗は既存機能に影響させない */
     }

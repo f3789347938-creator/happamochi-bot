@@ -189,6 +189,14 @@ export async function getProfileByPublicId(
  * Webhookの再送や同じメッセージの再受信では2回目が加算されない。
  * これは連呼対策ではなく「1通を1回と数える」ための処理。
  *
+ * 連呼対策(C案): 直前と同じ本文なら加算しない。
+ *   ・「あ」「あ」→ 2通目は加算なし。「あ」「い」「あ」→ 全部加算。
+ *   ・1日/時間あたりの獲得制限は付けない(方針どおり)。
+ *   ・比較できるのはテキストだけなので、スタンプ・画像などは従来どおり
+ *     常に加算し、直前本文の記録は消して連続扱いにしない。
+ *   ・前後の空白のみを揃えて比較する。大文字小文字や全角半角は
+ *     区別したまま(むやみに同一視すると正当な発言まで落ちるため)。
+ *
  * 失敗しても例外を投げない(既存のBot処理を止めないため)。
  * 戻り値はレベルアップしたときだけ新レベルを返す。
  */
@@ -197,7 +205,8 @@ export async function addExpForMessage(
   userId: string,
   eventKey: string | null,
   displayName?: string | null,
-  pictureUrl?: string | null
+  pictureUrl?: string | null,
+  messageText?: string | null
 ): Promise<{ leveledUpTo: number | null }> {
   try {
     if (!eventKey) return { leveledUpTo: null }
@@ -209,6 +218,51 @@ export async function addExpForMessage(
       .run()
     // 既に処理済み = 二重加算しない
     if (!claimed.meta.changes) return { leveledUpTo: null }
+
+    // --- 連呼対策: 直前と同じ本文なら加算しない -------------------------
+    // テキスト以外は本文が無いので比較しない(= 必ず加算する)。
+    const text = typeof messageText === 'string' ? messageText.trim() : null
+    if (text !== null && text.length > 0) {
+      const prev = await env.DB.prepare(
+        `SELECT last_text FROM exp_last_message WHERE user_id = ?`
+      )
+        .bind(userId)
+        .first<{ last_text: string | null }>()
+
+      if (prev?.last_text !== null && prev?.last_text !== undefined && prev.last_text === text) {
+        // 直前と同じ本文 = 連呼。加算しないが、記録は最新に保つ。
+        await env.DB.prepare(
+          `INSERT INTO exp_last_message (user_id, last_text, updated_at)
+           VALUES (?, ?, datetime('now'))
+           ON CONFLICT(user_id) DO UPDATE SET
+             last_text = excluded.last_text, updated_at = datetime('now')`
+        )
+          .bind(userId, text)
+          .run()
+        return { leveledUpTo: null }
+      }
+
+      // 別の本文 = 加算対象。直前本文を更新しておく。
+      await env.DB.prepare(
+        `INSERT INTO exp_last_message (user_id, last_text, updated_at)
+         VALUES (?, ?, datetime('now'))
+         ON CONFLICT(user_id) DO UPDATE SET
+           last_text = excluded.last_text, updated_at = datetime('now')`
+      )
+        .bind(userId, text)
+        .run()
+    } else {
+      // スタンプ・画像など、本文で比較できないもの。
+      // 直前本文を消し、「あ」→スタンプ→「あ」が連呼扱いにならないようにする。
+      await env.DB.prepare(
+        `INSERT INTO exp_last_message (user_id, last_text, updated_at)
+         VALUES (?, NULL, datetime('now'))
+         ON CONFLICT(user_id) DO UPDATE SET
+           last_text = NULL, updated_at = datetime('now')`
+      )
+        .bind(userId)
+        .run()
+    }
 
     const before = await ensureProfile(env, userId, displayName, pictureUrl)
     const beforeLevel = levelFromTotalExp(before.total_exp).level
