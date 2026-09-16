@@ -366,7 +366,7 @@ export async function finishRun(
   // 二重送信は黙って成功扱い(同じ戦績が2回加算されないように)
   if (run.finished_at !== null) {
     const p = await getPlayer(env, user.userId)
-    return { saved: true, best: p?.best_score ?? 0, rank: await rankOf(env, p?.best_score ?? 0), already: true }
+    return { saved: true, best: p?.best_score ?? 0, rank: await rankOf(env, p?.best_score ?? 0, p?.plays ?? 0), already: true }
   }
 
   const r = validateReport(body.report, run, now)
@@ -387,7 +387,11 @@ export async function finishRun(
     // 差分加算ではなく毎回集計し直すので、二重計上が起きない。
     env.DB.prepare(
       `UPDATE survivor_players SET
-         best_score       = COALESCE((SELECT MAX(score)    FROM survivor_runs WHERE owner = ? AND finished_at IS NOT NULL AND mode = 'normal'), 0),
+         -- 元パックは mode='normal' だけを自己ベストにしていた。
+         -- だが週間チャレンジ(challenge)で遊んだ人は best_score が 0 のままになり、
+         -- ランキング(best_score > 0 で抽出)に永久に出てこない。
+         -- 実機でまさにこれが起きたので、モードを問わず最高点を採る。
+         best_score       = COALESCE((SELECT MAX(score)    FROM survivor_runs WHERE owner = ? AND finished_at IS NOT NULL), 0),
          best_seconds     = COALESCE((SELECT MAX(seconds)  FROM survivor_runs WHERE owner = ? AND finished_at IS NOT NULL), 0),
          clean_bosses     = COALESCE((SELECT MAX(clean_bosses) FROM survivor_runs WHERE owner = ? AND finished_at IS NOT NULL), 0),
          max_attack_kills = COALESCE((SELECT MAX(max_attack_kills) FROM survivor_runs WHERE owner = ? AND finished_at IS NOT NULL), 0),
@@ -406,13 +410,16 @@ export async function finishRun(
 
   const p = await getPlayer(env, user.userId)
   const best = p?.best_score ?? 0
-  return { saved: true, best, rank: await rankOf(env, best) }
+  return { saved: true, best, rank: await rankOf(env, best, p?.plays ?? 1) }
 }
 
-async function rankOf(env: LineEnv, score: number): Promise<number | null> {
-  if (score <= 0) return null
+// 順位。0点でも「1回遊んだ人」なら順位を出す。
+// score<=0 で null を返すと、開始直後に倒れた人が
+// 「まだ順位がついてないよ」のままになる。
+async function rankOf(env: LineEnv, score: number, plays = 1): Promise<number | null> {
+  if (plays <= 0) return null
   const above = await env.DB.prepare(
-    `SELECT COUNT(*) AS c FROM survivor_players WHERE best_score > ?`
+    `SELECT COUNT(*) AS c FROM survivor_players WHERE plays > 0 AND best_score > ?`
   ).bind(score).first<{ c: number }>()
   return (above?.c ?? 0) + 1
 }
@@ -433,7 +440,10 @@ export async function getSurvivorRanking(env: LineEnv, limit = 20): Promise<Surv
   const res = await env.DB.prepare(
     `SELECT user_id, display_name, picture_url, best_score, best_seconds, boss_kills, plays
        FROM survivor_players
-      WHERE best_score > 0
+      -- 1回でも最後まで遊んだ人は載せる。
+      -- スコアだけで絞ると、0点で終わった人(開始直後に倒れた等)が
+      -- 永久にランキングに出てこない。実機でこれが起きた。
+      WHERE plays > 0
       ORDER BY best_score DESC, best_seconds DESC, updated_at ASC
       LIMIT ?`
   ).bind(n).all<SurvivorRankRow>()
@@ -447,5 +457,5 @@ export async function getMySurvivor(
 ): Promise<{ row: PlayerRow; rank: number | null } | null> {
   const row = await getPlayer(env, userId)
   if (!row) return null
-  return { row, rank: await rankOf(env, row.best_score) }
+  return { row, rank: await rankOf(env, row.best_score, row.plays) }
 }

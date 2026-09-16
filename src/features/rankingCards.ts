@@ -372,7 +372,7 @@ export async function buildRankingCarousel(
         : [emptyRow('まだ記録がありません\n「サバイバル」で遊べます')]
 
     const countRow = await env.DB.prepare(
-      `SELECT COUNT(*) AS c FROM survivor_players WHERE best_score > 0`
+      `SELECT COUNT(*) AS c FROM survivor_players WHERE plays > 0`
     ).first<{ c: number }>()
     const players = countRow?.c ?? 0
 
