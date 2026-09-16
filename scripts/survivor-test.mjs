@@ -173,6 +173,30 @@ async function main() {
     ok(next.json?.key !== r.json?.key, '1週間後は別の週キーになる')
   }
 
+  console.log('\n=== 4c. 詰まり防止(実機で出た不具合の再発防止) ===')
+  // 実機で「出撃を開始できませんでした / 前の出撃の記録が残っています」が出て
+  // 先に進めなくなった。原因は、進捗0の出撃がDBに残って次の出撃を
+  // 永久にブロックしていたこと。ユーザーに手動で片付けさせる作りだった。
+  // サーバー側で自動的に片付けるように直した。その回帰テスト。
+  {
+    const src = await get('/static/survivor/record-ui.js')
+    ok(!/終了済みの出撃を整理/.test(src.text), '「終了済みの出撃を整理」ボタンを出していない')
+    ok(!/送れない記録を破棄/.test(src.text), '「送れない記録を破棄」ボタンを出していない')
+    ok(!/前の出撃の記録が残っています/.test(src.text), '「前の出撃の記録が残っています」を出していない')
+  }
+  {
+    const src = await get('/static/survivor/progression-ui.js')
+    ok(!/未送信または終了前の出撃記録/.test(src.text), '開発者向けの警告文を出していない')
+  }
+  {
+    // サーバー側: 進捗0の出撃は消し、進捗ありは終了扱いにしてから通す。
+    // 「記録画面で整理してから」で止める旧実装が残っていないこと。
+    const r = await post('/api/survivor/runs/start', {
+      accessToken: 'fake', id: 'aaaaaaaa-bbbb', ruleset: 'endless-depth-2',
+    })
+    ok(r.status === 401, '未ログインでは出撃できない(認証は維持)', `status=${r.status}`)
+  }
+
   console.log('\n=== 5. 読むだけのランキング(ログイン不要) ===')
   {
     const r = await get('/api/survivor/ranking')

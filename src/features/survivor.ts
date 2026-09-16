@@ -299,11 +299,31 @@ export async function startRun(
     }
   }
 
+  // 進んでいない出撃(スコアも撃破も0)は、ユーザーに片付けさせない。
+  //
+  // 元パックは「記録画面で整理してから始めてください」と出して手動操作を
+  // 求めていたが、これは開発者にしか意味が分からないし、普通に遊んでいても
+  // 発生する。実機で「出撃を開始できませんでした」が出て詰まったのは
+  // まさにこれで、通信が切れたりLIFFを閉じたりするだけで残ってしまう。
+  //
+  // 進捗0の出撃は捨てても失うものが無いので、ここで黙って消す。
+  // 進捗のある出撃(途中で閉じた等)だけは消さずに残し、下で案内する。
+  await env.DB.prepare(
+    `DELETE FROM survivor_runs
+      WHERE owner = ? AND finished_at IS NULL AND score = 0 AND kills = 0`
+  ).bind(user.userId).run()
+
   const active = await env.DB.prepare(
     `SELECT id FROM survivor_runs WHERE owner = ? AND finished_at IS NULL`
   ).bind(user.userId).first<{ id: string }>()
   if (active) {
-    throw fail(409, '前の出撃の記録が残っています。記録画面で整理してから始めてください。')
+    // 進捗のある出撃が残っている場合。これも放置すると永久に詰まるので、
+    // その出撃をこちらで終了扱いにしてから新しい出撃を始めさせる。
+    // (戦績は finish を通っていないので加算されない。記録が消えるのではなく
+    //  「送信されなかった分が確定しない」だけ)
+    await env.DB.prepare(
+      `UPDATE survivor_runs SET finished_at = ? WHERE id = ? AND finished_at IS NULL`
+    ).bind(now, active.id).run()
   }
 
   const mode = body.mode === 'challenge' ? 'challenge' : 'normal'

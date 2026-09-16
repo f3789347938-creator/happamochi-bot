@@ -322,6 +322,29 @@ async function survivorAuth(c: any) {
   return { user, body }
 }
 
+// プロフィールの形を1か所にまとめる。/me と /runs/finish と /profile で
+// 形が違うと、クライアントが「保存できていない」と誤判定する。
+function survivorProfileOf(p: any) {
+  if (!p) return null
+  return {
+    nickname: p.display_name ?? 'もち',
+    title: p.title,
+    outfit: p.outfit,
+    killEffect: p.effect,
+    bestScore: p.best_score,
+    records: {
+      seconds: p.best_seconds,
+      cleanBosses: p.clean_bosses,
+      maxAttackKills: p.max_attack_kills,
+      bossKills: p.boss_kills,
+      treasures: p.treasures,
+      commanders: p.commanders,
+      traps: p.traps,
+    },
+    unlocked: [],
+  }
+}
+
 // エラーの出し方を1か所にまとめる。SurvivorError は想定内の拒否なので
 // そのstatusとメッセージを返し、それ以外は500にして中身を漏らさない。
 function survivorFail(c: any, e: any) {
@@ -389,7 +412,16 @@ app.post('/api/survivor/runs/finish', async (c) => {
   const a = await survivorAuth(c)
   if ('error' in a) return a.error
   try {
-    return c.json({ ...(await finishSurvivorRun(c.env, a.user, a.body, Date.now())), unlocked: [] })
+    const r = await finishSurvivorRun(c.env, a.user, a.body, Date.now())
+    // クライアント(record-client.js の flush)は data.profile を読む。
+    // ここを返し忘れると送信が成功しても未送信扱いのままになり、
+    // 「未送信の記録が2件あります」が永久に消えなくなる。必ず返す。
+    const p = await getSurvivorPlayer(c.env, a.user.userId)
+    return c.json({
+      ...r,
+      unlocked: [],
+      profile: survivorProfileOf(p),
+    })
   } catch (e) {
     return survivorFail(c, e)
   }
