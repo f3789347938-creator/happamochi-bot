@@ -159,6 +159,35 @@ async function main() {
     ok(r?.ok === false, '週間チャレンジで装備が違えば拒否')
   }
 
+  console.log('\n=== 4d. 本物の戦績が拒否されないか(実機で出た不具合) ===')
+  // 実機で 24秒/33撃破/358pt 遊んだのに 10pt しか記録されなかった。
+  // 原因は、検算に使う定数を手で書き写していて実際とまるで違ったこと
+  // (敵の最高スコアを150としていたが本当は5000、湧き数も過少)。
+  // 今は enemies.js から実際の値を読む。普通のプレイが通ることを常に確かめる。
+  const real = async (seconds, kills, score, bossKills = 0) => {
+    const run = { started_at: NOW - 900_000, mode: 'normal', weapon: 'kunai', seconds: 0, score: 0, kills: 0 }
+    const rep = {
+      score, seconds, kills, bossKills, cleanBosses: 0, maxAttackKills: 0,
+      treasures: 0, commanders: 0, traps: 0,
+      weapons: { kunai: { damage: score, kills } },
+    }
+    const r = (await post('/debug/survivor-validate', { report: rep, run, now: NOW })).json
+    return r
+  }
+  for (const [s, k, p] of [[24, 33, 358], [60, 120, 900], [180, 600, 8000], [300, 1400, 30000], [600, 3500, 120000]]) {
+    const r = await real(s, k, p)
+    ok(r?.ok === true, `実プレイが通る: ${s}秒 ${k}撃破 ${p}pt`, JSON.stringify(r?.error ?? '').slice(0, 60))
+  }
+  // それでも明らかな不正は弾ける
+  {
+    const r = await real(24, 99999, 358)
+    ok(r?.ok === false, '撃破数の水増しは拒否')
+  }
+  {
+    const r = await real(24, 33, 99999999)
+    ok(r?.ok === false, 'スコアの水増しは拒否')
+  }
+
   console.log('\n=== 4b. 週の計算 ===')
   {
     const r = await get(`/debug/survivor-week?t=${NOW}`)

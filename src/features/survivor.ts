@@ -20,6 +20,7 @@
 // 完全な再現検証ではないので、範囲内での改ざんは防げない。そこは正直に書いておく。
 
 import type { LineEnv } from '../lib/line'
+import { STAGES, ENEMIES, spawnTempo } from '../../public/static/survivor/enemies.js'
 import { verifyLiffToken as verifyToken, type VerifiedUser } from './mochiScore'
 
 // サバイバルは、もち合体パズルとは【別のLINEログインチャネル】で動く。
@@ -101,13 +102,17 @@ export function weekAt(now: number = Date.now()): { key: string; weapon: string;
 // ここはゲーム側の enemies.js に依存するので、定数を写してある。
 // ゲームのバランスを変えたらここも合わせる必要がある。
 
-/** enemies.js の spawnTempo() 相当 */
-function spawnTempo(seconds: number): { interval: number; burst: number } {
-  // 時間が進むほど湧きが速く・多くなる
-  const interval = Math.max(0.28, 1.5 - seconds / 220)
-  const burst = 1 + Math.floor(seconds / 90)
-  return { interval, burst }
-}
+// ★重要★
+// 検算に使う数値は「ゲーム本体のファイルからそのまま読む」。
+//
+// 以前ここに spawnTempo や敵のスコア上限を手で書き写していたが、
+// 実際の値とまるで違っていた(敵の最高スコアを150としていたが本当は5000)。
+// そのせいで、普通に遊んだ本物の戦績まで「ありえない」と拒否され、
+// スコアが1体ぶんしか記録されないという不具合になった。
+//
+// 元パックの worker/index.js も game/enemies.js を import している。
+// 同じやり方に戻す。こうすればゲームのバランス調整をしても自動で追従し、
+// 二度と値がズレない。
 
 /**
  * 出撃時間から「ありえる最大値」を出し、それを超える戦績を拒否する。
@@ -189,11 +194,19 @@ export function validateReport(
   if (cleanBosses > bossKills) throw fail(400, '出撃時間と戦績が一致しません。')
   if (maxAttackKills > 320 || maxAttackKills > kills) throw fail(400, '出撃時間と戦績が一致しません。')
 
-  // スコアの上限。敵1体あたりの最大得点(1.25倍の余裕つき)で見積もる。
-  const NORMAL_MAX = 150
-  const BOSS_MAX = 900
+  // スコアの上限。
+  // その時点までに出現しうる敵の中で一番点の高いものを基準にする。
+  // 元パックの worker/index.js と同じ式。定数を手で書き写さず、
+  // ゲーム本体の ENEMIES / STAGES から実際の値を引く。
+  const available = STAGES.filter((s: any) => s.at <= seconds)
+  const normalValue = Math.max(
+    ...available.flatMap((s: any) => s.pool.map((id: string) => ENEMIES[id].score)),
+    seconds >= 50 ? 150 : 0,
+    seconds >= 60 ? Math.max(...available.map((s: any) => ENEMIES[s.elite].score)) : 0
+  )
+  const bossValue = Math.max(...available.map((s: any) => ENEMIES[s.boss].score))
   const scoreCap =
-    (kills - bossKills) * Math.round(NORMAL_MAX * 1.25) + bossKills * Math.round(BOSS_MAX * 1.25)
+    (kills - bossKills) * Math.round(normalValue * 1.25) + bossKills * Math.round(bossValue * 1.25)
   if (score > scoreCap) throw fail(400, '出撃時間と戦績が一致しません。')
 
   // イベント(宝箱・隊長・罠)の回数上限
