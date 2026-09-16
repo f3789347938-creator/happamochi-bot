@@ -59,9 +59,6 @@ const COMMANDS: Cmd[] = [
   { label: 'ランキング', desc: '各種ランキングを表示' },
   { label: 'お知らせ', desc: '直近のお知らせを表示' },
   { label: '着せ替え', desc: 'カードの見た目を変える' },
-  { label: '称号一覧', desc: 'グループの称号（旧方式）' },
-  { label: '称号確認', desc: 'グループの称号を確認' },
-  { label: '称号検索 文字', desc: '称号を名前で探す', noAction: true },
   { label: 'パズル', desc: 'もち合体パズルで遊ぶ' },
   { label: 'サバイバル', desc: 'もち軍団サバイバルで遊ぶ' },
   { label: 'オセロ', desc: '対局を募集する', send: 'オセロ開始' },
@@ -80,7 +77,7 @@ const COMMANDS: Cmd[] = [
 ]
 
 /** 1枚のカードに入れる件数 */
-const PER_CARD = 8
+const PER_CARD = 7
 
 /** カテゴリで分けず、上から順に詰めたページ */
 const PAGES: { title: string; items: Cmd[] }[] = (() => {
