@@ -44,9 +44,20 @@ export interface VerifiedUser {
 /**
  * アクセストークンを LINE に問い合わせて検証し、本人の userId を得る。
  * 検証に失敗したら null。呼び出し側は null なら必ず拒否する。
+ *
+ * expectedChannelId:
+ *   そのトークンを発行したチャネルのID。省略時はもち合体パズルの
+ *   チャネル(LOGIN_CHANNEL_ID)を期待する。
+ *   ゲームごとにLINEログインチャネルが別なので、「このゲームの
+ *   チャネルで発行されたトークンか」をここで必ず突き合わせる。
+ *   これをしないと、別チャネルのトークンを持ち込んで書き込める穴になる。
  */
-export async function verifyLiffToken(accessToken: string): Promise<VerifiedUser | null> {
+export async function verifyLiffToken(
+  accessToken: string,
+  expectedChannelId: string = LOGIN_CHANNEL_ID
+): Promise<VerifiedUser | null> {
   if (!accessToken || typeof accessToken !== 'string' || accessToken.length > 4096) return null
+  if (!expectedChannelId) return null
 
   // 1. トークンそのものの検証。ここで client_id を必ず突き合わせる。
   let verify: { client_id?: string; expires_in?: number }
@@ -61,7 +72,7 @@ export async function verifyLiffToken(accessToken: string): Promise<VerifiedUser
   }
 
   // 他のチャネルで発行されたトークンを持ち込まれても受け付けない。
-  if (verify.client_id !== LOGIN_CHANNEL_ID) return null
+  if (verify.client_id !== expectedChannelId) return null
   // 期限切れ(LINEは expires_in を返す。0以下なら失効)
   if (typeof verify.expires_in === 'number' && verify.expires_in <= 0) return null
 

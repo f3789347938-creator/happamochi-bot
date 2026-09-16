@@ -49,7 +49,7 @@ export const isLiffConfigured = (): boolean => LIFF_ID.length > 0
 //   LINE Developers で2個目のLIFFアプリを追加し、
 //   エンドポイントURLに次を登録してからIDをここに貼る:
 //     https://line-group-bbs.pages.dev/static/survivor/
-export const SURVIVOR_LIFF_ID = ''
+export const SURVIVOR_LIFF_ID = '2011633519-1hQ8eJSO'
 
 /** サバイバルの実体を配信しているURL。LIFFのエンドポイントにもこれを登録する。 */
 export function survivorPageUrl(siteUrl: string): string {

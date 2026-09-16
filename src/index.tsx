@@ -38,6 +38,7 @@ import {
   getPlayer as getSurvivorPlayer,
   getSurvivorRanking,
   getMySurvivor,
+  verifyLiffToken as verifySurvivorToken,
   weekAt as survivorWeekAt,
   validateReport as survivorValidateReport,
   RULESET as SURVIVOR_RULESET,
@@ -314,7 +315,9 @@ async function survivorAuth(c: any) {
   if (typeof body.accessToken !== 'string' || !body.accessToken) {
     return { error: c.json({ error: '記録を使うにはLINEでログインしてください。' }, 401) }
   }
-  const user = await verifyLiffToken(body.accessToken)
+  // サバイバル専用の検証。パズルとはチャネルが別なので、
+  // ここで必ずサバイバルのチャネルIDと突き合わせる。
+  const user = await verifySurvivorToken(body.accessToken)
   if (!user) return { error: c.json({ error: 'ログインを確認できませんでした。' }, 401) }
   return { user, body }
 }

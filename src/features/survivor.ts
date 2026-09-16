@@ -20,9 +20,24 @@
 // 完全な再現検証ではないので、範囲内での改ざんは防げない。そこは正直に書いておく。
 
 import type { LineEnv } from '../lib/line'
-import { verifyLiffToken, type VerifiedUser } from './mochiScore'
+import { verifyLiffToken as verifyToken, type VerifiedUser } from './mochiScore'
 
-export { verifyLiffToken }
+// サバイバルは、もち合体パズルとは【別のLINEログインチャネル】で動く。
+//   パズル  : 2011492233 (LIFF 2011492233-0cUBhY55)
+//   サバイバル: 2011633519 (LIFF 2011633519-1hQ8eJSO)
+//
+// LINEのユーザーIDはプロバイダー単位で発行されるので、チャネルが別でも
+// 同じ人なら同じ userId になる。だから既存のBotのデータ(user_profiles)と
+// 突き合わせられる。実際に本人のIDで存在を確認済み。
+//
+// ただし「どのチャネルで発行されたトークンか」は必ず突き合わせる。
+// これを省くと、別チャネルのトークンを持ち込んで書き込める穴になる。
+export const SURVIVOR_CHANNEL_ID = '2011633519'
+
+/** サバイバル用のトークン検証。必ずサバイバルのチャネルIDで確認する。 */
+export function verifyLiffToken(accessToken: string): Promise<VerifiedUser | null> {
+  return verifyToken(accessToken, SURVIVOR_CHANNEL_ID)
+}
 
 /** ゲーム側 records.js と必ず一致させる。ズレたら出撃を拒否する。 */
 export const RULESET = 'endless-depth-2'
