@@ -57,6 +57,7 @@ const COMMANDS: Cmd[] = [
   { label: '称号一覧', desc: 'グループの称号（旧方式）' },
   { label: '称号確認', desc: 'グループの称号を確認' },
   { label: '称号検索 文字', desc: '称号を名前で探す', noAction: true },
+  { label: 'パズル', desc: 'もち合体パズルで遊ぶ' },
   { label: 'サバイバル', desc: 'もち軍団サバイバルで遊ぶ' },
   { label: 'オセロ', desc: '対局を募集する', send: 'オセロ開始' },
   { label: 'オセロ参加', desc: '募集中の対局に入る' },

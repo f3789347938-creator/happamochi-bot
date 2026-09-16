@@ -28,7 +28,7 @@ import {
 import { buildRankingCarousel } from './features/rankingCards'
 import { renderMochiRankingPage } from './features/mochiRankingPage'
 import { renderSurvivorRankingPage } from './features/survivorRankingPage'
-import { survivorOpenUrl, isSurvivorLiffConfigured } from './features/menu/gameLink'
+import { survivorOpenUrl, isSurvivorLiffConfigured, gameOpenUrl } from './features/menu/gameLink'
 import {
   SurvivorError,
   ensurePlayer as ensureSurvivorPlayer,
@@ -1672,6 +1672,19 @@ async function routeCommand(env: Bindings, ctx: CommandCtx): Promise<LineMessage
         text: isSurvivorLiffConfigured()
           ? `もち軍団サバイバル\n指でスライドして動くだけ、攻撃は自動だよ。\n倒れるまでスコアに挑戦しよう！\n\n${survivorOpenUrl(SITE_URL)}`
           : `もち軍団サバイバル\n指でスライドして動くだけ、攻撃は自動だよ。\n倒れるまでスコアに挑戦しよう！\n\n${survivorOpenUrl(SITE_URL)}\n\n※いまは記録とランキングの登録がまだ使えません（LINEログインの設定待ち）。ゲームはこのまま遊べます。`,
+      },
+    ]
+  }
+
+  // もち合体パズル。
+  // これまでメニューの奥(ヘルプ→ゲーム→…)からしか開けず、
+  // ヘルプの一覧にも載っていなかったので、サバイバルと同じく
+  // 一言で開けるコマンドを用意する。
+  if (text === 'パズル' || text === 'もち合体パズル') {
+    return [
+      {
+        type: 'text',
+        text: `もち合体パズル\n同じもちをくっつけて、大きく育てるひとり用パズルだよ。\n\n${gameOpenUrl(SITE_URL)}`,
       },
     ]
   }
