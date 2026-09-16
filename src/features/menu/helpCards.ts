@@ -251,7 +251,7 @@ function welcomeCard(siteUrl: string): Record<string, any> {
       {
         type: 'text',
         text:
-          'グループにも1対1にも入れる LINE Bot。レベルアップ、ゲーム、ランキング、名言カードまで、ぜんぶ入りだよ！',
+          'グループにも1対1にも入れる LINE Bot。レベルアップ、ゲーム、ランキング、めいく機能まで、ぜんぶ入りだよ！',
         size: 'xs',
         color: C.sub,
         wrap: true,
