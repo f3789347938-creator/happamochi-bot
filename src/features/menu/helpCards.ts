@@ -66,19 +66,14 @@ const COMMANDS: Cmd[] = [
   { label: 'めいく:本文', desc: '文字を入れて画像を作る', noAction: true },
   { label: '返信して めいく', desc: 'その発言の画像を作る', noAction: true },
   { label: 'めいくbold虹7:文', desc: '装飾つきの書き方', noAction: true },
-  { label: 'タグ一覧', desc: 'グループのタグを見る' },
-  { label: 'タグ追加 タグ名', desc: 'タグを足す', noAction: true },
   { label: 'ウェルカムオン', desc: '参加時のあいさつを出す' },
   { label: 'ウェルカムオフ', desc: 'あいさつを止める' },
   { label: '取り消し通知オン', desc: '送信取消を知らせる（初期はオフ）' },
   { label: '取り消し通知オフ', desc: '知らせない' },
-  { label: '誕生日登録 9/7', desc: '誕生日を登録', noAction: true },
-  { label: '誕生日登録解除', desc: '登録した誕生日を消す' },
-  { label: 'テスト', desc: '生存確認（ok を返す）' },
 ]
 
 /** 1枚のカードに入れる件数 */
-const PER_CARD = 7
+const PER_CARD = 8
 
 /** カテゴリで分けず、上から順に詰めたページ */
 const PAGES: { title: string; items: Cmd[] }[] = (() => {
