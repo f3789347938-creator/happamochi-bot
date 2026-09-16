@@ -60,39 +60,23 @@ export interface AnnouncementContent {
 const BOT_TEST_GROUP_ID = 'C69deb597234d891abaf8b643b186476c' // "botテスト"
 
 export const ANNOUNCEMENTS: AnnouncementContent[] = [
+  // 過去のお知らせ(オセロ改善 / タグ機能 / 称号機能)は、内容が古くなったため
+  // 一覧から削除した。announcement_sends の記録も消してリセットしてあるので、
+  // 下の新しいお知らせが各グループに1回ずつ届く。
   {
-    id: 'update_2026_09_05_othello',
-    title: 'アップデートのお知らせ！',
+    id: 'notice_2026_09_16_games',
+    title: '新しいゲームのお知らせ！',
     body:
-      '・オセロが5分放置でタイムアウトするように改善\n' +
-      '・タイムアウト通知のメッセージを見やすく調整\n' +
-      '・「相手の番です」が手番の人の名前入りに変更\n' +
-      '・参加していない人のタップエラーに名前を追加\n' +
-      '・対局中はヘッダーに手番の人を表示するように変更\n' +
-      '・タップできるマスの色が手番（黒・白）ごとに変化',
-    button: { label: 'ヘルプを見る', action: { type: 'message', label: 'ヘルプを見る', text: 'ヘルプ' } },
-  },
-  {
-    id: 'notice_2026_09_05_tag',
-    title: 'タグ機能のお知らせ！',
-    body:
-      '・グループに自由にタグを付けられる機能があります\n' +
-      '「タグ追加 ○○」でタグを追加\n' +
-      '「タグ削除 ○○」でタグを削除\n' +
-      '「タグ一覧」で今設定されているタグを確認できます',
-    highlightWord: 'タグ',
-    button: { label: 'タグ一覧を見る', action: { type: 'message', label: 'タグ一覧を見る', text: 'タグ一覧' } },
-  },
-  {
-    id: 'notice_2026_09_05_title',
-    title: '称号機能のお知らせ！',
-    body:
-      '・遊んでいると「称号」を獲得できることがあります\n' +
-      '「称号一覧」で持っている称号を確認\n' +
-      '「称号装備 ○○」で好きな称号を装備\n' +
-      '「称号確認」で今装備している称号を確認できます',
-    highlightWord: '称号',
-    button: { label: '称号一覧を見る', action: { type: 'message', label: '称号一覧を見る', text: '称号一覧' } },
+      '・新しいゲームが2つ遊べるようになりました\n' +
+      '「パズル」…同じもちをくっつけて育てるパズル\n' +
+      '「サバイバル」…倒れるまでスコアに挑戦\n' +
+      '・LINEの中でそのまま遊べます\n' +
+      '・「ランキング」で順位を確認できます',
+    highlightWord: 'ゲーム',
+    button: {
+      label: 'ゲームで遊ぶ',
+      action: { type: 'message', label: 'ゲームで遊ぶ', text: 'パズル' },
+    },
   },
 ]
 
