@@ -289,7 +289,13 @@ function card(
   }
 }
 
-const num = (n: number) => n.toLocaleString('ja-JP')
+const num = (n: number) => Math.floor(n).toLocaleString('ja-JP')
+
+/** 秒を 0:00 形式にする(生存時間の表示用) */
+const mmss = (sec: number) => {
+  const s = Math.max(0, Math.floor(sec))
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+}
 
 /**
  * 「ランキング」コマンドの返信。
@@ -338,9 +344,15 @@ export async function buildRankingCarousel(
     mochiRows =
       top.length > 0
         ? top.map((r, i) =>
-            row(i + 1, r.display_name ?? '名前なし', `best: ${num(r.best_score)}`, r.picture_url)
+            // パズルも同じ理由で「best:」をやめ、単位つきにする。
+            row(
+              i + 1,
+              r.display_name ?? '名前なし',
+              `${num(r.best_score)} 点 ・ ${num(r.best_merges)} 回合体`,
+              r.picture_url
+            )
           )
-        : [emptyRow('まだ記録がありません\n「ヘルプ」→ゲームから遊べます')]
+        : [emptyRow('まだ記録がありません\n「パズル」で遊べます')]
 
     const countRow = await env.DB.prepare(
       `SELECT COUNT(*) AS c FROM mochi_scores WHERE best_score > 0`
@@ -367,7 +379,14 @@ export async function buildRankingCarousel(
     survRows =
       top.length > 0
         ? top.map((r, i) =>
-            row(i + 1, r.display_name ?? '名前なし', `best: ${num(r.best_score)}`, r.picture_url)
+            // 「best: 10」だと単位が無く、"ベスト10位" にも読めてしまう。
+            // ゲーム内の表記(pt)に合わせ、生存時間も添えて何の数字か分かるようにする。
+            row(
+              i + 1,
+              r.display_name ?? '名前なし',
+              `${num(r.best_score)} pt ・ ${mmss(r.best_seconds)} 生存`,
+              r.picture_url
+            )
           )
         : [emptyRow('まだ記録がありません\n「サバイバル」で遊べます')]
 
