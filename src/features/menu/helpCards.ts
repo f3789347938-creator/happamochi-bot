@@ -228,10 +228,10 @@ function welcomeCard(siteUrl: string): Record<string, any> {
     panel([
       {
         type: 'image',
-        // イラストは public/static/happamochi.png。
+        // イラストは public/static/happamochi.jpg。
         // image に width は付けない(LINEに存在しないプロパティ。
         // 過去にチェスでこれを付けてHTTP 400になり実機が無反応になった)
-        url: `${siteUrl}/static/happamochi.png`,
+        url: `${siteUrl}/static/happamochi.jpg`,
         size: 'full',
         aspectRatio: '1:1',
         aspectMode: 'fit',

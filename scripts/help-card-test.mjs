@@ -93,7 +93,7 @@ async function main() {
     const imgs = nodes(cards[0]).filter((x) => x.type === 'image')
     ok(imgs.length === 1, '1枚目にイラストが1つある', `個数=${imgs.length}`)
     ok(
-      imgs[0]?.url?.endsWith('/static/happamochi.png'),
+      imgs[0]?.url?.endsWith('/static/happamochi.jpg'),
       'イラストが葉っぱもちの画像',
       `${imgs[0]?.url}`
     )
@@ -239,13 +239,17 @@ async function main() {
 
   console.log('\n=== 10. イラストが配信されている ===')
   {
-    const res = await fetch(`${BASE}/static/happamochi.png`)
+    const res = await fetch(`${BASE}/static/happamochi.jpg`)
     ok(res.status === 200, 'イラストが200で返る', `status=${res.status}`)
     ok(
-      (res.headers.get('content-type') ?? '').includes('image/png'),
-      'PNGとして配信されている',
+      (res.headers.get('content-type') ?? '').includes('image/jpeg'),
+      'JPEGとして配信されている',
       `${res.headers.get('content-type')}`
     )
+    // 画像が重いとカードの表示が遅れる。200KB以下に収まっていること。
+    // content-length は返らない場合があるので、実際に読んだバイト数で見る。
+    const len = (await res.arrayBuffer()).byteLength
+    ok(len > 0 && len < 200_000, `イラストが軽い (${Math.round(len / 1024)}KB)`)
   }
 
   console.log('\n=== 結果 ===')
