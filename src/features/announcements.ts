@@ -73,9 +73,11 @@ export const ANNOUNCEMENTS: AnnouncementContent[] = [
       '・LINEの中でそのまま遊べます\n' +
       '・「ランキング」で順位を確認できます',
     highlightWord: 'ゲーム',
+    // ゲームが2つあるのに「パズル」だけを送るボタンでは片方しか開けないので、
+    // 両方(と他のコマンド)をたどれるヘルプに送る。
     button: {
-      label: 'ゲームで遊ぶ',
-      action: { type: 'message', label: 'ゲームで遊ぶ', text: 'パズル' },
+      label: 'ヘルプで確認',
+      action: { type: 'message', label: 'ヘルプで確認', text: 'ヘルプ' },
     },
   },
 ]
