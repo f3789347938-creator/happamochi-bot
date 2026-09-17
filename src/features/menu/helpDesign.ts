@@ -61,5 +61,7 @@ export const HELP_DESIGN = {
     { label: 'ウェルカムオフ', desc: 'あいさつを止める' },
     { label: '取り消し通知オン', desc: '送信取消を知らせる（初期はオフ）' },
     { label: '取り消し通知オフ', desc: '知らせない' },
+    { label: 'りぷかく', desc: '自分への返信を確認' },
+    { label: 'めんかく', desc: '自分宛のメンションを確認' },
   ] as HelpCommand[],
 }

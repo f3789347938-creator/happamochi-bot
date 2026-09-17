@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "designHash": "9c2a3cd495325da8d3f6ca5ee624b48c6b9652703ac2469acf374306866455ac",
+  "designHash": "b1bffb9ddeef0636c652dbbc2d49d3e0938300883053d2bf0a1db21f03cad3de",
   "header": {
     "file": "header-e7d7e059623e.png",
     "width": 520,
@@ -164,6 +164,20 @@
       "label": "取り消し通知オフ",
       "desc": "知らせない",
       "file": "row-20-03c0442c5b3f.png",
+      "width": 520,
+      "height": 140
+    },
+    {
+      "label": "りぷかく",
+      "desc": "自分への返信を確認",
+      "file": "row-21-f0c46c7d0403.png",
+      "width": 520,
+      "height": 140
+    },
+    {
+      "label": "めんかく",
+      "desc": "自分宛のメンションを確認",
+      "file": "row-22-b75b7418c321.png",
       "width": 520,
       "height": 140
     }

@@ -15,6 +15,7 @@ const expectedPages = [
   ['パズル', 'サバイバル', 'オセロ', 'オセロ参加', 'オセロ戦績'],
   ['チェス', '盤面', 'めいく 装飾', 'めいく:本文', '返信して めいく'],
   ['めいく bold虹7:文', 'ウェルカムオン', 'ウェルカムオフ', '取り消し通知オン', '取り消し通知オフ'],
+  ['りぷかく', 'めんかく'],
 ]
 
 let pass = 0
@@ -72,7 +73,7 @@ async function main() {
   ok(manifest.version === 1, '画像一覧の形式が version 1')
   ok(/^[a-f0-9]{64}$/.test(manifest.designHash ?? ''), '描画元を識別する SHA-256 がある')
   ok(HELP_DESIGN.perCard === 5, '1ページ5項目の指定を維持')
-  ok(same(HELP_DESIGN.commands.map((c) => c.label), expectedPages.flat()), '20コマンドの掲載順を維持')
+  ok(same(HELP_DESIGN.commands.map((c) => c.label), expectedPages.flat()), '既存20項目の後に新しい2コマンドを掲載')
   ok(same(manifest.rows.map(commandData), HELP_DESIGN.commands.map(commandData)), '全行の画像とコマンド定義が一致')
   ok(HELP_DESIGN.coverTitle === 'ヘルプ' && HELP_DESIGN.commandTitle === 'コマンド一覧', '表紙と一覧の見出しを維持')
   ok(HELP_DESIGN.welcomeTitle === '葉っぱもちへようこそ', '「葉っぱもちへようこそ」を維持')
@@ -87,13 +88,13 @@ async function main() {
     ok(!manifest.rows.some((row) => row.label === excluded), `「${excluded}」を掲載していない`)
   }
 
-  console.log('\n=== 2. 表紙1枚 + 一覧4枚のFlex ===')
+  console.log('\n=== 2. 表紙1枚 + 一覧5枚のFlex ===')
   const r = await simulate('ヘルプ')
   const msg = r.would_reply_with?.[0]
   ok(msg?.type === 'flex', 'Flexで返る')
   ok(msg?.contents?.type === 'carousel', '横スワイプのカルーセルで返る')
   const cards = msg?.contents?.contents ?? []
-  ok(cards.length === 5, '表紙1枚 + 一覧4枚')
+  ok(cards.length === 6, '表紙1枚 + 一覧5枚')
   ok(cards.length <= 12, 'カルーセルの上限12枚以内')
   ok(cards.every((card) => card.size === 'kilo'), '全カードの幅が kilo')
   ok(typeof msg?.altText === 'string' && msg.altText.length > 0, '通知に表示する代替テキストがある')
@@ -111,13 +112,16 @@ async function main() {
     ok(zero(card.footer?.paddingAll) && footer.length === 1 && footer[0]?.type === 'image', `${index + 1}枚目のフッターは余白なしの画像1枚`)
     ok(pathOf(footer[0]) === assetPath(manifest.footer), `${index + 1}枚目は共通フッターを使用`)
     ok(!nodes(card).some((node) => node.type === 'filler' || node.type === 'spacer'), `${index + 1}枚目に余白を伸ばす filler がない`)
-    if (index > 0) ok(body.length - 1 === 5, `${index + 1}枚目は見出し + 5コマンド`)
+    if (index > 0) {
+      const count = expectedPages[index - 1]?.length
+      ok(body.length - 1 === count, `${index + 1}枚目は見出し + ${count}コマンド`)
+    }
   })
 
   console.log('\n=== 3. 画像のタップと既存コマンドの対応 ===')
   const rowImages = cards.slice(1).flatMap((card) => (card.body?.contents ?? []).slice(1))
   const msgActions = actions(msg?.contents).filter((action) => action.type === 'message')
-  ok(msgActions.length === 17, '押せるコマンドは従来どおり17個')
+  ok(msgActions.length === 19, '押せるコマンドは新しい2項目を含む19個')
   ok(actions(msg?.contents).every((action) => action.type !== 'postback'), 'コマンドは発言として送る message アクション')
   ok(new Set(msgActions.map((action) => action.text)).size === msgActions.length, '送信コマンドに重複がない')
   manifest.rows.forEach((row, index) => {
@@ -125,7 +129,7 @@ async function main() {
     if (row.noAction) {
       ok(action === undefined, `「${row.label}」は入力が必要なため説明のみ`)
     } else {
-      ok(same(action, { type: 'message', label: row.label, text: row.send ?? row.label }), `「${row.label}」は従来のコマンドを送る`)
+      ok(same(action, { type: 'message', label: row.label, text: row.send ?? row.label }), `「${row.label}」は対応するコマンドを送る`)
     }
   })
   ok(same(manifest.rows.filter((row) => row.noAction).map((row) => row.label), ['めいく:本文', '返信して めいく', 'めいく bold虹7:文']), '説明のみの3項目を維持')
@@ -133,7 +137,7 @@ async function main() {
   ok(uris.length === 1 && uris[0]?.label === '公式サイトを見る', '表紙に公式サイトのリンクが1つある')
   ok(uris[0]?.uri?.startsWith('https://'), '公式サイトのリンクは https')
   ok(cards[0]?.body?.contents?.[1]?.action === uris[0], '公式サイトの画像そのものをタップできる')
-  ok(actions(msg?.contents).length === 18, '見出しやフッターに余計な操作がない')
+  ok(actions(msg?.contents).length === 20, '見出しやフッターに余計な操作がない')
 
   console.log('\n=== 4. 既存コマンド・メニューの回帰 ===')
   for (const command of msgActions) {
@@ -151,7 +155,7 @@ async function main() {
   const assets = [manifest.header, manifest.cover, manifest.cta, manifest.footer, ...manifest.rows]
   const assetsByPath = new Map(assets.map((asset) => [assetPath(asset), asset]))
   const allImages = images(msg?.contents)
-  ok(assetsByPath.size === 24, '描画済みの24素材をすべて識別できる')
+  ok(assetsByPath.size === 26, '描画済みの26素材をすべて識別できる')
   ok(allImages.every((im) => im.url?.startsWith('https://')), '画像URLはすべて https')
   ok(allImages.every((im) => im.width === undefined && im.height === undefined), 'Flex image に未対応の width / height を指定していない')
   ok(allImages.every((im) => im.size === 'full' && im.aspectMode === 'fit'), 'すべての画像は全幅・縦横比維持で表示')
@@ -162,7 +166,9 @@ async function main() {
   }), '全画像の aspectRatio が実素材の寸法と一致')
   const normalizedHeight = (list) => list.reduce((sum, asset) => sum + asset.height / asset.width, 0)
   const heights = expectedBodies.map((body) => normalizedHeight([...body, manifest.footer]))
-  ok(Math.max(...heights) - Math.min(...heights) < 0.000001, '全5枚は画像の高さ合計が一致し、余白による高さ合わせが不要')
+  const fullHeights = heights.slice(0, -1)
+  ok(Math.max(...fullHeights) - Math.min(...fullHeights) < 0.000001, '表紙と5項目の一覧は画像の高さ合計が一致')
+  ok(Math.abs(heights[0] - heights.at(-1) - 3 * HELP_DESIGN.rowHeight / HELP_DESIGN.width) < 0.000001, '最後の2項目は行を引き伸ばさず、3行分の余白を許容')
   ok(assets.every((asset) => asset.width > 0 && asset.width <= 1024 && asset.height > 0 && asset.height <= 1024), '各画像が1024px以内')
   ok(assets.every((asset) => asset.height <= asset.width * 3), '画像の縦横比がFlexの範囲内')
   ok(Buffer.byteLength(JSON.stringify(msg?.contents)) < 30000, 'Flex全体が従来の30KB予算以内')
