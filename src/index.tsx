@@ -13,6 +13,7 @@ import {
 import { handleUnsend } from './features/unsend'
 import { cacheGroupMessage, touchGroupMember, ensureGroupMetadata, markGroupLeft, getGroupMessage } from './features/groupTracking'
 import { recordMentions, getRecentMentions, pruneOldMentions, buildMentionMessages } from './features/mentions'
+import { recordReply, getRecentReplies, pruneOldReplies, buildReplyMessages } from './features/replies'
 import { buildWelcomeMessages } from './features/welcome'
 import { registerBirthday, unregisterBirthday, checkAndQueueBirthdays } from './features/birthday'
 // 運勢機能は廃止したため features/fortune.ts の import は無い。
@@ -854,6 +855,61 @@ app.post('/debug/chess', async (c) => {
 
 // 個人ステータス機能のテスト用エンドポイント。
 // 読み取りは誰でも、書き込み(reset)はテスト用IDのみ。
+// テスト用: リプライ記録の確認・操作。本番の挙動には関与しない。
+app.post('/debug/replies', async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as {
+    op?: string
+    target?: string
+    group?: string
+    prefix?: string
+    limit?: number
+    days?: number
+  }
+
+  if (body.op === 'reset') {
+    await c.env.DB.prepare(`DELETE FROM replies WHERE target_id LIKE ? OR sender_id LIKE ?`)
+      .bind(`${body.prefix ?? 'Urp_test_'}%`, `${body.prefix ?? 'Urp_test_'}%`)
+      .run()
+    await c.env.DB.prepare(`DELETE FROM group_messages WHERE user_id LIKE ?`)
+      .bind(`${body.prefix ?? 'Urp_test_'}%`)
+      .run()
+    return c.json({ ok: true })
+  }
+
+  if (body.op === 'list') {
+    const { results } = await c.env.DB.prepare(
+      `SELECT sender_id, sender_name, message_id, message_text, quote_token, created_at
+         FROM replies
+        WHERE target_id = ? AND group_id = ?
+        ORDER BY created_at DESC, id DESC
+        LIMIT ?`
+    )
+      .bind(body.target ?? '', body.group ?? '', body.limit ?? 50)
+      .all()
+    return c.json({ rows: results ?? [] })
+  }
+
+  if (body.op === 'count') {
+    const row = await c.env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM replies WHERE target_id LIKE ?`
+    )
+      .bind(`${body.prefix ?? 'Urp_test_'}%`)
+      .first<{ n: number }>()
+    return c.json({ count: row?.n ?? 0 })
+  }
+
+  if (body.op === 'age') {
+    await c.env.DB.prepare(
+      `UPDATE replies SET created_at = datetime('now', ?) WHERE target_id = ?`
+    )
+      .bind(`-${body.days ?? 8} days`, body.target ?? '')
+      .run()
+    return c.json({ ok: true })
+  }
+
+  return c.json({ error: 'unknown op' }, 400)
+})
+
 // テスト用: メンション記録の確認・操作。本番の挙動には関与しない。
 app.post('/debug/mentions', async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as {
@@ -1428,6 +1484,15 @@ async function handleMessageEvent(env: Bindings, event: any, baseUrl: string) {
       }
     }
 
+    // 「りぷかく」用のリプライ記録(追加機能)。
+    // cacheGroupMessage より必ず前に実行する: 返信元を group_messages から
+    // 引くため、この発言自身が入る前でないと自己参照する余地が出る。
+    try {
+      await recordReply(env, groupId, userId, displayName, message)
+    } catch {
+      /* リプライ記録の失敗は既存機能に影響させない */
+    }
+
     if (message.type === 'text') {
       await cacheGroupMessage(env, groupId, message.id, userId, displayName, pictureUrl, message.text)
     }
@@ -1780,6 +1845,20 @@ async function routeCommand(env: Bindings, ctx: CommandCtx): Promise<LineMessage
       return buildMentionMessages(rows)
     } catch {
       return [{ type: 'text', text: 'メンションの確認に失敗しました。' }]
+    }
+  }
+
+  // 「りぷかく」= リプライ確認。
+  // 自分の発言に返信された分を、引用付きで最大4件返す。
+  // 「めんかく」が @メンション、こちらが引用返信を見る。
+  if (text === 'りぷかく' && ctx.isGroup && ctx.groupId && ctx.userId) {
+    try {
+      // cronが無いので、コマンドのついでに保持期間(7日)超過分を掃除する。
+      await pruneOldReplies(env)
+      const rows = await getRecentReplies(env, ctx.groupId, ctx.userId)
+      return buildReplyMessages(rows)
+    } catch {
+      return [{ type: 'text', text: 'リプライの確認に失敗しました。' }]
     }
   }
 
