@@ -12,6 +12,7 @@ import {
 } from './lib/line'
 import { handleUnsend } from './features/unsend'
 import { cacheGroupMessage, touchGroupMember, ensureGroupMetadata, markGroupLeft, getGroupMessage } from './features/groupTracking'
+import { recordMentions, getRecentMentions, pruneOldMentions, buildMentionMessages } from './features/mentions'
 import { buildWelcomeMessages } from './features/welcome'
 import { registerBirthday, unregisterBirthday, checkAndQueueBirthdays } from './features/birthday'
 // 運勢機能は廃止したため features/fortune.ts の import は無い。
@@ -853,6 +854,59 @@ app.post('/debug/chess', async (c) => {
 
 // 個人ステータス機能のテスト用エンドポイント。
 // 読み取りは誰でも、書き込み(reset)はテスト用IDのみ。
+// テスト用: メンション記録の確認・操作。本番の挙動には関与しない。
+app.post('/debug/mentions', async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as {
+    op?: string
+    target?: string
+    group?: string
+    prefix?: string
+    limit?: number
+    days?: number
+  }
+
+  if (body.op === 'reset') {
+    await c.env.DB.prepare(`DELETE FROM mentions WHERE target_id LIKE ? OR sender_id LIKE ?`)
+      .bind(`${body.prefix ?? 'Umn_test_'}%`, `${body.prefix ?? 'Umn_test_'}%`)
+      .run()
+    return c.json({ ok: true })
+  }
+
+  if (body.op === 'list') {
+    const { results } = await c.env.DB.prepare(
+      `SELECT sender_id, sender_name, message_id, message_text, quote_token, created_at
+         FROM mentions
+        WHERE target_id = ? AND group_id = ?
+        ORDER BY created_at DESC, id DESC
+        LIMIT ?`
+    )
+      .bind(body.target ?? '', body.group ?? '', body.limit ?? 50)
+      .all()
+    return c.json({ rows: results ?? [] })
+  }
+
+  if (body.op === 'count') {
+    const row = await c.env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM mentions WHERE target_id LIKE ?`
+    )
+      .bind(`${body.prefix ?? 'Umn_test_'}%`)
+      .first<{ n: number }>()
+    return c.json({ count: row?.n ?? 0 })
+  }
+
+  // 記録を指定日数ぶん過去にずらす(保持期間のテスト用)
+  if (body.op === 'age') {
+    await c.env.DB.prepare(
+      `UPDATE mentions SET created_at = datetime('now', ? ) WHERE target_id = ?`
+    )
+      .bind(`-${body.days ?? 8} days`, body.target ?? '')
+      .run()
+    return c.json({ ok: true })
+  }
+
+  return c.json({ error: 'unknown op' }, 400)
+})
+
 app.post('/debug/profile', async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as {
     op?: string
@@ -1364,6 +1418,16 @@ async function handleMessageEvent(env: Bindings, event: any, baseUrl: string) {
       /* ranking の集計失敗は既存機能に影響させない */
     }
 
+    // 「めんかく」用のメンション記録(追加機能)。
+    // 内部で例外を飲むが、念のためここでも囲って本体を止めないようにする。
+    if (message.type === 'text') {
+      try {
+        await recordMentions(env, groupId, userId, displayName, message)
+      } catch {
+        /* メンション記録の失敗は既存機能に影響させない */
+      }
+    }
+
     if (message.type === 'text') {
       await cacheGroupMessage(env, groupId, message.id, userId, displayName, pictureUrl, message.text)
     }
@@ -1699,6 +1763,23 @@ async function routeCommand(env: Bindings, ctx: CommandCtx): Promise<LineMessage
       } catch {
         return [{ type: 'text', text: 'ランキングの取得に失敗しました。' }]
       }
+    }
+  }
+
+  // 「めんかく」= メンション確認。
+  // 自分がメンションされたメッセージを、引用(リプライ)付きで最大4件返す。
+  //
+  // 最大4件なのはLINEの制約が理由: 応答メッセージは1回に5通までで、
+  // 案内文1通を足すとちょうど5通になる。
+  // quoteToken はそのトーク内でしか使えないので、必ず同じグループで絞る。
+  if (text === 'めんかく' && ctx.isGroup && ctx.groupId && ctx.userId) {
+    try {
+      // cronが無いので、コマンドのついでに保持期間(7日)超過分を掃除する。
+      await pruneOldMentions(env)
+      const rows = await getRecentMentions(env, ctx.groupId, ctx.userId)
+      return buildMentionMessages(rows)
+    } catch {
+      return [{ type: 'text', text: 'メンションの確認に失敗しました。' }]
     }
   }
 

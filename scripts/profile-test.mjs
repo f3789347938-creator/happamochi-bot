@@ -267,6 +267,7 @@ async function main() {
   ok(after === b1, 'eventIdが無くても同じmessage.idは1回だけ', `${b1}→${after}`)
 
   // 別グループの発言は同じ人に合算される(人単位)
+  await wait(5200) // 直前の加算から5秒明けないとクールダウンで加算されない
   const before2 = (await get(A)).profile.total_exp
   await post([msg('別グループ', { group: G2 })])
   after = (await get(A)).profile.total_exp
