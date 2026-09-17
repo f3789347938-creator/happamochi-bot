@@ -24,6 +24,7 @@ function ok(cond, label, extra = '') {
 }
 
 let seq = 0
+const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 function sign(body) {
   return crypto.createHmac('sha256', SECRET).update(body).digest('base64')
 }
@@ -105,78 +106,124 @@ async function main() {
   ok(p?.equipped_title === null, '共通称号の初期値は未設定')
   ok(!!p?.public_id && !p.public_id.includes('Upf_test'), '公開用IDがLINEのIDと別物')
 
-  // 中身の違う10通は10増える(回数・時間による獲得制限は無い)
+  // 中身が違っても、クールダウン中の連投は加算されない
+  // (1通の処理に1秒強かかる環境なので、経過時間から上限を出して判定する)
+  const t1 = Date.now()
   for (let i = 0; i < 9; i++) await post([msg(`連投${i}`)])
+  const el1 = (Date.now() - t1) / 1000
   p = (await get(A)).profile
-  ok(p.total_exp === 10, '中身が違えば10通で10EXP(回数制限なし)', `exp=${p.total_exp}`)
-  ok(p.points === 10, 'ポイントも10', `points=${p.points}`)
+  ok(
+    p.total_exp <= 1 + Math.floor(el1 / 5) && p.total_exp < 10,
+    `中身が違っても連投は間引かれる(10通→${p.total_exp}EXP)`,
+    `exp=${p.total_exp} 経過=${el1.toFixed(1)}s`
+  )
+  ok(p.points === p.total_exp, 'ポイントもEXPと同数', `points=${p.points}`)
 
-  // メッセージ種別で除外しない
+  // クールダウンが明ければ加算される
+  const base1 = p.total_exp
+  await wait(5200)
+  await post([msg('クールダウン後')])
+  p = (await get(A)).profile
+  ok(p.total_exp === base1 + 1, '5秒経てば再び加算される', `${base1}→${p.total_exp}`)
+
+  // メッセージ種別で除外しない(それぞれクールダウンを明けて送る)
+  await wait(5200)
   const stamp = msg('x')
   stamp.message = { id: String(Date.now() + ++seq), type: 'sticker', packageId: '1', stickerId: '1' }
   await post([stamp])
+  await wait(5200)
   const img = msg('y')
   img.message = { id: String(Date.now() + ++seq), type: 'image' }
   await post([img])
+  await wait(5200)
   await post([msg('ヘルプ')]) // コマンドも加算対象
   p = (await get(A)).profile
-  ok(p.total_exp === 13, 'スタンプ・画像・コマンドも加算される', `exp=${p.total_exp}`)
+  ok(p.total_exp === base1 + 4, 'スタンプ・画像・コマンドも加算される', `exp=${p.total_exp}`)
 
   // 個人トークも対象
+  await wait(5200)
   await post([msg('個人トーク', { group: null })])
   p = (await get(A)).profile
-  ok(p.total_exp === 14, '個人トークも加算対象', `exp=${p.total_exp}`)
+  ok(p.total_exp === base1 + 5, '個人トークも加算対象', `exp=${p.total_exp}`)
 
   // =====================================================================
-  console.log('\n=== 1-b. 連呼対策(直前と同じ本文は加算しない) ===')
+  console.log('\n=== 1-b. 連呼対策(5秒クールダウン + 同一本文) ===')
   {
+    // 実際の手口: 「あ」+改行+ランダムな数字。毎回本文が違う。
+    // C案(同一本文)では無力だったが、クールダウンなら止まる。
+    //
+    // 注意: このテスト環境では1通の処理に1秒強かかるため、10通を
+    // 送り切るのに十数秒かかる。よって「10通で1EXP」にはならず、
+    // 経過時間 ÷ 5秒 の回数だけ通る。実測の経過時間から期待値を出す。
     const U = 'Upf_test_rep1'
     const me = (t, o = {}) => msg(t, { ...o, user: U })
-    // 同じ本文を5連投 → 1回だけ
-    for (let i = 0; i < 5; i++) await post([me('あ')])
+    const t0 = Date.now()
+    for (const n of [463, 472, 157, 258, 283, 973, 86, 850, 428, 492]) {
+      await post([me(`あ\n${n}`)])
+    }
+    const elapsedSec = (Date.now() - t0) / 1000
+    // 5秒ごとに1回しか通らないので、上限は 1 + floor(経過秒 / 5)
+    const maxAllowed = 1 + Math.floor(elapsedSec / 5)
     let q = (await get(U)).profile
-    ok(q.total_exp === 1, '同じ本文5連投で1EXPだけ', `exp=${q.total_exp}`)
-    ok(q.points === 1, 'ポイントも1だけ', `points=${q.points}`)
+    ok(
+      q.total_exp <= maxAllowed && q.total_exp < 10,
+      `10通の連投が5秒クールダウンで間引かれる(10通→${q.total_exp}EXP)`,
+      `exp=${q.total_exp} 上限=${maxAllowed} 経過=${elapsedSec.toFixed(1)}s`
+    )
+    ok(q.points === q.total_exp, 'ポイントもEXPと同数', `points=${q.points}`)
 
-    // 違う本文を挟めば加算される
-    await post([me('い')])
+    // ここから先はタイミングに依存しない形で確認する。
+    // まず5秒明けて1通通し(=直前の加算時刻をここに確定させる)、
+    // その直後に送った分が止まることを見る。
+    await wait(5200)
+    await post([me('あ\n777')])
+    const base = (await get(U)).profile.total_exp
+    // 直後(5秒以内)に送る → 加算されない
+    await post([me('あ\n778')])
     q = (await get(U)).profile
-    ok(q.total_exp === 2, '違う本文なら加算される', `exp=${q.total_exp}`)
+    ok(q.total_exp === base, 'クールダウン中の追加送信は加算されない', `${base}→${q.total_exp}`)
 
-    // 交互(あ→い→あ)は連続でないので全部加算
-    await post([me('あ')])
+    // 5秒明ければ1つ通る
+    await wait(5200)
+    await post([me('あ\n999')])
     q = (await get(U)).profile
-    ok(q.total_exp === 3, '「あ→い→あ」は直前と違うので加算される', `exp=${q.total_exp}`)
-
-    // 前後の空白だけの違いは同一扱い
-    await post([me('  あ  ')])
-    q = (await get(U)).profile
-    ok(q.total_exp === 3, '前後の空白だけの違いは同じ本文とみなす', `exp=${q.total_exp}`)
-
-    // 1文字でも違えば別物
-    await post([me('ああ')])
-    q = (await get(U)).profile
-    ok(q.total_exp === 4, '「あ」と「ああ」は別の本文として加算', `exp=${q.total_exp}`)
+    ok(q.total_exp === base + 1, '5秒明けたぶんは加算される', `${base}→${q.total_exp}`)
   }
 
   {
-    // スタンプ・画像は本文が無いので常に加算され、連呼判定もリセットする
+    // クールダウンは本文を見ないので、スタンプ連投にも効く
     const U = 'Upf_test_rep2'
     const me = (t, o = {}) => msg(t, { ...o, user: U })
+    const t2 = Date.now()
     await post([me('ほ')])
-    const st = me('x')
-    st.message = { id: String(Date.now() + ++seq), type: 'sticker', packageId: '1', stickerId: '1' }
-    await post([st])
-    const st2 = me('x')
-    st2.message = { id: String(Date.now() + ++seq), type: 'sticker', packageId: '1', stickerId: '1' }
-    await post([st2])
+    for (let i = 0; i < 3; i++) {
+      const st = me('x')
+      st.message = { id: String(Date.now() + ++seq), type: 'sticker', packageId: '1', stickerId: '1' }
+      await post([st])
+    }
+    const el2 = (Date.now() - t2) / 1000
     let q = (await get(U)).profile
-    ok(q.total_exp === 3, 'スタンプ連投は従来どおり加算される(本文が無いため)', `exp=${q.total_exp}`)
+    ok(
+      q.total_exp <= 1 + Math.floor(el2 / 5) && q.total_exp < 4,
+      `スタンプ連投もクールダウンで間引かれる(4通→${q.total_exp}EXP)`,
+      `exp=${q.total_exp} 経過=${el2.toFixed(1)}s`
+    )
+  }
 
-    // 「ほ」→スタンプ→「ほ」は連続扱いにしない
-    await post([me('ほ')])
+  {
+    // 同一本文の判定(C案)も引き続き効く: 5秒明けても同じ本文なら加算しない
+    const U = 'Upf_test_rep6'
+    const me = (t, o = {}) => msg(t, { ...o, user: U })
+    await post([me('あ')])
+    await wait(5200)
+    await post([me('あ')])
+    let q = (await get(U)).profile
+    ok(q.total_exp === 1, '5秒明けても直前と同じ本文なら加算しない', `exp=${q.total_exp}`)
+    // 違う本文なら加算される
+    await wait(5200)
+    await post([me('い')])
     q = (await get(U)).profile
-    ok(q.total_exp === 4, '間にスタンプが入れば同じ本文でも加算される', `exp=${q.total_exp}`)
+    ok(q.total_exp === 2, '5秒明けて違う本文なら加算される', `exp=${q.total_exp}`)
   }
 
   {
@@ -187,16 +234,16 @@ async function main() {
     await post([msg('おなじ', { user: U2 })])
     const q1 = (await get(U1)).profile
     const q2 = (await get(U2)).profile
-    ok(q1.total_exp === 1 && q2.total_exp === 1, '別人が同じ本文を送っても双方に加算される', `${q1.total_exp}/${q2.total_exp}`)
+    ok(q1.total_exp === 1 && q2.total_exp === 1, '別人が同時に送っても双方に加算される(クールダウンは人ごと)', `${q1.total_exp}/${q2.total_exp}`)
   }
 
   {
-    // グループをまたいでも人単位で連呼判定する
+    // グループを渡り歩いても回避できない(人単位のクールダウン)
     const U = 'Upf_test_rep5'
-    await post([msg('また', { user: U })])
-    await post([msg('また', { user: U, group: G2 })])
+    await post([msg('また1', { user: U })])
+    await post([msg('また2', { user: U, group: G2 })])
     const q = (await get(U)).profile
-    ok(q.total_exp === 1, '別グループでも同じ本文の連投は加算されない(人単位)', `exp=${q.total_exp}`)
+    ok(q.total_exp === 1, '別グループに移っても連投は加算されない(人単位)', `exp=${q.total_exp}`)
   }
 
   // =====================================================================
@@ -231,6 +278,7 @@ async function main() {
   ok(need(19) === 244, 'Lv.19→20 の必要EXPが244')
 
   await patch(A, { total_exp: 99 })
+  await wait(5200) // 直前の加算から5秒明けないとクールダウンで加算されない
   await post([msg('境界1')])
   p = (await get(A)).profile
   ok(p.total_exp === 100, '99→100EXP になる')

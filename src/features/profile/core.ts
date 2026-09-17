@@ -24,6 +24,10 @@ export function expForLevel(level: number): number {
 // ステータスを開いても同じ結果になり、日付が変わると変わる。
 export const FORTUNE_LABELS = ['大吉', '中吉', '小吉', '吉', '末吉'] as const
 
+// EXP/ポイントの連呼対策クールダウン(秒)。同じ人が前回加算から
+// この秒数の間に送った分は加算しない。本文を見ないので回避できない。
+export const EXP_COOLDOWN_SECONDS = 5
+
 function hashString(s: string): number {
   let h = 2166136261
   for (let i = 0; i < s.length; i++) {
@@ -192,10 +196,18 @@ export async function getProfileByPublicId(
  * 連呼対策(C案): 直前と同じ本文なら加算しない。
  *   ・「あ」「あ」→ 2通目は加算なし。「あ」「い」「あ」→ 全部加算。
  *   ・1日/時間あたりの獲得制限は付けない(方針どおり)。
- *   ・比較できるのはテキストだけなので、スタンプ・画像などは従来どおり
- *     常に加算し、直前本文の記録は消して連続扱いにしない。
+ *   ・比較できるのはテキストだけなので、スタンプ・画像などは
+ *     直前本文の記録を消して連続扱いにしない。
  *   ・前後の空白のみを揃えて比較する。大文字小文字や全角半角は
  *     区別したまま(むやみに同一視すると正当な発言まで落ちるため)。
+ *
+ * 連呼対策(A案): 前回加算から 5 秒間は加算しない。
+ *   ・本文を一切見ないので、「あ+改行+ランダムな数字」のように
+ *     毎回文面を変える手口でも回避できない(C案だけでは無力だった)。
+ *   ・粒度はユーザーごと。EXP 自体が人単位の累計値であり、
+ *     グループごとにすると複数グループを渡り歩いて無制限に稼げるため。
+ *   ・スタンプ・画像も対象(連投の手段になるため除外しない)。
+ *   ・回数や 1 日あたりの上限は付けない(方針どおり)。
  *
  * 失敗しても例外を投げない(既存のBot処理を止めないため)。
  * 戻り値はレベルアップしたときだけ新レベルを返す。
@@ -219,50 +231,59 @@ export async function addExpForMessage(
     // 既に処理済み = 二重加算しない
     if (!claimed.meta.changes) return { leveledUpTo: null }
 
-    // --- 連呼対策: 直前と同じ本文なら加算しない -------------------------
-    // テキスト以外は本文が無いので比較しない(= 必ず加算する)。
+    // --- 連呼対策 -------------------------------------------------------
+    // 前回加算時刻と直前本文を一度に読む。
+    const state = await env.DB.prepare(
+      `SELECT last_text,
+              CAST((julianday('now') - julianday(last_exp_at)) * 86400 AS REAL) AS elapsed
+         FROM exp_last_message WHERE user_id = ?`
+    )
+      .bind(userId)
+      .first<{ last_text: string | null; elapsed: number | null }>()
+
     const text = typeof messageText === 'string' ? messageText.trim() : null
-    if (text !== null && text.length > 0) {
-      const prev = await env.DB.prepare(
-        `SELECT last_text FROM exp_last_message WHERE user_id = ?`
-      )
-        .bind(userId)
-        .first<{ last_text: string | null }>()
+    const hasText = text !== null && text.length > 0
 
-      if (prev?.last_text !== null && prev?.last_text !== undefined && prev.last_text === text) {
-        // 直前と同じ本文 = 連呼。加算しないが、記録は最新に保つ。
-        await env.DB.prepare(
-          `INSERT INTO exp_last_message (user_id, last_text, updated_at)
-           VALUES (?, ?, datetime('now'))
-           ON CONFLICT(user_id) DO UPDATE SET
-             last_text = excluded.last_text, updated_at = datetime('now')`
-        )
-          .bind(userId, text)
-          .run()
-        return { leveledUpTo: null }
-      }
+    // (1) クールダウン: 前回加算から EXP_COOLDOWN_SECONDS 未満なら加算しない。
+    //     本文を一切見ないので、文字をいくら変えても回避できない。
+    //     last_exp_at が NULL(=旧データ・初回) のときは通す。
+    const inCooldown =
+      state?.elapsed !== null && state?.elapsed !== undefined && state.elapsed < EXP_COOLDOWN_SECONDS
 
-      // 別の本文 = 加算対象。直前本文を更新しておく。
+    // (2) 同一本文: 直前と同じ本文のテキストは加算しない。
+    const sameText = hasText && state?.last_text != null && state.last_text === text
+
+    // 記録の更新値。テキスト以外は本文で比較できないので NULL に戻し、
+    // 「あ」→スタンプ→「あ」が同一本文扱いにならないようにする。
+    const nextText = hasText ? text : null
+
+    if (inCooldown || sameText) {
+      // 加算しない。直前本文は最新に保つが、last_exp_at は更新しない。
+      // (ここで時刻を更新すると、連投し続ける限り永久に加算されなくなる)
       await env.DB.prepare(
         `INSERT INTO exp_last_message (user_id, last_text, updated_at)
          VALUES (?, ?, datetime('now'))
          ON CONFLICT(user_id) DO UPDATE SET
            last_text = excluded.last_text, updated_at = datetime('now')`
       )
-        .bind(userId, text)
+        .bind(userId, nextText)
         .run()
-    } else {
-      // スタンプ・画像など、本文で比較できないもの。
-      // 直前本文を消し、「あ」→スタンプ→「あ」が連呼扱いにならないようにする。
-      await env.DB.prepare(
-        `INSERT INTO exp_last_message (user_id, last_text, updated_at)
-         VALUES (?, NULL, datetime('now'))
-         ON CONFLICT(user_id) DO UPDATE SET
-           last_text = NULL, updated_at = datetime('now')`
-      )
-        .bind(userId)
-        .run()
+      return { leveledUpTo: null }
     }
+
+    // 加算対象。直前本文と加算時刻の両方を更新する。
+    // last_exp_at はミリ秒精度で持つ。datetime('now') は秒精度のため、
+    // 1秒未満の連投が秒境界をまたぐと取りこぼしが出る(実測で漏れた)。
+    await env.DB.prepare(
+      `INSERT INTO exp_last_message (user_id, last_text, last_exp_at, updated_at)
+       VALUES (?, ?, strftime('%Y-%m-%d %H:%M:%f','now'), datetime('now'))
+       ON CONFLICT(user_id) DO UPDATE SET
+         last_text = excluded.last_text,
+         last_exp_at = strftime('%Y-%m-%d %H:%M:%f','now'),
+         updated_at = datetime('now')`
+    )
+      .bind(userId, nextText)
+      .run()
 
     const before = await ensureProfile(env, userId, displayName, pictureUrl)
     const beforeLevel = levelFromTotalExp(before.total_exp).level
