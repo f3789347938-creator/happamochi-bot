@@ -1,6 +1,7 @@
 import type { LineEnv, LineMessage } from '../../lib/line'
 import type { ProfileCtx } from '../profile'
 import { ensureProfile } from '../profile/core'
+import { handleRankingIconPostback, handleRankingIconText } from '../rankingIcon'
 import { COSMETICS, DEFAULT_BACKGROUND, DEFAULT_COSTUME, getCosmetic } from './catalog'
 import {
   cancelGacha, createGachaConfirmation, drawGacha, equipCosmetic,
@@ -71,13 +72,15 @@ async function equip(env: LineEnv, ctx: ProfileCtx, itemId: string): Promise<Lin
   await ensureProfile(env, ctx.userId!, ctx.displayName, ctx.pictureUrl)
   const result = await equipCosmetic(env, ctx.userId!, itemId)
   if (!result.ok) return [failure(result.reason)]
-  return [text(`「${getCosmetic(itemId)?.name ?? itemId}」を装備しました。ステータスとランキングに反映されます。`), await wardrobe(env, ctx)]
+  return [text(`「${getCosmetic(itemId)?.name ?? itemId}」を装備しました。ステータスに反映されます。ランキングの画像は「ランキングアイコン」で設定できます。`), await wardrobe(env, ctx)]
 }
 
 export async function handleDressupText(
   env: LineEnv, ctx: ProfileCtx, raw: string
 ): Promise<LineMessage[] | null> {
   if (!ctx.userId) return null
+  const rankingIcon = await handleRankingIconText(env, ctx, raw)
+  if (rankingIcon) return rankingIcon
   const value = raw.trim()
   if (value === '着せ替え' || value === 'きせかえ') return [await wardrobe(env, ctx)]
   if (['ガチャ', '着せ替えガチャ', 'きせかえガチャ'].includes(value)) return [await confirmation(env, ctx)]
@@ -97,7 +100,10 @@ export async function handleDressupText(
 export async function handleDressupPostback(
   env: LineEnv, ctx: ProfileCtx, data: string
 ): Promise<LineMessage[] | null> {
-  if (!ctx.userId || !data.startsWith('pf|dress|')) return null
+  if (!ctx.userId) return null
+  const rankingIcon = await handleRankingIconPostback(env, ctx, data)
+  if (rankingIcon) return rankingIcon
+  if (!data.startsWith('pf|dress|')) return null
   const parts = data.split('|')
   const op = parts[2]
   if (op === 'home') return [await wardrobe(env, ctx)]

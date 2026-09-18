@@ -339,7 +339,7 @@ export async function handleProfilePostback(
   const op = parts[1] ?? ''
 
   try {
-    if (op === 'dress') return await handleDressupPostback(env, ctx, data)
+    if (op === 'dress' || op === 'rankicon') return await handleDressupPostback(env, ctx, data)
     if (op === 'status') return [await statusMessage(env, ctx)]
     if (op === 'themes') return [await themesMessage(env, ctx)]
     if (op === 'titles') return [await titleListMessage(env, ctx, 'all', null, '', 1)]

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "designHash": "2b88af751e792913dd1f7c89b5ac2629e408cd6d282a9d2373c7d052b1a35f59",
+  "designHash": "d9c996fd6f727cb2947428726b378f296d910f2327ce6e97244f70dffe56baaa",
   "header": {
     "file": "header-e7d7e059623e.png",
     "width": 520,
@@ -178,6 +178,13 @@
       "label": "めんかく",
       "desc": "自分宛のメンションを確認",
       "file": "row-22-b75b7418c321.png",
+      "width": 520,
+      "height": 140
+    },
+    {
+      "label": "設定",
+      "desc": "ランキングアイコンなどを変更",
+      "file": "row-23-6c44a34d7119.png",
       "width": 520,
       "height": 140
     }

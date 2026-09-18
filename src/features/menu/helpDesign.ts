@@ -63,5 +63,6 @@ export const HELP_DESIGN = {
     { label: '取り消し通知オフ', desc: '知らせない' },
     { label: 'りぷかく', desc: '自分への返信を確認' },
     { label: 'めんかく', desc: '自分宛のメンションを確認' },
+    { label: '設定', desc: 'ランキングアイコンなどを変更' },
   ] as HelpCommand[],
 }
