@@ -88,6 +88,7 @@ export function mainScreens(personalRankingUrl: string, siteUrl: string): Screen
         { label: 'ステータスを見る', data: runExisting('ステータス'), kind: 'primary' },
         { label: '着せ替え', data: runExisting('着せ替え'), kind: 'sub' },
         { label: '称号を選ぶ', data: runExisting('共通称号一覧'), kind: 'sub' },
+        { label: '設定', data: nav('P01'), kind: 'sub' },
       ],
     },
     {
@@ -443,6 +444,21 @@ export function screenR01(personalRankingUrl: string): ScreenDef {
   }
 }
 
+export const screenP01: ScreenDef = {
+  id: 'P01',
+  category: '個人',
+  title: '設定',
+  body: 'ランキングのアイコンや、もちの見た目を変更できます。',
+  rows: [{ label: 'ランキングアイコン', value: '初期設定はLINEプロフィール画像。ガチャで獲得した衣装にも変更できます。' }],
+  buttons: [
+    { label: 'ランキングアイコン', data: runExisting('ランキングアイコン'), kind: 'primary' },
+    { label: '着せ替え・ガチャ', data: runExisting('着せ替え'), kind: 'sub' },
+    { label: '称号を選ぶ', data: runExisting('共通称号一覧'), kind: 'sub' },
+    { label: 'グループ設定', data: nav('C01'), kind: 'sub' },
+    BACK('M02'),
+  ],
+}
+
 // === グループ設定 C01〜C05 ===============================================
 export function screenC01(unsend: string, welcome: string): ScreenDef {
   return {
@@ -456,6 +472,7 @@ export function screenC01(unsend: string, welcome: string): ScreenDef {
       { label: '変更できる人', value: '今のBotの決まりのまま（グループの参加者）' },
     ],
     buttons: [
+      { label: 'ランキングアイコン', data: runExisting('ランキングアイコン'), kind: 'sub' },
       { label: '取り消し通知', data: nav('C03'), kind: 'primary' },
       { label: 'ウェルカム', data: nav('C04'), kind: 'sub' },
       { label: 'タグ管理', data: nav('Q07'), kind: 'sub' },

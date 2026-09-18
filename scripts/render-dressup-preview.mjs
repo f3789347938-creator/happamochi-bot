@@ -1,7 +1,8 @@
 // Offline visual QA of the actual Flex builders. This approximates LINE layout;
 // the native LINE client remains the authority for final font/layout rendering.
 // --screenshot tries Chromium and falls back to offline Satori/resvg; --svg
-// directly uses the fallback. --default shows C000/BG000. --fixtures=FILE loads
+// directly uses the fallback. --ranking compares LINE default and gacha icons.
+// --default shows C000/BG000. --fixtures=FILE loads
 // a saved actual Flex fixture for baseline comparisons without rewriting it.
 import fs from 'node:fs'
 import path from 'node:path'
@@ -10,6 +11,7 @@ import { createRequire } from 'node:module'
 import { Resvg, initWasm } from '@resvg/resvg-wasm'
 
 const root = path.resolve(import.meta.dirname, '..')
+const rankingOnly = process.argv.includes('--ranking')
 const baseUrl = process.env.DRESSUP_PREVIEW_BASE || 'https://line-group-bbs.pages.dev'
 const output = path.resolve(process.argv.slice(2).find(arg => !arg.startsWith('--')) || path.join(root, 'samples/dressup'))
 fs.mkdirSync(output, { recursive: true })
@@ -23,7 +25,7 @@ const db = new DatabaseSync(':memory:')
 for (const f of fs.readdirSync(path.join(root, 'migrations')).filter(f => f.endsWith('.sql')).sort()) db.exec(fs.readFileSync(path.join(root, 'migrations', f), 'utf8'))
 const names = ['こはく', 'なの', 'もちこ', 'しずく', 'まめ']
 for (const [i, name] of names.entries()) {
-  db.prepare('INSERT INTO user_profiles(user_id,public_id,display_name,total_exp,points) VALUES(?,?,?,?,?)').run(`preview-${i}`, `public-${i}`, name, [3840,3260,2980,2460,2180][i], 12500)
+  db.prepare('INSERT INTO user_profiles(user_id,public_id,display_name,picture_url,total_exp,points) VALUES(?,?,?,?,?,?)').run(`preview-${i}`, `public-${i}`, name, `https://profile-preview.example/${i}.png`, [3840,3260,2980,2460,2180][i], 12500)
   db.prepare('INSERT INTO dressup_appearances(user_id,costume_id,background_id) VALUES(?,?,?)').run(`preview-${i}`, ['C049','C001','C061','C050','C000'][i], ['BG004','BG001','BG007','BG012','BG000'][i])
 }
 const defaultArt = process.argv.includes('--default')
@@ -43,11 +45,25 @@ const status = api.buildStatusCard({
 const gacha = api.buildGachaConfirmation({baseUrl,points:15225,token:'00000000-0000-4000-8000-000000000000',remaining:150})
 const ranking = await api.buildRankingCarousel(env, baseUrl, 'preview-1')
 const fixtureArg = process.argv.find(arg => arg.startsWith('--fixtures='))
-const documents = fixtureArg ? JSON.parse(fs.readFileSync(fixtureArg.slice('--fixtures='.length), 'utf8')) : [{label:'ステータス',message:status},{label:'ランキング（累計EXP）',message:{...ranking,contents:ranking.contents.contents[0]}},{label:'きせかえガチャ',message:gacha}]
+const rankingDocuments = [{label:'初期設定 · LINEプロフィール画像',message:{...ranking,contents:ranking.contents.contents[0]}}]
+if (rankingOnly) {
+  db.prepare('INSERT INTO dressup_inventory(user_id,item_id) VALUES(?,?)').run('preview-1', 'C001')
+  db.prepare('INSERT INTO ranking_icons(user_id,costume_id) VALUES(?,?)').run('preview-1', 'C001')
+  const selected = await api.buildRankingCarousel(env, baseUrl, 'preview-1')
+  rankingDocuments.push({label:'設定変更後 · 2位のガチャ衣装アイコン',message:{...selected,contents:selected.contents.contents[0]}})
+}
+const documents = fixtureArg ? JSON.parse(fs.readFileSync(fixtureArg.slice('--fixtures='.length), 'utf8')) : rankingOnly ? rankingDocuments : [{label:'ステータス',message:status},{label:'ランキング（累計EXP）',message:{...ranking,contents:ranking.contents.contents[0]}},{label:'きせかえガチャ',message:gacha}]
 // Use local asset bytes: the visual check needs no server or external requests.
 await initWasm(fs.readFileSync(path.join(root, 'node_modules/@resvg/resvg-wasm/index_bg.wasm')))
 const inlinePng = filename => `data:image/png;base64,${fs.readFileSync(filename).toString('base64')}`
 const images = new Map()
+// Local illustrative profiles keep QA deterministic and require no LINE access.
+for (let i=0;i<names.length;i++) {
+  const colors = ['#73AAB8','#9C92B9','#A2AF8B','#C69B83','#819BBC']
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" fill="${colors[i]}"/><circle cx="48" cy="35" r="17" fill="#F8FAFF"/><path d="M14 96V87a34 34 0 0 1 68 0v9" fill="#F8FAFF"/></svg>`
+  const renderer = new Resvg(svg)
+  try { const rendered = renderer.render(); try { images.set(`https://profile-preview.example/${i}.png`, `data:image/png;base64,${Buffer.from(rendered.asPng()).toString('base64')}`) } finally { rendered.free() } } finally { renderer.free() }
+}
 function collectImages(node) {
   if (!node || typeof node !== 'object') return
   if (node.type === 'image' && !images.has(node.url)) {
@@ -115,7 +131,10 @@ function flexNode(n,ctx={}) {
     style.backgroundImage = 'linear-gradient('+(bg.angle ?? '180deg')+', '+bg.startColor+', '+(bg.centerColor ? bg.centerColor+' '+(bg.centerPosition ?? '50%')+', ' : '')+bg.endColor+')'
   }
   if (n.position === 'absolute') style.position = 'absolute'
-  for (const [from,to] of [['offsetTop','top'],['offsetBottom','bottom'],['offsetStart','left'],['offsetEnd','right']]) if (n[from] !== undefined) style[to] = scalar(n[from])
+  for (const [from,to] of [['offsetTop','top'],['offsetBottom','bottom'],['offsetStart','left'],['offsetEnd','right']]) if (n[from] !== undefined) {
+    style.position ??= 'relative'
+    style[to] = scalar(n[from])
+  }
   if (n.margin !== undefined) style[horizontal ? 'marginLeft' : 'marginTop'] = length(n.margin)
   if (n.gravity) style.alignSelf = align({top:'start',bottom:'end',center:'center'}[n.gravity] ?? n.gravity)
   if (n.type === 'box') {
@@ -191,11 +210,11 @@ function previewTree(selected) {
       el('div',{fontSize:12,lineHeight:1.3,fontWeight:700,marginBottom:10},doc.label+' · '+(bubbleWidths[doc.message.contents.size] ?? 300)+'px'),
       flexNode(doc.message.contents),
     ]))),
-    el('div',{fontSize:10,lineHeight:1.4,marginTop:18,color:'#61778A'},'QA用サンプル値・実装Flexから描画。累計EXPのまま。LINE実機とは文字組み等に差があります。'),
+    el('div',{fontSize:10,lineHeight:1.4,marginTop:18,color:'#61778A'},'実装Flexから描画。名前・数値・LINEプロフィール画像は確認用サンプルです。LINE実機とは文字組みに差があります。'),
   ])
 }
-const mainDocs=documents.filter(doc=>!doc.label.includes('ガチャ')).slice(0,2)
-const gachaDocs=documents.filter(doc=>doc.label.includes('ガチャ'))
+const mainDocs=(rankingOnly ? documents : documents.filter(doc=>!doc.label.includes('ガチャ'))).slice(0,2)
+const gachaDocs=rankingOnly ? [] : documents.filter(doc=>doc.label.includes('ガチャ'))
 const pages=[{name:'preview',tree:previewTree(mainDocs)},...(gachaDocs.length ? [{name:'gacha',tree:previewTree(gachaDocs)}] : [])]
 const fontCss='@font-face{font-family:Noto;src:url(data:font/ttf;base64,'+regular.toString('base64')+');font-weight:400}@font-face{font-family:Noto;src:url(data:font/ttf;base64,'+bold.toString('base64')+');font-weight:700}'
 for (const page of pages) {

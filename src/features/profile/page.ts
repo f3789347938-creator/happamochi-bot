@@ -8,7 +8,8 @@ import type { LineEnv } from '../../lib/line'
 import { escapeAttrPublic, renderWithLayout } from '../bbs'
 import { appearanceUrl } from '../dressup/art'
 import { getCosmetic } from '../dressup/catalog'
-import { getAppearance, getAppearanceByPublicIds } from '../dressup/store'
+import { getAppearance } from '../dressup/store'
+import { getRankingIconsByPublicIds, rankingIconUrl } from '../rankingIcon'
 import {
   countProfiles,
   dailyFortune,
@@ -46,18 +47,15 @@ export async function renderPersonalRankingPage(
   const pageCount = Math.max(1, Math.ceil(total / PER))
   const p = Math.min(Math.max(1, Math.floor(page) || 1), pageCount)
   const rows = await listRanking(env, PER, (p - 1) * PER)
-  // 着せ替えの移行前も、既存の累計ランキングはそのまま公開できる。
-  const appearances = await getAppearanceByPublicIds(env, rows.map((r) => r.public_id)).catch(
-    () => ({} as Record<string, { costumeId: string; backgroundId: string }>)
-  )
+  const icons = await getRankingIconsByPublicIds(env, rows.map((r) => r.public_id))
 
   const items = rows
     .map((r) => {
       const name = esc(r.display_name ?? '名前未設定')
-      const appearance = appearances[r.public_id]
-      const pictureUrl = appearance ? appearanceUrl(siteUrl, appearance) : r.picture_url
+      const icon = icons[r.public_id]
+      const pictureUrl = rankingIconUrl(siteUrl, icon, r.picture_url)
       const avatar = pictureUrl
-        ? `<img class="pf-rank-avatar" src="${esc(pictureUrl)}" alt="" width="48" height="48" loading="lazy">`
+        ? `<img class="pf-rank-avatar" style="object-fit:${icon?.costumeId ? 'contain' : 'cover'};border-radius:5px" src="${esc(pictureUrl)}" alt="" width="48" height="48" loading="lazy" referrerpolicy="no-referrer">`
         : `<span class="pf-rank-avatar pf-rank-avatar-none" aria-hidden="true">${esc(
             Array.from((r.display_name ?? '?').trim() || '?')[0] ?? '?'
           )}</span>`
@@ -102,6 +100,7 @@ export async function renderPersonalRankingPage(
       <li>次のレベルに必要なEXPは「100 + 8 ×（現在のレベル − 1）」です。</li>
       <li>同じ累計EXPの人は同じ順位になります（1位、2位、2位、4位…）。</li>
       <li>名前を押すと、その人の公開ステータスを見られます。</li>
+      <li>アイコンはLINEプロフィール画像が初期設定です。LINEで「設定」→「ランキングアイコン」から獲得済みの衣装に変更できます。</li>
       <li>公開しているのは、表示名・アイコン・衣装・背景・レベル・EXP・順位・称号・テーマ・運勢・ポイントです。</li>
       <li>会話の内容、参加しているグループ、誕生日の日付は公開していません。</li>
     </ul>

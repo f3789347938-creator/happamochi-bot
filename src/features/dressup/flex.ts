@@ -89,6 +89,7 @@ export function buildWardrobeCard(input: {
     ]),
     action(`きせかえガチャ ${number(GACHA_COST)} P`, 'pf|dress|gacha', true),
     text('衣装120種＋背景30種。未所持の中から1点、重複なしで入手できます。初期衣装・背景はいつでも無料で使えます。', { size: 'xxs', color: MUTED }),
+    action('ランキングアイコン設定', 'pf|rankicon|home'),
     row([action('カードテーマ', 'pf|themes'), action('ステータス', 'pf|status')]),
   ]))
 }
@@ -133,9 +134,10 @@ export function buildGachaResult(input: {
       text(input.item.name, { size: 'xl', weight: 'bold', align: 'center' }),
       text(`${input.item.kind === 'costume' ? '衣装' : '背景'} / ${input.item.category}`, { align: 'center', color: MUTED }),
       text(`消費 ${number(input.spent)} P ／ 残高 ${number(input.balance)} P`, { size: 'xs', align: 'center' }),
-      text('コレクションに追加しました。まだ装備は変更していません。', { size: 'xxs', color: MUTED, align: 'center' }),
+      text('コレクションに追加しました。衣装・ランキングアイコンは自分で設定できます。', { size: 'xxs', color: MUTED, align: 'center' }),
     ]),
     action('さっそく着せ替える', `pf|dress|equip|${input.item.id}`, true),
+    ...(input.item.kind === 'costume' ? [action('ランキングアイコンにする', `pf|rankicon|set|${input.item.id}`)] : []),
     row([action('もう一度（確認へ）', 'pf|dress|gacha'), action('着せ替えに戻る', 'pf|dress|home')]),
   ]))
 }
@@ -152,7 +154,7 @@ export function buildCosmeticPreview(input: {
       artwork(input.baseUrl, appearance),
       text(input.item.name, { size: 'lg', weight: 'bold', align: 'center' }),
       text('プレビューです。装備・ポイントは変更していません。', { size: 'xs', color: MUTED, align: 'center' }),
-      text(input.owned ? '「これを装備する」でステータスとランキングに反映されます。' : '未所持のアイテムです。ガチャで入手すると装備できます。', { size: 'xs', color: MUTED }),
+      text(input.owned ? '「これを装備する」でステータスに反映されます。ランキングアイコンは設定で変更できます。' : '未所持のアイテムです。ガチャで入手すると装備できます。', { size: 'xs', color: MUTED }),
     ]),
     input.owned ? action('これを装備する', `pf|dress|equip|${input.item.id}`, true) : action('ガチャの確認へ', 'pf|dress|gacha', true),
     row([

@@ -5,6 +5,7 @@
 // 使い回す。新しいCSSは足さない。
 import { renderWithLayout } from './bbs'
 import { getSurvivorRanking } from './survivor'
+import { getRankingIconsByUserIds, rankingIconUrl } from './rankingIcon'
 import type { LineEnv } from '../lib/line'
 
 const esc = (s: string) =>
@@ -31,13 +32,15 @@ export async function renderSurvivorRankingPage(env: LineEnv, siteUrl: string): 
     rows = []
   }
 
+  const icons = await getRankingIconsByUserIds(env, rows.map((r) => r.user_id))
   const items = rows
     .map((r, i) => {
       const rank = i + 1
       const name = esc(r.display_name ?? '名前なし')
-      const pic = r.picture_url && r.picture_url.startsWith('https://') ? r.picture_url : null
+      const icon = icons[r.user_id]
+      const pic = rankingIconUrl(siteUrl, icon, r.picture_url)
       const avatar = pic
-        ? `<img class="pf-rank-avatar" src="${esc(pic)}" alt="" width="48" height="48" loading="lazy" referrerpolicy="no-referrer">`
+        ? `<img class="pf-rank-avatar" style="object-fit:${icon?.costumeId ? 'contain' : 'cover'};border-radius:5px" src="${esc(pic)}" alt="" width="48" height="48" loading="lazy" referrerpolicy="no-referrer">`
         : `<span class="pf-rank-avatar pf-rank-avatar-none" aria-hidden="true">${esc(
             Array.from((r.display_name ?? '?').trim() || '?')[0] ?? '?'
           )}</span>`

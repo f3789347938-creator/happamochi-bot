@@ -36,6 +36,7 @@ import {
   screenQ07,
   screenQ08,
   screenR01,
+  screenP01,
   screenSelection,
   screenX,
   COLOR_TOKENS,
@@ -67,6 +68,7 @@ export interface MenuCtx {
 const SAFE_EXISTING_COMMANDS = new Set([
   'ステータス',
   '着せ替え',
+  'ランキングアイコン',
   '共通称号一覧',
   '共通称号確認',
   '称号一覧',
@@ -236,6 +238,8 @@ async function screenById(
   if (id === 'M' || MAIN_IDS.includes(id as any)) return [buildMainMenu(ctx)]
 
   switch (id) {
+    case 'P01':
+      return [card(screenP01)]
     case 'Q01':
       return [card(screenQ01(tokens), tokens)]
     case 'Q02':
@@ -378,6 +382,7 @@ export function handleMenuText(ctx: MenuCtx, raw: string): LineMessage[] | null 
   // 従来のカード型メニュー(buildMainMenu)は消していない。案内画面の
   // 「戻る」やPostback(hm|n|M)から今までどおり開ける。
   if (t === 'ヘルプ' || t.toLowerCase() === 'help') return [buildHelpCarousel(ctx.siteUrl)]
+  if (t === '設定' || t === '個人設定') return [card(screenP01)]
   return null
 }
 
