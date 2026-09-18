@@ -20,6 +20,13 @@ export function normalizedAppearance(input: Appearance): Appearance {
   }
 }
 
+/** The initial outfit uses the LINE profile card; either equipped item opts into artwork. */
+export function hasCustomAppearance(input?: Appearance | null): boolean {
+  if (!input) return false
+  const appearance = normalizedAppearance(input)
+  return appearance.costumeId !== DEFAULT_COSTUME.id || appearance.backgroundId !== DEFAULT_BACKGROUND.id
+}
+
 function origin(baseUrl: string): string {
   const url = new URL(baseUrl)
   if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error('Invalid asset origin')

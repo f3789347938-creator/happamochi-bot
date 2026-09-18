@@ -126,9 +126,15 @@ function compactHeight(bubble) {
   return height
 }
 
-// LINE stretches carousel body blocks to match the tallest adjacent body.
-// Personal ranking keeps its three visual sections inside one fixed header;
-// status and legacy game bubbles retain their ordinary top-level sections.
+function referenceHeight(bubble) {
+  assert.equal(bubble.size, 'mega', 'default status uses the 300px LINE-photo card')
+  assert.equal(bubble.header.height, '44px')
+  assert.equal(bubble.footer.height, '22px')
+  return [bubble.header, bubble.body, bubble.footer].reduce((sum, node) => sum + px(node.height), 0)
+}
+
+// Current cards use standard sections. Older compact fixtures can also contain
+// their three sections inside a fixed-height header.
 function compactSections(bubble) {
   if (bubble.body) return { header: bubble.header, body: bubble.body, footer: bubble.footer }
   assert.equal(bubble.footer, undefined)
@@ -176,25 +182,23 @@ function validateMessages(messages) {
   for (const user of users) assert.ok(!output.includes(user), 'no private LINE user IDs in replies or asset URLs')
 }
 
-test('status and wardrobe use catalog appearance while preserving card themes and cumulative EXP', async (t) => {
+test('default status uses the reference LINE-photo card while wardrobe and theme navigation remain read-only', async (t) => {
   const f = fixture(t)
   const before = f.snapshot()
   const status = await f.text('ステータス')
   const bubble = status[0].contents
-  assert.equal(compactHeight(bubble), 332)
-  const hero = images(bubble).find((image) => image.url.includes('/dressup-art/'))
-  assertArtworkUrl(hero, { costume: 'C000', background: 'BG000', view: 'status' })
-  assert.equal(hero.aspectRatio, '2:1', 'status uses the wide reference composition')
-  assert.equal(bubble.body.contents[0].height, '118px')
-  assert.equal(bubble.body.contents[1].layout, 'horizontal', 'name and title share one compact row')
-  assert.match(texts(bubble.body.contents[1]), /Alice/)
-  assert.ok(actions(bubble.body.contents[1]).some((action) => action.data === 'pf|titles'))
-  assert.deepEqual(actions(bubble).filter((action) => action.type === 'postback').map((action) => action.data).sort(), ['pf|dress|home', 'pf|titles'])
-  const visibleButtons = bubble.body.contents.filter((node) => node.action?.type === 'postback')
-  assert.equal(visibleButtons.length, 1, 'only one full-width button is visible on the status surface')
-  assert.equal(visibleButtons[0].action.data, 'pf|dress|home')
-  assert.equal(texts(bubble.footer), 'HappaMochi Bot')
-  assert.doesNotMatch(texts(bubble), /運勢|背景：|累計EXPランキング|きせかえガチャ|カードテーマ/)
+  assert.equal(referenceHeight(bubble), 278)
+  assert.deepEqual(images(bubble).map((image) => image.url), ['https://avatar.example/0.png'])
+  assert.ok(nodes(bubble).some((node) => node.type === 'box' && Number.parseFloat(node.cornerRadius) >= 50 && images(node).some((image) => image.url === 'https://avatar.example/0.png')), 'LINE profile image sits in a circular frame')
+  assert.match(texts(bubble.header), /Ranking[：:]\s*1位/)
+  assert.match(texts(bubble), /Alice/)
+  assert.match(texts(bubble), /未設定/)
+  assert.match(texts(bubble), /Lv\.?\s*22/)
+  assert.match(texts(bubble), /exp[:：]?\s*60\s*\/\s*268/)
+  assert.deepEqual([...new Set(actions(bubble).filter((action) => action.type === 'postback').map((action) => action.data))].sort(), ['pf|dress|home', 'pf|titles'])
+  assert.ok(nodes(bubble).some((node) => node.layout === 'horizontal' && ['pf|dress|home', 'pf|titles'].every((data) => node.contents?.some((child) => child.action?.data === data))), 'wardrobe and title buttons share one row')
+  assert.match(texts(bubble.footer), /HappaMochi Bot/)
+  assert.doesNotMatch(texts(bubble), /背景：|きせかえガチャ|カードテーマ/)
   assert.match(texts(status), /15,225/)
   assert.ok(actions(status).some((action) => action.data === 'pf|dress|home'))
   const wardrobe = await f.text('着せ替え')
@@ -208,13 +212,13 @@ test('status and wardrobe use catalog appearance while preserving card themes an
   assert.equal(await app.handleProfileText(f.env, { ...f.context(), userId: null }, 'ガチャ'), null)
 })
 
-test('long status names, titles and balances cannot expand the compact card; theme preview remains read-only', async (t) => {
+test('long default names, titles and balances fit the reference card; theme previews remain read-only', async (t) => {
   const f = fixture(t)
   const before = f.snapshot()
   const profile = f.sqlite.prepare('SELECT * FROM user_profiles WHERE user_id = ?').get(A)
   const theme = f.sqlite.prepare('SELECT * FROM theme_master WHERE id = ?').get('aqua')
   const input = {
-    profile, theme, rank: 1, titleName: 'のんびりもち',
+    profile, theme, rank: 1, titleName: 'のんびりもち', fortune: '中吉',
     level: { level: 24, expInLevel: 1320, expNeeded: 2400, percent: 55 },
     appearance: { costumeId: 'C000', backgroundId: 'BG000' }, baseUrl: BASE,
   }
@@ -225,7 +229,8 @@ test('long status names, titles and balances cannot expand the compact card; the
     titleName: 'とても長い共通称号'.repeat(12),
   })
   validateMessages([baseline, long])
-  assert.equal(compactHeight(long.contents), compactHeight(baseline.contents))
+  assert.equal(referenceHeight(long.contents), 278)
+  assert.equal(referenceHeight(long.contents), referenceHeight(baseline.contents))
   assert.deepEqual(long.contents.body.contents.map((row) => row.height), baseline.contents.body.contents.map((row) => row.height))
   for (const node of textNodes(long)) {
     assert.equal(node.wrap, false, `${node.text} must remain a single line`)
@@ -233,13 +238,119 @@ test('long status names, titles and balances cannot expand the compact card; the
     assert.equal(node.adjustMode, 'shrink-to-fit')
   }
   assert.match(texts(long), /9,999,999,999,999/)
+  assert.match(texts(long), /中吉/)
+  assert.match(texts(long), /exp[:：]?\s*1,?320\s*\/\s*2,?400/)
   const preview = await f.postback('pf|preview|black')
-  assert.equal(compactHeight(preview[0].contents), 332)
-  assert.match(texts(preview), /プレビュー（未適用）/)
+  assert.equal(referenceHeight(preview[0].contents), 300)
+  assert.match(texts(preview), /プレビュー/)
+  assert.deepEqual(images(preview).map((image) => image.url), ['https://avatar.example/0.png'])
+  assert.notEqual(preview[0].contents.header.backgroundColor, baseline.contents.header.backgroundColor, 'theme preview retains its chosen theme colors')
   assert.ok(actions(preview).some((action) => action.data === 'pf|buy|black'))
   assert.ok(actions(preview).some((action) => action.data === 'pf|themes'))
   assert.ok(!actions(preview).some((action) => action.data === 'pf|dress|home'))
   assert.equal(f.snapshot(), before, 'rendering and opening a theme preview do not change equipment or points')
+})
+
+test('default, missing and invalid appearances use LINE while either valid customization keeps the 332px artwork card', async (t) => {
+  const f = fixture(t)
+  const before = f.snapshot()
+  const input = {
+    profile: f.sqlite.prepare('SELECT * FROM user_profiles WHERE user_id = ?').get(A),
+    theme: f.sqlite.prepare('SELECT * FROM theme_master WHERE id = ?').get('aqua'),
+    rank: 1, titleName: 'のんびりもち', fortune: '中吉', baseUrl: BASE,
+    level: { level: 22, expInLevel: 60, expNeeded: 268, percent: 22 },
+  }
+  const original = JSON.stringify(input)
+  for (const appearance of [undefined, { costumeId: 'C000', backgroundId: 'BG000' }, { costumeId: 'missing', backgroundId: 'missing' }, { costumeId: 'BG001', backgroundId: 'C001' }]) {
+    const message = app.buildStatusCard({ ...input, appearance })
+    validateMessages([message])
+    assert.equal(referenceHeight(message.contents), 278)
+    assert.deepEqual(images(message).map((image) => image.url), [input.profile.picture_url])
+  }
+  for (const [appearance, expected] of [
+    [{ costumeId: 'C001', backgroundId: 'BG000' }, { costume: 'C001', background: 'BG000' }],
+    [{ costumeId: 'C000', backgroundId: 'BG001' }, { costume: 'C000', background: 'BG001' }],
+    [{ costumeId: 'C001', backgroundId: 'BG001' }, { costume: 'C001', background: 'BG001' }],
+    [{ costumeId: 'C001', backgroundId: 'missing' }, { costume: 'C001', background: 'BG000' }],
+    [{ costumeId: 'missing', backgroundId: 'BG001' }, { costume: 'C000', background: 'BG001' }],
+  ]) {
+    const message = app.buildStatusCard({ ...input, appearance })
+    validateMessages([message])
+    assert.equal(compactHeight(message.contents), 332)
+    const artwork = images(message).find((image) => image.url.includes('/dressup-art/'))
+    assertArtworkUrl(artwork, { ...expected, view: 'status' })
+    assert.equal(artwork.aspectRatio, '2:1')
+    assert.equal(message.contents.body.contents[0].height, '118px')
+    assert.ok(!images(message).some((image) => image.url === input.profile.picture_url))
+    const long = app.buildStatusCard({ ...input, appearance, titleName: '長い称号'.repeat(40), profile: { ...input.profile, display_name: '長い名前'.repeat(40), points: 9999999999999 } })
+    validateMessages([long])
+    assert.equal(compactHeight(long.contents), 332)
+    assert.match(texts(long), /9,999,999,999,999/)
+  }
+  assert.equal(JSON.stringify(input), original, 'rendering never overwrites caller profile or theme data')
+  assert.equal(f.snapshot(), before)
+})
+
+test('changing and resetting clothes and background switches status layout without overwriting LINE data or icon selection', async (t) => {
+  const f = fixture(t)
+  for (const item of ['C001', 'BG001']) f.sqlite.prepare('INSERT INTO dressup_inventory (user_id, item_id) VALUES (?, ?)').run(A, item)
+  await app.setRankingIcon(f.env, A, 'C001')
+  const ownedBefore = new Set(await app.listOwnedCosmeticIds(f.env, A))
+  const profileBefore = f.sqlite.prepare('SELECT picture_url, total_exp, points, active_theme, equipped_title FROM user_profiles WHERE user_id = ?').get(A)
+  for (const [item, expected, custom] of [
+    ['C001', { costume: 'C001', background: 'BG000' }, true],
+    ['BG001', { costume: 'C001', background: 'BG001' }, true],
+    ['C000', { costume: 'C000', background: 'BG001' }, true],
+    ['BG000', { costume: 'C000', background: 'BG000' }, false],
+  ]) {
+    await f.postback(`pf|dress|equip|${item}`)
+    const beforeRender = f.snapshot()
+    const status = await f.text('ステータス')
+    const publicStatus = await app.renderPublicStatusPage(f.env, BASE, publicIds[0])
+    assert.equal(publicStatus.found, true)
+    if (custom) {
+      assert.equal(compactHeight(status[0].contents), 332)
+      assertArtworkUrl(images(status).find((image) => image.url.includes('/dressup-art/')), { ...expected, view: 'status' })
+      assert.ok(publicStatus.html.includes(`/dressup-art/${expected.costume}/${expected.background}.png`))
+      const preview = await f.postback('pf|preview|black')
+      assert.equal(compactHeight(preview[0].contents), 332, 'customized theme previews retain the existing compact layout')
+      assert.ok(actions(preview).some((action) => action.data === 'pf|buy|black'))
+    } else {
+      assert.equal(referenceHeight(status[0].contents), 278)
+      assert.deepEqual(images(status).map((image) => image.url), ['https://avatar.example/0.png'])
+      assert.ok(publicStatus.html.includes('https://avatar.example/0.png'))
+      assert.ok(!publicStatus.html.includes('/dressup-art/C000/BG000.png'), 'default public status does not show a mochi hero')
+    }
+    assert.equal(f.snapshot(), beforeRender, 'rendering a new status does not change stored appearance, points or profile')
+  }
+  assert.deepEqual(f.sqlite.prepare('SELECT picture_url, total_exp, points, active_theme, equipped_title FROM user_profiles WHERE user_id = ?').get(A), profileBefore)
+  assert.deepEqual(await app.getRankingIcon(f.env, A), { costumeId: 'C001' }, 'status resets leave ranking icon selection alone')
+  assert.deepEqual(new Set(await app.listOwnedCosmeticIds(f.env, A)), ownedBefore)
+})
+
+test('zero EXP, no title or rank and missing LINE photo produce a valid default card with no invalid zero-width bar', async (t) => {
+  const f = fixture(t, { points: 0 })
+  const stored = f.sqlite.prepare('SELECT * FROM user_profiles WHERE user_id = ?').get(A)
+  const input = {
+    profile: { ...stored, display_name: null, picture_url: null, total_exp: 0 },
+    theme: f.sqlite.prepare('SELECT * FROM theme_master WHERE id = ?').get('aqua'),
+    rank: null, titleName: null, fortune: null, baseUrl: BASE,
+    appearance: { costumeId: 'C000', backgroundId: 'BG000' },
+    level: { level: 1, expInLevel: 0, expNeeded: 100, percent: 0 },
+  }
+  const before = f.snapshot()
+  const message = app.buildStatusCard(input)
+  validateMessages([message])
+  assert.equal(referenceHeight(message.contents), 278)
+  assert.match(texts(message), /Lv\.?\s*1/)
+  assert.match(texts(message), /exp[:：]?\s*0\s*\/\s*100/)
+  assert.match(texts(message), /未設定/)
+  assert.match(texts(message.contents.header), /未集計/)
+  assert.ok(!images(message).some((image) => image.url.includes('/dressup-art/')))
+  assert.ok(!nodes(message).some((node) => node.width === '0%' || node.width === '0px'))
+  assert.doesNotMatch(JSON.stringify(message), /NaN|Infinity|undefined/)
+  assert.deepEqual(input.profile, { ...stored, display_name: null, picture_url: null, total_exp: 0 })
+  assert.equal(f.snapshot(), before)
 })
 
 test('confirmation matches 3,000-point Yes/No UI; cancel invalidates previously copied Yes', async (t) => {

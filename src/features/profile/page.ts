@@ -6,7 +6,7 @@
 //   → URLには public_id(LINEのIDとは無関係なランダム値)だけを使う。
 import type { LineEnv } from '../../lib/line'
 import { escapeAttrPublic, renderWithLayout } from '../bbs'
-import { appearanceUrl } from '../dressup/art'
+import { appearanceUrl, hasCustomAppearance } from '../dressup/art'
 import { getCosmetic } from '../dressup/catalog'
 import { getAppearance } from '../dressup/store'
 import { getRankingIconsByPublicIds, rankingIconUrl } from '../rankingIcon'
@@ -154,7 +154,7 @@ export async function renderPublicStatusPage(
   const costume = appearance ? getCosmetic(appearance.costumeId) : undefined
   const background = appearance ? getCosmetic(appearance.backgroundId) : undefined
   // ID・画像URL・ラベルはサーバーのカタログから解決。内部LINE IDは出力しない。
-  const hasAppearance = Boolean(appearance && costume?.kind === 'costume' && background?.kind === 'background')
+  const hasAppearance = hasCustomAppearance(appearance)
   const dressupHero = hasAppearance && appearance
     ? `<figure style="margin:0 0 16px">
         <img src="${esc(appearanceUrl(siteUrl, appearance))}" alt="${esc(`${costume!.name}・${background!.name}`)}" width="768" height="512" style="display:block;width:100%;height:auto;max-height:360px;object-fit:contain;border-radius:14px">

@@ -2,6 +2,8 @@
 // the native LINE client remains the authority for final font/layout rendering.
 // --screenshot tries Chromium and falls back to offline Satori/resvg; --svg
 // directly uses the fallback. --ranking compares LINE default and gacha icons.
+// --status-only uses the default status reference fixture (mock LINE avatar).
+// Add --compare-custom to place a customized status beside the default one.
 // --default shows C000/BG000. --fixtures=FILE loads
 // a saved actual Flex fixture for baseline comparisons without rewriting it.
 import fs from 'node:fs'
@@ -12,6 +14,9 @@ import { Resvg, initWasm } from '@resvg/resvg-wasm'
 
 const root = path.resolve(import.meta.dirname, '..')
 const rankingOnly = process.argv.includes('--ranking')
+const statusOnly = process.argv.includes('--status-only')
+const compareCustom = process.argv.includes('--compare-custom')
+if (rankingOnly && statusOnly) throw new Error('Choose --ranking or --status-only')
 const baseUrl = process.env.DRESSUP_PREVIEW_BASE || 'https://line-group-bbs.pages.dev'
 const output = path.resolve(process.argv.slice(2).find(arg => !arg.startsWith('--')) || path.join(root, 'samples/dressup'))
 fs.mkdirSync(output, { recursive: true })
@@ -42,6 +47,16 @@ const status = api.buildStatusCard({
   level:{level:24,expInLevel:1320,expNeeded:2400,percent:55}, theme,rank:2,titleName:'のんびりもち',
   appearance:defaultArt ? {costumeId:'C000',backgroundId:'BG000'} : {costumeId:'C001',backgroundId:'BG001'},baseUrl,
 })
+// Exact screenshot values are a visual QA fixture only. Production always
+// calculates rank, EXP, points and fortune from the real user and current date.
+const referenceStatusInput = {
+  profile:{user_id:'preview-1',public_id:'public-1',display_name:'なの',picture_url:'https://profile-preview.example/1.png',total_exp:212,points:212,active_theme:'aqua',equipped_title:null},
+  level:{level:3,expInLevel:4,expNeeded:116,percent:100*4/116},
+  theme,rank:39,titleName:'マイペース',fortune:'小吉',
+  appearance:{costumeId:'C000',backgroundId:'BG000'},baseUrl,
+}
+const statusDocuments = [{label:'初期ステータス · LINEプロフィール画像',message:api.buildStatusCard(referenceStatusInput)}]
+if (compareCustom) statusDocuments.push({label:'着せ替え後 · 衣装と背景',message:api.buildStatusCard({...referenceStatusInput,appearance:{costumeId:'C001',backgroundId:'BG001'}})})
 const gacha = api.buildGachaConfirmation({baseUrl,points:15225,token:'00000000-0000-4000-8000-000000000000',remaining:150})
 const ranking = await api.buildRankingCarousel(env, baseUrl, 'preview-1')
 const fixtureArg = process.argv.find(arg => arg.startsWith('--fixtures='))
@@ -52,7 +67,7 @@ if (rankingOnly) {
   const selected = await api.buildRankingCarousel(env, baseUrl, 'preview-1')
   rankingDocuments.push({label:'設定変更後 · 2位のガチャ衣装アイコン',message:{...selected,contents:selected.contents.contents[0]}})
 }
-const documents = fixtureArg ? JSON.parse(fs.readFileSync(fixtureArg.slice('--fixtures='.length), 'utf8')) : rankingOnly ? rankingDocuments : [{label:'ステータス',message:status},{label:'ランキング（累計EXP）',message:{...ranking,contents:ranking.contents.contents[0]}},{label:'きせかえガチャ',message:gacha}]
+const documents = fixtureArg ? JSON.parse(fs.readFileSync(fixtureArg.slice('--fixtures='.length), 'utf8')) : statusOnly ? statusDocuments : rankingOnly ? rankingDocuments : [{label:'ステータス',message:status},{label:'ランキング（累計EXP）',message:{...ranking,contents:ranking.contents.contents[0]}},{label:'きせかえガチャ',message:gacha}]
 // Use local asset bytes: the visual check needs no server or external requests.
 await initWasm(fs.readFileSync(path.join(root, 'node_modules/@resvg/resvg-wasm/index_bg.wasm')))
 const inlinePng = filename => `data:image/png;base64,${fs.readFileSync(filename).toString('base64')}`
@@ -214,7 +229,7 @@ function previewTree(selected) {
   ])
 }
 const mainDocs=(rankingOnly ? documents : documents.filter(doc=>!doc.label.includes('ガチャ'))).slice(0,2)
-const gachaDocs=rankingOnly ? [] : documents.filter(doc=>doc.label.includes('ガチャ'))
+const gachaDocs=rankingOnly || statusOnly ? [] : documents.filter(doc=>doc.label.includes('ガチャ'))
 const pages=[{name:'preview',tree:previewTree(mainDocs)},...(gachaDocs.length ? [{name:'gacha',tree:previewTree(gachaDocs)}] : [])]
 const fontCss='@font-face{font-family:Noto;src:url(data:font/ttf;base64,'+regular.toString('base64')+');font-weight:400}@font-face{font-family:Noto;src:url(data:font/ttf;base64,'+bold.toString('base64')+');font-weight:700}'
 for (const page of pages) {

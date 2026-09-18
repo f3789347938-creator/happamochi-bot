@@ -10,7 +10,8 @@
 //   ・EXPバーは「外側の箱の中に、幅%を持つ内側の箱」で表現する。
 import type { LineMessage } from '../../lib/line'
 import type { CommonTitle, LevelInfo, Theme, TitleCategory, UserProfile } from './core'
-import { appearanceUrl } from '../dressup/art'
+import { appearanceUrl, hasCustomAppearance } from '../dressup/art'
+import { buildDefaultStatusCard } from './defaultStatus'
 import { getCosmetic } from '../dressup/catalog'
 
 const FOOTER_TEXT = '© 2026 HappaMochi Bot'
@@ -19,13 +20,6 @@ const FOOTER_TEXT = '© 2026 HappaMochi Bot'
 function short(name: string | null, fallback: string, max = 16): string {
   const n = (name ?? '').trim() || fallback
   return Array.from(n).length > max ? Array.from(n).slice(0, max).join('') + '…' : n
-}
-
-/** テーマから、そのテーマ上で読める補助色を作る */
-function subColor(theme: Theme): string {
-  // 本文色をそのまま薄くはできないので、テーマごとに用意した
-  // アクセント色を補助文字色として使う。
-  return theme.accent
 }
 
 function footer(theme: Theme): Record<string, any> {
@@ -308,214 +302,8 @@ function buildCompactStatusCard(input: StatusCardInput): LineMessage {
 }
 
 export function buildStatusCard(input: StatusCardInput): LineMessage {
-  if (input.appearance && input.baseUrl) return buildCompactStatusCard(input)
-  const { profile, level, theme, rank, titleName } = input
-  const name = short(profile.display_name, 'ユーザー')
-
-  const body: Record<string, any>[] = [
-    // 称号の帯
-    {
-      type: 'box',
-      layout: 'vertical',
-      backgroundColor: theme.accent,
-      cornerRadius: 'md',
-      paddingAll: 'sm',
-      contents: [
-        {
-          type: 'text',
-          text: titleName ?? '未設定',
-          size: 'md',
-          weight: 'bold',
-          color: theme.header_text,
-          align: 'center',
-          wrap: true,
-        },
-      ],
-    },
-    // 内側パネル: アイコン / 名前 / Lv・EXP / ポイント
-    {
-      type: 'box',
-      layout: 'vertical',
-      backgroundColor: theme.body_bg,
-      borderColor: theme.accent,
-      borderWidth: '1px',
-      cornerRadius: 'md',
-      paddingAll: 'md',
-      margin: 'md',
-      spacing: 'sm',
-      contents: [
-        {
-          type: 'box',
-          layout: 'horizontal',
-          spacing: 'md',
-          alignItems: 'center',
-          contents: [
-            avatarBox(profile, theme, '56px', 'xl'),
-            {
-              type: 'box',
-              layout: 'vertical',
-              contents: [
-                {
-                  type: 'text',
-                  text: name,
-                  size: 'lg',
-                  weight: 'bold',
-                  color: theme.text_color,
-                  wrap: true,
-                },
-                {
-                  type: 'box',
-                  layout: 'horizontal',
-                  margin: 'sm',
-                  contents: [
-                    {
-                      type: 'text',
-                      text: `Lv. ${level.level}`,
-                      size: 'sm',
-                      color: theme.text_color,
-                      flex: 0,
-                    },
-                    {
-                      type: 'text',
-                      text: `exp ${level.expInLevel} / ${level.expNeeded}`,
-                      size: 'xs',
-                      color: subColor(theme),
-                      align: 'end',
-                    },
-                  ],
-                },
-                { ...expBar(theme, level.percent), margin: 'sm' },
-              ],
-            },
-          ],
-        },
-        // 見本と同じ、運勢バッジ(左)と保有ポイント(右)の1行。
-        {
-          type: 'box',
-          layout: 'horizontal',
-          margin: 'md',
-          alignItems: 'center',
-          contents: [
-            input.fortune
-              ? {
-                  type: 'box',
-                  layout: 'vertical',
-                  backgroundColor: theme.accent,
-                  cornerRadius: '20px',
-                  paddingAll: 'xs',
-                  paddingStart: 'md',
-                  paddingEnd: 'md',
-                  flex: 0,
-                  contents: [
-                    {
-                      type: 'text',
-                      text: input.fortune,
-                      size: 'sm',
-                      weight: 'bold',
-                      color: theme.header_text,
-                      align: 'center',
-                    },
-                  ],
-                }
-              : { type: 'filler' },
-            {
-              type: 'text',
-              text: `保有ポイント: ${profile.points.toLocaleString('ja-JP')}`,
-              size: 'sm',
-              color: theme.text_color,
-              align: 'end',
-              gravity: 'center',
-            },
-          ],
-        },
-      ],
-    },
-  ]
-
-  // 操作ボタン。プレビュー中は「このテーマにする」「戻る」に差し替える。
-  if (input.preview) {
-    body.push({
-      type: 'text',
-      text: `${input.preview.themeName} のプレビュー（まだ適用していません）`,
-      size: 'xxs',
-      color: subColor(theme),
-      margin: 'md',
-      wrap: true,
-    })
-    body.push({
-      type: 'box',
-      layout: 'horizontal',
-      spacing: 'sm',
-      margin: 'sm',
-      contents: [
-        smallButton('このテーマにする', input.preview.applyData, theme, true),
-        smallButton('戻る', input.preview.backData, theme, false),
-      ],
-    })
-  } else {
-    body.push({
-      type: 'box',
-      layout: 'horizontal',
-      spacing: 'sm',
-      margin: 'md',
-      contents: [
-        smallButton('着せ替え', 'pf|dress|home', theme, true),
-        smallButton('称号変更', 'pf|titles', theme, false),
-      ],
-    })
-    body.push({
-      type: 'box', layout: 'horizontal', spacing: 'sm', margin: 'sm', contents: [
-        smallButton('きせかえガチャ', 'pf|dress|gacha', theme, false),
-        smallButton('カードテーマ', 'pf|themes', theme, false),
-      ],
-    })
-  }
-
-  if (input.note) {
-    body.push({
-      type: 'text',
-      text: input.note,
-      size: 'xxs',
-      color: subColor(theme),
-      margin: 'md',
-      wrap: true,
-    })
-  }
-
-  return {
-    type: 'flex',
-    altText: `${name} のステータス（Lv.${level.level}${rank ? ` / ${rank}位` : ''}）`,
-    contents: {
-      type: 'bubble',
-      size: 'mega',
-      header: {
-        type: 'box',
-        layout: 'vertical',
-        backgroundColor: theme.header_bg,
-        paddingAll: 'md',
-        contents: [
-          { type: 'text', text: 'ステータス', size: 'xl', weight: 'bold', color: theme.header_text, align: 'center' },
-          {
-            type: 'text',
-            // 順位が集計できないときは見本の値で埋めず、未集計と出す。
-            text: rank !== null ? `累計EXPランキング：${rank.toLocaleString('ja-JP')}位` : '累計EXPランキング：未集計',
-            size: 'sm',
-            weight: 'bold',
-            color: theme.header_text,
-            align: 'center',
-          },
-        ],
-      },
-      body: {
-        type: 'box',
-        layout: 'vertical',
-        backgroundColor: theme.body_bg,
-        paddingAll: 'md',
-        contents: body,
-      },
-      footer: footer(theme),
-    },
-  }
+  if (hasCustomAppearance(input.appearance) && input.baseUrl) return buildCompactStatusCard(input)
+  return buildDefaultStatusCard(input)
 }
 
 // === 着せ替え ============================================================
