@@ -20,6 +20,7 @@ export interface LineEnv {
   LINE_CHANNEL_ACCESS_TOKEN: string
   LINE_CHANNEL_SECRET: string
   DB: D1Database
+  ASSETS?: { fetch: (request: Request) => Promise<Response> }
   // ギャラリー管理者ログイン用パスワード。wrangler secret (本番) /
   // .dev.vars (ローカル) から供給される。未設定の場合は管理者ログインを
   // 完全に無効化する(features/galleryAdmin.ts参照)。LINE Bot側の機能とは

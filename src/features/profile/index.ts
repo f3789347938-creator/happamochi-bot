@@ -9,6 +9,8 @@
 //   ・購入は確認 → 確定の2段。確定時もサーバーの価格を正とする。
 //   ・存在しないテーマ・称号、改ざんされたページ番号は安全な範囲へ補正。
 import type { LineEnv, LineMessage } from '../../lib/line'
+import { handleDressupPostback, handleDressupText } from '../dressup'
+import { getAppearance } from '../dressup/store'
 import {
   DEFAULT_THEME_ID,
   dailyFortune,
@@ -111,6 +113,9 @@ async function statusMessage(
     fortune: dailyFortune(userId),
     preview,
     note: opts?.note,
+    // 移行の反映前でも既存ステータスは従来のアイコンで表示を続ける。
+    appearance: await getAppearance(env, userId).catch(() => undefined),
+    baseUrl: ctx.baseUrl,
   })
 }
 
@@ -264,7 +269,14 @@ export async function handleProfileText(
     return [await statusMessage(env, ctx)]
   }
 
-  if (t === '着せ替え') {
+  try {
+    const dressup = await handleDressupText(env, ctx, t)
+    if (dressup) return dressup
+  } catch {
+    return [text('着せ替えの処理を完了できませんでした。時間をおいて「着せ替え」から状態をご確認ください。')]
+  }
+
+  if (t === 'カードテーマ') {
     return [await themesMessage(env, ctx)]
   }
 
@@ -327,6 +339,7 @@ export async function handleProfilePostback(
   const op = parts[1] ?? ''
 
   try {
+    if (op === 'dress') return await handleDressupPostback(env, ctx, data)
     if (op === 'status') return [await statusMessage(env, ctx)]
     if (op === 'themes') return [await themesMessage(env, ctx)]
     if (op === 'titles') return [await titleListMessage(env, ctx, 'all', null, '', 1)]

@@ -100,6 +100,22 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
   return btoa(binary)
 }
 
+/** Cosmetic art shares the initialized resvg instance, without changing quote layout. */
+export async function renderArtworkSvgPng(svg: string, width: number): Promise<Uint8Array> {
+  await ensureInit()
+  const renderer = new Resvg(svg, { fitTo: { mode: 'width', value: width } })
+  try {
+    const rendered = renderer.render()
+    try {
+      return new Uint8Array(rendered.asPng())
+    } finally {
+      rendered.free()
+    }
+  } finally {
+    renderer.free()
+  }
+}
+
 // Fetch an external image and inline it as a base64 data URL, because
 // Satori's built-in fetch doesn't work inside Workers. Returns null (never
 // throws) so a broken avatar never takes down the whole card.

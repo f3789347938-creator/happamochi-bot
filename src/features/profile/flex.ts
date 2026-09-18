@@ -10,6 +10,8 @@
 //   ・EXPバーは「外側の箱の中に、幅%を持つ内側の箱」で表現する。
 import type { LineMessage } from '../../lib/line'
 import type { CommonTitle, LevelInfo, Theme, TitleCategory, UserProfile } from './core'
+import { appearanceUrl } from '../dressup/art'
+import { getCosmetic } from '../dressup/catalog'
 
 const FOOTER_TEXT = '© 2026 HappaMochi Bot'
 
@@ -149,6 +151,62 @@ export interface StatusCardInput {
   preview?: { themeName: string; applyData: string; backData: string }
   /** 本人以外が押したときの案内 */
   note?: string
+  /** 設定済みのもち衣装・背景。旧呼び出し元では省略可能。 */
+  appearance?: { costumeId: string; backgroundId: string }
+  /** 公開画像URLの起点。LINEユーザーID等は画像URLに含めない。 */
+  baseUrl?: string
+}
+
+function mochiStatusBody(input: StatusCardInput): Record<string, any>[] {
+  const { profile, level, theme, titleName, appearance, baseUrl } = input
+  if (!appearance || !baseUrl) return []
+  const metric = (label: string, value: string) => ({
+    type: 'box', layout: 'vertical', spacing: 'xs', contents: [
+      { type: 'text', text: label, size: 'xs', color: theme.text_color, align: 'center' },
+      { type: 'text', text: value, size: 'xxl', weight: 'bold', color: theme.text_color, align: 'center', wrap: true },
+    ],
+  })
+  return [
+    {
+      type: 'box', layout: 'vertical', borderColor: theme.accent, borderWidth: '1px',
+      cornerRadius: 'md', contents: [{
+        type: 'image', url: appearanceUrl(baseUrl, appearance), size: 'full',
+        aspectRatio: '3:2', aspectMode: 'cover',
+      }],
+    },
+    {
+      type: 'box', layout: 'vertical', spacing: 'sm', margin: 'md', contents: [
+        { type: 'text', text: short(profile.display_name, 'ユーザー'), size: 'xxl', weight: 'bold', color: theme.text_color, align: 'center', wrap: true },
+        {
+          type: 'box', layout: 'vertical', cornerRadius: 'md', paddingAll: 'xs', backgroundColor: theme.accent,
+          contents: [{ type: 'text', text: titleName ?? '未設定', size: 'sm', color: theme.header_text, weight: 'bold', align: 'center', wrap: true }],
+        },
+      ],
+    },
+    {
+      type: 'box', layout: 'horizontal', margin: 'md', paddingAll: 'md', spacing: 'md',
+      borderColor: theme.accent, borderWidth: '1px', cornerRadius: 'md',
+      contents: [metric('レベル', String(level.level)), { type: 'separator', color: theme.accent }, metric('保有ポイント', profile.points.toLocaleString('ja-JP'))],
+    },
+    {
+      type: 'box', layout: 'horizontal', margin: 'md', contents: [
+        { type: 'text', text: '次のレベルまで', size: 'xs', color: theme.text_color },
+        { type: 'text', text: `${level.expInLevel.toLocaleString('ja-JP')} / ${level.expNeeded.toLocaleString('ja-JP')} EXP`, size: 'xs', color: theme.text_color, align: 'end', wrap: true },
+      ],
+    },
+    { ...expBar(theme, level.percent), margin: 'sm' },
+    {
+      type: 'text', text: `着せ替え中：${getCosmetic(appearance.costumeId)?.name ?? 'いつものもち'}`,
+      size: 'xs', color: theme.text_color, align: 'center', wrap: true, margin: 'md',
+    },
+    {
+      type: 'text', text: `背景：${getCosmetic(appearance.backgroundId)?.name ?? 'いつもの背景'}`,
+      size: 'xxs', color: subColor(theme), align: 'center', wrap: true, margin: 'xs',
+    },
+    ...(input.fortune ? [{
+      type: 'text', text: `今日の運勢：${input.fortune}`, size: 'xs', color: theme.text_color, align: 'center', margin: 'sm',
+    }] : []),
+  ]
 }
 
 export function buildStatusCard(input: StatusCardInput): LineMessage {
@@ -275,6 +333,8 @@ export function buildStatusCard(input: StatusCardInput): LineMessage {
     },
   ]
 
+  if (input.appearance && input.baseUrl) body.splice(0, body.length, ...mochiStatusBody(input))
+
   // 操作ボタン。プレビュー中は「このテーマにする」「戻る」に差し替える。
   if (input.preview) {
     body.push({
@@ -302,8 +362,14 @@ export function buildStatusCard(input: StatusCardInput): LineMessage {
       spacing: 'sm',
       margin: 'md',
       contents: [
-        smallButton('着せ替え', 'pf|themes', theme, true),
+        smallButton('着せ替え', 'pf|dress|home', theme, true),
         smallButton('称号変更', 'pf|titles', theme, false),
+      ],
+    })
+    body.push({
+      type: 'box', layout: 'horizontal', spacing: 'sm', margin: 'sm', contents: [
+        smallButton('きせかえガチャ', 'pf|dress|gacha', theme, false),
+        smallButton('カードテーマ', 'pf|themes', theme, false),
       ],
     })
   }
@@ -331,11 +397,12 @@ export function buildStatusCard(input: StatusCardInput): LineMessage {
         backgroundColor: theme.header_bg,
         paddingAll: 'md',
         contents: [
+          { type: 'text', text: 'ステータス', size: 'xl', weight: 'bold', color: theme.header_text, align: 'center' },
           {
             type: 'text',
             // 順位が集計できないときは見本の値で埋めず、未集計と出す。
-            text: rank !== null ? `Ranking：${rank.toLocaleString('ja-JP')}位` : 'Ranking：未集計',
-            size: 'lg',
+            text: rank !== null ? `累計EXPランキング：${rank.toLocaleString('ja-JP')}位` : '累計EXPランキング：未集計',
+            size: 'sm',
             weight: 'bold',
             color: theme.header_text,
             align: 'center',
@@ -491,7 +558,7 @@ export function buildThemeCard(input: ThemeCardInput): LineMessage {
 
   return {
     type: 'flex',
-    altText: '着せ替え（カードテーマの選択）',
+    altText: 'カードテーマの選択',
     contents: {
       type: 'bubble',
       size: 'mega',
@@ -501,7 +568,7 @@ export function buildThemeCard(input: ThemeCardInput): LineMessage {
         backgroundColor: ui.header_bg,
         paddingAll: 'md',
         contents: [
-          { type: 'text', text: '着せ替え', size: 'lg', weight: 'bold', color: ui.header_text, align: 'center' },
+          { type: 'text', text: 'カードテーマ', size: 'lg', weight: 'bold', color: ui.header_text, align: 'center' },
           {
             type: 'text',
             text: `保有ポイント: ${input.profile.points.toLocaleString('ja-JP')}`,

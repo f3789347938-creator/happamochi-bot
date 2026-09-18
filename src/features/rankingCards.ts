@@ -9,7 +9,8 @@
 // にしている。
 //
 // アイコンについて:
-//   LINEのプロフィール画像URL(picture_url)を image として出す。
+//   個人ランキングは着せ替えたもち、ゲームランキングはLINEの画像を出す。
+//   着せ替えDBの移行前などは従来のプロフィール画像へフォールバックする。
 //   ・LINE Flexの image に width は無い(指定するとHTTP 400 になる)。
 //     過去にチェスでこれを踏んで実機が無反応になったので、絶対に付けない。
 //   ・https 以外や空の場合は画像を出さず、色付きの枠だけを出す
@@ -18,6 +19,8 @@ import type { LineEnv, LineMessage } from '../lib/line'
 import { listRanking, getPersonalRank, countProfiles } from './profile/core'
 import { getRanking as getMochiRanking, getMyScore as getMyMochiScore } from './mochiScore'
 import { getSurvivorRanking, getMySurvivor } from './survivor'
+import { appearanceUrl } from './dressup/art'
+import { getAppearanceByPublicIds } from './dressup/store'
 
 // このランキングカード専用の色。
 // 他のFlex(ステータス・メニュー・チェス等)と共有しないよう、
@@ -179,7 +182,8 @@ function card(
   title: string,
   rows: Record<string, any>[],
   myLine: string,
-  moreUrl: string
+  moreUrl: string,
+  showStatus = false
 ): Record<string, any> {
   return {
     type: 'bubble',
@@ -255,6 +259,15 @@ function card(
           margin: 'sm',
           action: { type: 'uri', label: 'ランキングをもっと見る', uri: moreUrl },
         },
+        ...(showStatus
+          ? [{
+              type: 'button',
+              style: 'link',
+              color: C.blue,
+              height: 'sm',
+              action: { type: 'postback', label: '自分のステータス', data: 'pf|status' },
+            }]
+          : []),
       ],
     },
 
@@ -313,14 +326,20 @@ export async function buildRankingCarousel(
   let happaMine = ''
   try {
     const top = await listRanking(env, TOP_N, 0)
+    // 取得に失敗しても既存ランキング自体は表示する。LINE IDはURLに載せない。
+    const appearances = await getAppearanceByPublicIds(env, top.map((r) => r.public_id)).catch(
+      () => ({} as Record<string, { costumeId: string; backgroundId: string }>)
+    )
     happaRows =
       top.length > 0
         ? top.map((r) =>
             row(
               r.rank,
               r.display_name ?? '名前なし',
-              `Lv.${r.level} exp: ${num(r.total_exp)}`,
-              r.picture_url
+              `Lv.${r.level} ・ 累計 ${num(r.total_exp)} EXP`,
+              appearances[r.public_id]
+                ? appearanceUrl(siteUrl, appearances[r.public_id])
+                : r.picture_url
             )
           )
         : [emptyRow('まだ記録がありません')]
@@ -411,7 +430,7 @@ export async function buildRankingCarousel(
     contents: {
       type: 'carousel',
       contents: [
-        card('葉っぱもちランキング', happaRows, happaMine, `${siteUrl}/ranking/personal`),
+        card('葉っぱもちランキング', happaRows, happaMine, `${siteUrl}/ranking/personal`, Boolean(userId)),
         card('もち合体パズル', mochiRows, mochiMine, `${siteUrl}/ranking/mochi`),
         card('もち軍団サバイバル', survRows, survMine, `${siteUrl}/ranking/survivor`),
       ],

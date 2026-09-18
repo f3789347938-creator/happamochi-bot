@@ -45,7 +45,7 @@ export const HELP_DESIGN = {
     { label: 'ステータス', desc: '自分のレベル・EXP・ポイント' },
     { label: 'ランキング', desc: '各種ランキングを表示' },
     { label: 'お知らせ', desc: '直近のお知らせを表示' },
-    { label: '着せ替え', desc: 'カードの見た目を変える' },
+    { label: '着せ替え', desc: 'ガチャで衣装・背景を集める' },
     { label: 'パズル', desc: 'もち合体パズルで遊ぶ' },
     { label: 'サバイバル', desc: 'もち軍団サバイバルで遊ぶ' },
     { label: 'オセロ', desc: '対局を募集する', send: 'オセロ開始' },

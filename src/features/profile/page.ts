@@ -1,11 +1,14 @@
 // 個人ランキングと公開ステータスのWebページ。
 //
 // 公開範囲(指示どおり):
-//   公開する: 表示名・アイコン・レベル・EXP・個人順位・共通称号・テーマ・ポイント
+//   公開する: 表示名・アイコン・衣装・背景・レベル・EXP・個人順位・共通称号・テーマ・ポイント
 //   公開しない: 会話本文、LINEユーザーID、非公開のグループ情報、誕生日の日付
 //   → URLには public_id(LINEのIDとは無関係なランダム値)だけを使う。
 import type { LineEnv } from '../../lib/line'
 import { escapeAttrPublic, renderWithLayout } from '../bbs'
+import { appearanceUrl } from '../dressup/art'
+import { getCosmetic } from '../dressup/catalog'
+import { getAppearance, getAppearanceByPublicIds } from '../dressup/store'
 import {
   countProfiles,
   dailyFortune,
@@ -43,12 +46,18 @@ export async function renderPersonalRankingPage(
   const pageCount = Math.max(1, Math.ceil(total / PER))
   const p = Math.min(Math.max(1, Math.floor(page) || 1), pageCount)
   const rows = await listRanking(env, PER, (p - 1) * PER)
+  // 着せ替えの移行前も、既存の累計ランキングはそのまま公開できる。
+  const appearances = await getAppearanceByPublicIds(env, rows.map((r) => r.public_id)).catch(
+    () => ({} as Record<string, { costumeId: string; backgroundId: string }>)
+  )
 
   const items = rows
     .map((r) => {
       const name = esc(r.display_name ?? '名前未設定')
-      const avatar = r.picture_url
-        ? `<img class="pf-rank-avatar" src="${esc(r.picture_url)}" alt="" width="48" height="48" loading="lazy">`
+      const appearance = appearances[r.public_id]
+      const pictureUrl = appearance ? appearanceUrl(siteUrl, appearance) : r.picture_url
+      const avatar = pictureUrl
+        ? `<img class="pf-rank-avatar" src="${esc(pictureUrl)}" alt="" width="48" height="48" loading="lazy">`
         : `<span class="pf-rank-avatar pf-rank-avatar-none" aria-hidden="true">${esc(
             Array.from((r.display_name ?? '?').trim() || '?')[0] ?? '?'
           )}</span>`
@@ -93,7 +102,7 @@ export async function renderPersonalRankingPage(
       <li>次のレベルに必要なEXPは「100 + 8 ×（現在のレベル − 1）」です。</li>
       <li>同じ累計EXPの人は同じ順位になります（1位、2位、2位、4位…）。</li>
       <li>名前を押すと、その人の公開ステータスを見られます。</li>
-      <li>公開しているのは、表示名・アイコン・レベル・EXP・順位・称号・テーマ・運勢・ポイントです。</li>
+      <li>公開しているのは、表示名・アイコン・衣装・背景・レベル・EXP・順位・称号・テーマ・運勢・ポイントです。</li>
       <li>会話の内容、参加しているグループ、誕生日の日付は公開していません。</li>
     </ul>
   </section>`
@@ -142,6 +151,17 @@ export async function renderPublicStatusPage(
   const name = esc(profile.display_name ?? '名前未設定')
   // 運勢は「人+日付」から決まる表示項目。内部IDは表に出さない。
   const fortune = dailyFortune(profile.user_id)
+  const appearance = await getAppearance(env, profile.user_id).catch(() => null)
+  const costume = appearance ? getCosmetic(appearance.costumeId) : undefined
+  const background = appearance ? getCosmetic(appearance.backgroundId) : undefined
+  // ID・画像URL・ラベルはサーバーのカタログから解決。内部LINE IDは出力しない。
+  const hasAppearance = Boolean(appearance && costume?.kind === 'costume' && background?.kind === 'background')
+  const dressupHero = hasAppearance && appearance
+    ? `<figure style="margin:0 0 16px">
+        <img src="${esc(appearanceUrl(siteUrl, appearance))}" alt="${esc(`${costume!.name}・${background!.name}`)}" width="768" height="512" style="display:block;width:100%;height:auto;max-height:360px;object-fit:contain;border-radius:14px">
+        <figcaption style="margin-top:8px;text-align:center;font-weight:700">着せ替え中：${esc(costume!.name)}</figcaption>
+      </figure>`
+    : ''
 
   const avatar = profile.picture_url
     ? `<img class="pf-card-avatar" src="${esc(profile.picture_url)}" alt="" width="96" height="96">`
@@ -163,8 +183,9 @@ export async function renderPublicStatusPage(
       </header>
       <div class="pf-card-body">
         <p class="pf-card-title">${title ? esc(title.name) : '未設定'}</p>
+        ${dressupHero}
         <div class="pf-card-main">
-          ${avatar}
+          ${hasAppearance ? '' : avatar}
           <div class="pf-card-info">
             <h1 class="pf-card-name">${name}</h1>
             <p class="pf-card-lv"><span>Lv. ${level.level}</span><span>exp ${level.expInLevel} / ${level.expNeeded}</span></p>
@@ -177,6 +198,7 @@ export async function renderPublicStatusPage(
           <dt>テーマ</dt><dd>${esc(theme.name)}</dd>
           <dt>共通称号</dt><dd>${title ? esc(title.name) : '未設定'}</dd>
           <dt>今日の運勢</dt><dd>${esc(fortune)}</dd>
+          ${hasAppearance ? `<dt>衣装</dt><dd>${esc(costume!.name)}</dd><dt>背景</dt><dd>${esc(background!.name)}</dd>` : ''}
         </dl>
       </div>
       <footer class="pf-card-foot">© 2026 HappaMochi Bot</footer>
@@ -186,7 +208,7 @@ export async function renderPublicStatusPage(
       <a class="pf-pager-btn" href="/ranking/personal">個人ランキングへ</a>
     </p>
     <p class="pf-notes-inline">
-      このページで公開しているのは、表示名・アイコン・レベル・EXP・順位・称号・テーマ・運勢・ポイントだけです。
+      このページで公開しているのは、表示名・アイコン・衣装・背景・レベル・EXP・順位・称号・テーマ・運勢・ポイントだけです。
       会話の内容や参加グループ、誕生日の日付は公開していません。
     </p>
   </section>`

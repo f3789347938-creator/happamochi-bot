@@ -81,7 +81,7 @@ export function mainScreens(personalRankingUrl: string, siteUrl: string): Screen
       body: '自分らしさを、少しずつ。',
       rows: [
         { label: 'ステータス', value: 'レベル・EXP・ポイント' },
-        { label: 'カスタマイズ', value: 'テーマ・共通称号' },
+        { label: 'カスタマイズ', value: '衣装・背景・テーマ・共通称号' },
       ],
       buttons: [
         // 表示のみ。既存のステータスカードをそのまま出す。

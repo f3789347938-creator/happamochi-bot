@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "designHash": "b1bffb9ddeef0636c652dbbc2d49d3e0938300883053d2bf0a1db21f03cad3de",
+  "designHash": "2b88af751e792913dd1f7c89b5ac2629e408cd6d282a9d2373c7d052b1a35f59",
   "header": {
     "file": "header-e7d7e059623e.png",
     "width": 520,
@@ -52,8 +52,8 @@
     },
     {
       "label": "着せ替え",
-      "desc": "カードの見た目を変える",
-      "file": "row-05-19fc4822d9d7.png",
+      "desc": "ガチャで衣装・背景を集める",
+      "file": "row-05-e6db376c3ddd.png",
       "width": 520,
       "height": 140
     },

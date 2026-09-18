@@ -28,6 +28,7 @@ import {
   getMyScore as getMyMochiScore,
 } from './features/mochiScore'
 import { buildRankingCarousel } from './features/rankingCards'
+import { renderAppearanceResponse } from './features/dressup/art-renderer'
 import { renderMochiRankingPage } from './features/mochiRankingPage'
 import { renderSurvivorRankingPage } from './features/survivorRankingPage'
 import { survivorOpenUrl, isSurvivorLiffConfigured, gameOpenUrl } from './features/menu/gameLink'
@@ -116,10 +117,29 @@ type Bindings = LineEnv
 
 const app = new Hono<{ Bindings: Bindings }>()
 
+// Debug commands accept arbitrary user IDs for local tests. Never expose them
+// on the public Worker: otherwise new equipment commands could bypass LINE's
+// signed webhook identity. Local Wrangler test workflows remain available.
+app.use('/debug/*', async (c, next) => {
+  const hostname = new URL(c.req.url).hostname
+  if (!['localhost', '127.0.0.1', '[::1]'].includes(hostname)) return c.notFound()
+  await next()
+})
+
 app.use('/static/*', serveStatic({ root: './public' }))
 
 // ─── Health check ───
 app.get('/', (c) => c.text('HappaMochi Bot is running'))
+
+// Costume/background combinations are public artwork, never private user data.
+app.get('/dressup-art/:costume/:background', (c) => {
+  const file = c.req.param('background')
+  if (!file.endsWith('.png')) return c.notFound()
+  return renderAppearanceResponse(
+    c.req.raw, c.env.ASSETS, c.req.param('costume'), file.slice(0, -4),
+    (globalThis.caches as CacheStorage & { default?: Cache } | undefined)?.default,
+  )
+})
 
 // ─── Quote card image delivery ───
 // Public, unauthenticated, plain-HTTPS GET endpoint that LINE's servers
@@ -2209,7 +2229,9 @@ const HELP_TEXT = `葉っぱもち Bot ヘルプ
 
 【ステータス・着せ替え・共通称号】
 ステータス - レベル・EXP・順位・ポイントを表示
-着せ替え - カードテーマを選ぶ(名言カードにも反映)
+着せ替え - 衣装・背景のガチャ／所持一覧／装備
+着せ替えガチャ - 1回3,000P(確認付き・重複なし)
+カードテーマ - カードの配色を選ぶ(名言カードにも反映)
 共通称号一覧 - 全300種類から称号を選ぶ
 共通称号装備 [称号名] - 共通称号を装備
 共通称号確認 - 装備中の共通称号を確認
