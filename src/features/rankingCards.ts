@@ -1,6 +1,6 @@
 // 「ランキング」コマンドの返信カード(横スワイプのカルーセル)。
 //
-// 1枚目: 葉っぱもちランキング(個人の累計EXP・上位5人)
+// 1枚目: 葉っぱもちランキング(個人の累計EXP・上位3人)
 // 2枚目: もち合体パズル(LIFFミニゲームのスコア)
 //
 // 既存の実装には触らない方針なので、
@@ -44,7 +44,7 @@ const MEDAL = ['#D4AF37', '#949DA3', '#B87939']
 // Botの正式表記。参照元のBot名は使わない。
 const FOOTER_TEXT = '© 2026 HappaMochi Bot'
 const TOP_N = 3
-const PERSONAL_TOP_N = 5
+const PERSONAL_TOP_N = 3
 
 // 個人カードだけを参考画像に合わせる。既存ゲーム2枚の色・寸法は変えない。
 const PERSONAL = {
@@ -140,7 +140,7 @@ function personalRow(input: {
   }
 }
 
-/** 44px見出し + 268px本文 + 20pxフッター = 332px。ゲームカードとは独立。 */
+/** 44px見出し + 178px本文 + 20pxフッター = 242px。ゲームカードとは独立。 */
 function personalCard(rows: Record<string, any>[], myLine: string, siteUrl: string): Record<string, any> {
   const moreUrl = `${siteUrl}/ranking/personal`
   const logo = safeImage(`${siteUrl.replace(/\/$/, '')}/static/dressup/brand-leaf.png`)
@@ -174,10 +174,10 @@ function personalCard(rows: Record<string, any>[], myLine: string, siteUrl: stri
       ],
     },
     body: {
-      type: 'box', layout: 'vertical', height: '268px', paddingAll: '0px',
+      type: 'box', layout: 'vertical', height: '178px', paddingAll: '0px',
       paddingStart: '10px', paddingEnd: '10px', paddingBottom: '5px', backgroundColor: '#FFFFFF',
       contents: [
-        { type: 'box', layout: 'vertical', height: '217px', spacing: '3px', contents: rows, flex: 0 },
+        { type: 'box', layout: 'vertical', height: '127px', spacing: '2px', contents: rows, flex: 0 },
         {
           type: 'box', layout: 'vertical', height: '16px', margin: '2px', justifyContent: 'center', flex: 0,
           contents: [{
@@ -204,7 +204,7 @@ function personalCard(rows: Record<string, any>[], myLine: string, siteUrl: stri
   return {
     type: 'bubble', size: 'kilo',
     header: {
-      type: 'box', layout: 'vertical', height: '332px', paddingAll: '0px',
+      type: 'box', layout: 'vertical', height: '242px', paddingAll: '0px',
       backgroundColor: '#FFFFFF',
       contents: [sections.header, sections.body, sections.footer],
     },
@@ -470,7 +470,7 @@ export async function buildRankingCarousel(
   siteUrl: string,
   userId: string | null
 ): Promise<LineMessage> {
-  // ─── 1枚目: 葉っぱもちランキング(累計EXP・表示だけ5人へ) ───
+  // ─── 1枚目: 葉っぱもちランキング(累計EXP・上位3人) ───
   let happaRows: Record<string, any>[]
   let happaMine = ''
   try {

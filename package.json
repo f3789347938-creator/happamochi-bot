@@ -4,7 +4,7 @@
   "scripts": {
     "dev": "vite",
     "build:help": "node --experimental-strip-types scripts/render-help-assets.mjs",
-    "build": "npm run build:help && vite build && node scripts/inject-wasm.mjs",
+    "build": "npm run build:help && vite build",
     "preview": "wrangler pages dev",
     "deploy": "npm run build && wrangler pages deploy",
     "cf-typegen": "wrangler types --env-interface CloudflareBindings"

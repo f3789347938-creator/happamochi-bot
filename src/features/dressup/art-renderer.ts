@@ -1,5 +1,5 @@
 import { getCosmetic } from './catalog'
-import { appearanceSvg } from './art'
+import { appearanceSvg, ARTWORK_LAYOUT_VERSION } from './art'
 import { renderArtworkSvgPng } from '../../lib/imageGen'
 
 type AssetBinding = { fetch: (request: Request) => Promise<Response> }
@@ -37,7 +37,7 @@ export async function renderAppearanceResponse(
   const requestedView = url.searchParams.get('view')
   const view = requestedView === 'status' || requestedView === 'icon' ? requestedView : 'standard'
   // Ignore arbitrary queries, so a cache-buster cannot amplify render cost.
-  const query = view === 'standard' ? 'v=1' : `view=${view}&v=2`
+  const query = view === 'standard' ? 'v=1' : `view=${view}&v=${ARTWORK_LAYOUT_VERSION}`
   const cacheKey = new Request(`${origin}/dressup-art/${costume.id}/${view === 'icon' ? 'BG000' : background.id}.png?${query}`)
   const cached = await cache?.match(cacheKey).catch(() => undefined)
   if (cached) return cached
@@ -57,7 +57,8 @@ export async function renderAppearanceResponse(
     // Cache failures must not prevent LINE from loading the successful PNG.
     if (cache) await cache.put(cacheKey, response.clone()).catch(() => undefined)
     return response
-  } catch {
+  } catch (error) {
+    console.error('[dressup-art] Rendering failed:', error instanceof Error ? error.message : 'Unknown error')
     return new Response('Artwork temporarily unavailable', { status: 503, headers: { 'Retry-After': '30' } })
   }
 }

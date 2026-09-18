@@ -163,7 +163,7 @@ test('status view produces real 768×384 PNGs while standard v1 stays 768×512',
   for (const [costume, background] of [['C000', 'BG000'], ['C001', 'BG001'], ['C120', 'BG030']]) {
     const { assets, calls } = assetFixture()
     const bytes = await expectPng(
-      await renderAppearanceResponse(request(costume, background, '?view=status&v=2'), assets, costume, background),
+      await renderAppearanceResponse(request(costume, background, '?view=status&v=3'), assets, costume, background),
       { width: 768, height: 384 },
     )
     assert.deepEqual(calls.sort(), [`${BASE}/static/dressup/${costume}.png`, `${BASE}/static/dressup/${background}.png`].sort())
@@ -181,7 +181,7 @@ test('icon view is a cropped 192×144 alpha PNG and reads only its costume asset
     })
     const dimensions = { width: 192, height: 144 }
     const bytes = await expectPng(
-      await renderAppearanceResponse(request(costume, 'BG030', '?view=icon&v=2'), assets, costume, 'BG030'),
+      await renderAppearanceResponse(request(costume, 'BG030', '?view=icon&v=3'), assets, costume, 'BG030'),
       dimensions,
     )
     assert.deepEqual(calls, [`${BASE}/static/dressup/${costume}.png`])
@@ -241,15 +241,15 @@ test('cache isolates standard/status/icon and canonicalizes unknown views, query
     async put(key, response) { writes.push(key.url); entries.set(key.url, response.clone()) },
   }
   const standardKey = `${BASE}/dressup-art/C001/BG001.png?v=1`
-  const statusKey = `${BASE}/dressup-art/C001/BG001.png?view=status&v=2`
-  const iconKey = `${BASE}/dressup-art/C001/BG000.png?view=icon&v=2`
+  const statusKey = `${BASE}/dressup-art/C001/BG001.png?view=status&v=3`
+  const iconKey = `${BASE}/dressup-art/C001/BG000.png?view=icon&v=3`
   const cases = [
     ['BG001', '?v=999&extra=one', standardKey, { width: 768, height: 512 }],
     ['BG001', '?view=status&v=1&extra=one', statusKey, { width: 768, height: 384 }],
     ['BG001', '?view=icon&v=1&extra=one', iconKey, { width: 192, height: 144 }],
     ['BG001', '?view=status&v=500&private=user-two', statusKey, { width: 768, height: 384 }],
     ['BG030', '?view=icon&v=999&private=user-three', iconKey, { width: 192, height: 144 }],
-    ['BG001', '?view=standard&v=2', standardKey, { width: 768, height: 512 }],
+    ['BG001', '?view=standard&v=3', standardKey, { width: 768, height: 512 }],
     ['BG001', '?view=unknown&size=999999&url=https://evil.test/private', standardKey, { width: 768, height: 512 }],
     ['BG001', '?view=STATUS', standardKey, { width: 768, height: 512 }],
     ['BG001', '?view=../private', standardKey, { width: 768, height: 512 }],

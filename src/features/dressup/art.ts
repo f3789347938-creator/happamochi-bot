@@ -2,6 +2,8 @@ import { DEFAULT_BACKGROUND, DEFAULT_COSTUME, getCosmetic } from './catalog'
 import costumeBounds from './costume-bounds.json'
 
 export type ArtworkView = 'standard' | 'status' | 'icon'
+// New URLs make LINE fetch repaired artwork instead of reusing failed loads.
+export const ARTWORK_LAYOUT_VERSION = 3
 
 export interface Appearance {
   costumeId: string
@@ -27,7 +29,7 @@ function origin(baseUrl: string): string {
 export function appearanceUrl(baseUrl: string, input: Appearance, view: ArtworkView = 'standard'): string {
   const a = normalizedAppearance(input)
   const backgroundId = view === 'icon' ? DEFAULT_BACKGROUND.id : a.backgroundId
-  const query = view === 'standard' ? 'v=1' : `view=${view}&v=2`
+  const query = view === 'standard' ? 'v=1' : `view=${view}&v=${ARTWORK_LAYOUT_VERSION}`
   return `${origin(baseUrl)}/dressup-art/${a.costumeId}/${backgroundId}.png?${query}`
 }
 

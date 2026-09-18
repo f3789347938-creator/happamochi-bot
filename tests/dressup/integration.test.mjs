@@ -141,7 +141,7 @@ function assertArtworkUrl(image, { costume, background, view }) {
   const url = new URL(image.url)
   assert.equal(url.pathname, `/dressup-art/${costume}/${background}.png`)
   assert.equal(url.searchParams.get('view'), view)
-  assert.equal(url.searchParams.get('v'), '2', 'updated composition must not reuse the old cached image')
+  assert.equal(url.searchParams.get('v'), '3', 'repaired artwork must not reuse failed LINE image loads')
 }
 const actionFor = (value, label) => {
   const action = actions(value).find((node) => node.label === label)
@@ -368,7 +368,7 @@ test('complete collection never opens a paid draw or changes the balance', async
   assert.equal(f.sqlite.prepare('SELECT COUNT(*) AS c FROM dressup_confirmations').get().c, 0)
 })
 
-test('LINE ranking shows five fixed rows, cumulative tied ranks and self highlight; game cards stay unchanged', async (t) => {
+test('LINE ranking shows three compact fixed rows, cumulative tied ranks and self highlight; game cards stay unchanged', async (t) => {
   const f = fixture(t)
   for (const [index, user] of [A, B, C, D].entries()) {
     f.sqlite.prepare(`INSERT INTO mochi_scores (user_id, display_name, picture_url, best_score, best_merges, plays)
@@ -387,15 +387,23 @@ test('LINE ranking shows five fixed rows, cumulative tied ranks and self highlig
   const [personal, puzzle, survivor] = message.contents.contents
   assert.equal(personal.body, undefined, 'no native body block means adjacent tall game cards cannot stretch personal ranking')
   assert.equal(personal.footer, undefined)
-  assert.equal(personal.header.height, '332px')
-  assert.equal(compactHeight(personal), 332, 'ranking matches the compact status-card height')
+  assert.equal(personal.header.height, '242px')
+  assert.equal(compactHeight(personal), 242, 'top-three ranking remains compact without carousel body stretching')
   const personalSections = compactSections(personal)
+  assert.equal(personalSections.header.height, '44px')
+  assert.equal(personalSections.body.height, '178px')
+  assert.equal(personalSections.footer.height, '20px')
+  const rowBox = personalSections.body.contents[0]
+  assert.equal(rowBox.height, '127px')
+  assert.equal(rowBox.spacing, '2px')
   const rows = personalSections.body.contents[0].contents
-  assert.equal(rows.length, 5)
-  assert.ok(rows.every((row) => row.height === '41px' && row.flex === 0), 'all five ranking rows stay fixed height')
-  assert.deepEqual(rows.map((row) => row.contents[0].contents[0].text), ['1', '2', '2', '4', '5'])
-  assert.deepEqual(rows.map((row) => row.contents[2].contents[0].text), ['Alice', 'Bob', 'Charlie', 'Dora', 'Emma'])
-  assert.deepEqual(rows.map((row) => row.contents[3].contents[0].text), ['3,840', '3,260', '3,260', '2,460', '2,180'])
+  assert.equal(rows.length, 3)
+  assert.ok(rows.every((row) => row.height === '41px' && row.flex === 0), 'all three ranking rows stay fixed height')
+  assert.equal(rows.reduce((sum, row) => sum + px(row.height), 0) + (rows.length - 1) * px(rowBox.spacing), px(rowBox.height), 'row heights and gaps fit without clipping')
+  assert.deepEqual(rows.map((row) => row.contents[0].contents[0].text), ['1', '2', '2'])
+  assert.deepEqual(rows.map((row) => row.contents[2].contents[0].text), ['Alice', 'Bob', 'Charlie'])
+  assert.deepEqual(rows.map((row) => row.contents[3].contents[0].text), ['3,840', '3,260', '3,260'])
+  assert.ok(!texts(personal).includes('Dora') && !texts(personal).includes('Emma'), 'fourth and fifth profiles are not rendered')
   assert.match(texts(personal), /累計トークEXP/)
   assert.ok(!texts(personal).includes('週間'))
   assertArtworkUrl(images(rows[0])[0], { costume: 'C001', background: 'BG000', view: 'icon' })
@@ -416,10 +424,16 @@ test('LINE ranking shows five fixed rows, cumulative tied ranks and self highlig
     assert.deepEqual(images(game).map((image) => image.url), [0, 1, 2].map((index) => `https://avatar.example/${kind}${index}.png`))
     assert.ok(images(game).every((image) => !image.url.includes('/dressup-art/')), 'games retain LINE avatars')
   }
+  const outsideTopThree = await app.buildRankingCarousel(f.env, BASE, D)
+  validateMessages([outsideTopThree])
+  const outsidePersonal = outsideTopThree.contents.contents[0]
+  assert.equal(compactHeight(outsidePersonal), 242)
+  assert.match(texts(outsidePersonal), /あなたは現在 4位/)
+  assert.ok(compactSections(outsidePersonal).body.contents[0].contents.every((row) => !texts(row).includes('あなた')), 'viewer outside top three is not attached to another tied row')
   assert.equal(f.snapshot(), before)
 })
 
-test('long ranking names and large cumulative scores cannot expand the five fixed rows', async (t) => {
+test('long ranking names and large cumulative scores cannot expand the three fixed rows', async (t) => {
   const f = fixture(t)
   const baseline = await app.buildRankingCarousel(f.env, BASE, A)
   f.sqlite.prepare('UPDATE user_profiles SET display_name = ?, total_exp = ? WHERE user_id = ?')
@@ -430,7 +444,7 @@ test('long ranking names and large cumulative scores cannot expand the five fixe
   const personal = changed.contents.contents[0]
   assert.equal(compactHeight(personal), compactHeight(baseline.contents.contents[0]))
   const rows = compactSections(personal).body.contents[0].contents
-  assert.equal(rows.length, 5)
+  assert.equal(rows.length, 3)
   assert.ok(rows.every((row) => row.height === '41px' && row.flex === 0))
   const [name, exp] = [rows[0].contents[2].contents[0], rows[0].contents[3].contents[0]]
   for (const node of [name, exp]) {

@@ -57,15 +57,15 @@ test('status and icon URLs use versioned finite views, without changing standard
   assert.equal(appearanceUrl('https://example.com', appearance, 'standard'),
     'https://example.com/dressup-art/C001/BG030.png?v=1')
   assert.equal(appearanceUrl('https://example.com', appearance, 'status'),
-    'https://example.com/dressup-art/C001/BG030.png?view=status&v=2')
+    'https://example.com/dressup-art/C001/BG030.png?view=status&v=3')
   assert.equal(appearanceUrl('https://example.com', appearance, 'icon'),
-    'https://example.com/dressup-art/C001/BG000.png?view=icon&v=2')
+    'https://example.com/dressup-art/C001/BG000.png?view=icon&v=3')
   assert.equal(costumeIconUrl('https://example.com', 'C001'),
-    'https://example.com/dressup-art/C001/BG000.png?view=icon&v=2')
+    'https://example.com/dressup-art/C001/BG000.png?view=icon&v=3')
   assert.equal(costumeIconUrl('https://example.com', 'Uprivate-user'),
-    'https://example.com/dressup-art/C000/BG000.png?view=icon&v=2')
+    'https://example.com/dressup-art/C000/BG000.png?view=icon&v=3')
   assert.equal(costumeIconUrl('https://example.com', 'BG001'),
-    'https://example.com/dressup-art/C000/BG000.png?view=icon&v=2')
+    'https://example.com/dressup-art/C000/BG000.png?view=icon&v=3')
   assert.throws(() => costumeIconUrl('javascript:evil()', 'C001'))
 })
 

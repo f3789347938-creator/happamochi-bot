@@ -1,19 +1,20 @@
-// Post-build step: Vite's SSR build cannot handle `import x from './y.wasm'`
+// Vite closeBundle step: Vite's SSR build cannot handle `import x from './y.wasm'`
 // (Node.js throws ERR_UNKNOWN_FILE_EXTENSION), so we vite-build the worker
 // WITHOUT any wasm/font imports, then patch the compiled dist/_worker.js to
 // prepend static imports for the wasm binaries + font file. wrangler's own
 // esbuild step (which runs during `wrangler pages deploy`) DOES understand
 // `.wasm` static imports (pre-compiles them into WebAssembly.Module) and
-// binary `.ttf` imports (via the `rules` config in wrangler.jsonc), so this
-// works even though Vite itself cannot do it.
+// binary `.bin` imports (via Pages' built-in module rules), so this works even
+// though Vite itself cannot do it. Also safe to run manually more than once.
 import { readFileSync, writeFileSync, copyFileSync, mkdirSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = resolve(__dirname, '..')
-const distDir = resolve(root, 'dist')
+const distDir = resolve(process.argv[2] ?? resolve(root, 'dist'))
 const workerPath = resolve(distDir, '_worker.js')
+const original = readFileSync(workerPath, 'utf-8')
 
 // Copy the raw wasm/font assets next to _worker.js so the injected relative
 // imports below can resolve them.
@@ -42,8 +43,6 @@ copyFileSync(resolve(root, 'public/static/fonts/NotoSansJP-Regular.ttf'), resolv
 // patching harfbuzz's own bundled loader bytecode. 0.32.0 doesn't bundle
 // harfbuzz at all, so this whole class of failure doesn't exist. Do not
 // upgrade satori past 0.32.x without re-verifying this on workerd first.
-
-const original = readFileSync(workerPath, 'utf-8')
 
 // IMPORTANT: this shim MUST run before the `import` statements below, not
 // just before our own code calls into satori. The yoga-layout wasm loader
@@ -86,5 +85,35 @@ globalThis.__HAPPAMOCHI_FONT_TTF__ = __notoSansJpFontBold;
 globalThis.__HAPPAMOCHI_FONT_TTF_REGULAR__ = __notoSansJpFontRegular;
 `
 
-writeFileSync(workerPath, prelude + original)
-console.log('[inject-wasm] patched dist/_worker.js with static wasm/font imports')
+const startMarker = '// HAPPAMOCHI_IMAGE_RUNTIME_START\n'
+const endMarker = '// HAPPAMOCHI_IMAGE_RUNTIME_END\n'
+let body = original
+// Normalize both current marked output and the old unmarked prelude. This
+// preserves manual invocation and watch/repeated-build compatibility without
+// producing duplicate imports or duplicate global initialization.
+while (body.startsWith(startMarker) || body.startsWith(prelude)) {
+  if (body.startsWith(prelude)) {
+    body = body.slice(prelude.length)
+  } else {
+    const end = body.indexOf(endMarker, startMarker.length)
+    if (end === -1) throw new Error('Incomplete image runtime prelude in built worker')
+    body = body.slice(end + endMarker.length)
+  }
+}
+const patched = startMarker + prelude + endMarker + body
+
+// Fail the build rather than publish a worker whose image endpoints can only
+// return 503. Validate the actual emitted artifact, not only the source config.
+for (const line of prelude.trimEnd().split('\n')) {
+  if (patched.split(line).length - 1 !== 1) {
+    throw new Error(`Invalid or duplicate image runtime initialization: ${line}`)
+  }
+}
+for (const filename of ['yoga.wasm', 'resvg.wasm', 'NotoSansJP-Bold.bin', 'NotoSansJP-Regular.bin']) {
+  const bytes = readFileSync(resolve(distDir, 'assets', filename))
+  if (bytes.length === 0 || (filename.endsWith('.wasm') && !WebAssembly.validate(bytes))) {
+    throw new Error(`Invalid image runtime asset: ${filename}`)
+  }
+}
+if (patched !== original) writeFileSync(workerPath, patched)
+console.log('[inject-wasm] verified worker static wasm/font imports and runtime assets')
