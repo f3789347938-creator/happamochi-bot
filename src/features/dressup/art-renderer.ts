@@ -32,17 +32,21 @@ export async function renderAppearanceResponse(
     return new Response('Not found', { status: 404 })
   }
   if (!assets) return new Response('Asset binding unavailable', { status: 503 })
-  const origin = new URL(request.url).origin
+  const url = new URL(request.url)
+  const origin = url.origin
+  const requestedView = url.searchParams.get('view')
+  const view = requestedView === 'status' || requestedView === 'icon' ? requestedView : 'standard'
   // Ignore arbitrary queries, so a cache-buster cannot amplify render cost.
-  const cacheKey = new Request(`${origin}/dressup-art/${costume.id}/${background.id}.png?v=1`)
+  const query = view === 'standard' ? 'v=1' : `view=${view}&v=2`
+  const cacheKey = new Request(`${origin}/dressup-art/${costume.id}/${view === 'icon' ? 'BG000' : background.id}.png?${query}`)
   const cached = await cache?.match(cacheKey).catch(() => undefined)
   if (cached) return cached
   try {
     const [costumePng, backgroundPng] = await Promise.all([
       inlinePng(assets, origin, costume.imagePath),
-      inlinePng(assets, origin, background.imagePath),
+      view === 'icon' ? Promise.resolve(undefined) : inlinePng(assets, origin, background.imagePath),
     ])
-    const png = await renderArtworkSvgPng(appearanceSvg(costumePng, backgroundPng), 768)
+    const png = await renderArtworkSvgPng(appearanceSvg(costumePng, backgroundPng ?? costumePng, view, costume.id), view === 'icon' ? 192 : 768)
     const response = new Response(png, {
       headers: {
         'Content-Type': 'image/png',

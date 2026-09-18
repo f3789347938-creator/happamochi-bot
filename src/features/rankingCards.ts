@@ -1,6 +1,6 @@
 // 「ランキング」コマンドの返信カード(横スワイプのカルーセル)。
 //
-// 1枚目: 葉っぱもちランキング(個人のLv / 累計EXP)
+// 1枚目: 葉っぱもちランキング(個人の累計EXP・上位5人)
 // 2枚目: もち合体パズル(LIFFミニゲームのスコア)
 //
 // 既存の実装には触らない方針なので、
@@ -16,10 +16,10 @@
 //   ・https 以外や空の場合は画像を出さず、色付きの枠だけを出す
 //     (壊れた画像アイコンが並ぶのを防ぐ)。
 import type { LineEnv, LineMessage } from '../lib/line'
-import { listRanking, getPersonalRank, countProfiles } from './profile/core'
+import { listRanking, getPersonalRank } from './profile/core'
 import { getRanking as getMochiRanking, getMyScore as getMyMochiScore } from './mochiScore'
 import { getSurvivorRanking, getMySurvivor } from './survivor'
-import { appearanceUrl } from './dressup/art'
+import { costumeIconUrl } from './dressup/art'
 import { getAppearanceByPublicIds } from './dressup/store'
 
 // このランキングカード専用の色。
@@ -44,6 +44,17 @@ const MEDAL = ['#D4AF37', '#949DA3', '#B87939']
 // Botの正式表記。参照元のBot名は使わない。
 const FOOTER_TEXT = '© 2026 HappaMochi Bot'
 const TOP_N = 3
+const PERSONAL_TOP_N = 5
+
+// 個人カードだけを参考画像に合わせる。既存ゲーム2枚の色・寸法は変えない。
+const PERSONAL = {
+  navy: '#073875',
+  blue: '#009FEC',
+  border: '#B6E5FF',
+  selected: '#EDF8FF',
+  medals: ['#C89533', '#009FEC', '#B87939'],
+  muted: '#768BAD',
+}
 
 // 見本に合わせた寸法。
 const AVATAR_PX = 44 // アバター一辺
@@ -60,6 +71,144 @@ function safeImage(url: string | null | undefined): string | null {
   if (!url.startsWith('https://')) return null
   if (url.length > 1000) return null
   return url
+}
+
+/** 名前を1行に収める。長い値でもカードの幅・高さを増やさない。 */
+function personalName(name: string): string {
+  const characters = Array.from(name.trim() || '名前なし')
+  return characters.length > 24 ? `${characters.slice(0, 23).join('')}…` : characters.join('')
+}
+
+/** 個人ランキング専用の41px行。透明な衣装PNGに背景・アバター枠は付けない。 */
+function personalRow(input: {
+  rank: number
+  name: string
+  exp: number
+  pictureUrl: string | null
+  mine: boolean
+}): Record<string, any> {
+  const image = safeImage(input.pictureUrl)
+  return {
+    type: 'box', layout: 'horizontal', height: '41px', spacing: '4px',
+    alignItems: 'center', paddingAll: '0px', paddingStart: '6px', paddingEnd: '8px',
+    backgroundColor: input.mine ? PERSONAL.selected : '#FFFFFF',
+    borderColor: input.mine ? PERSONAL.blue : PERSONAL.border,
+    borderWidth: input.mine ? '2px' : '1px', cornerRadius: '6px', flex: 0,
+    contents: [
+      {
+        type: 'box', layout: 'vertical', width: '15px', flex: 0, justifyContent: 'center',
+        contents: [{
+          type: 'text', text: String(input.rank), size: '20px', weight: 'bold', align: 'center',
+          color: PERSONAL.medals[input.rank - 1] ?? PERSONAL.muted,
+          wrap: false, maxLines: 1, adjustMode: 'shrink-to-fit',
+        }],
+      },
+      image
+        ? { type: 'image', url: image, size: '50px', flex: 0, aspectRatio: '4:3', aspectMode: 'fit' }
+        : {
+            type: 'box', layout: 'vertical', width: '36px', height: '36px', flex: 0,
+            justifyContent: 'center', contents: [{
+              type: 'text', text: Array.from(input.name.trim())[0] ?? '?', align: 'center',
+              size: '15px', color: PERSONAL.muted,
+            }],
+          },
+      {
+        type: 'box', layout: 'vertical', flex: 1, justifyContent: 'center', spacing: '1px',
+        contents: [
+          {
+            type: 'text', text: personalName(input.name), size: '13px', weight: 'bold',
+            color: PERSONAL.navy, wrap: false, maxLines: 1, adjustMode: 'shrink-to-fit',
+          },
+          ...(input.mine ? [{
+            type: 'box', layout: 'vertical', width: '35px', height: '12px', flex: 0,
+            backgroundColor: PERSONAL.blue, cornerRadius: '6px', justifyContent: 'center',
+            contents: [{ type: 'text', text: 'あなた', color: '#FFFFFF', size: '9px', weight: 'bold', align: 'center', wrap: false }],
+          }] : []),
+        ],
+      },
+      {
+        type: 'box', layout: 'vertical', width: '66px', flex: 0, justifyContent: 'center', spacing: '0px',
+        contents: [
+          {
+            type: 'text', text: num(input.exp), size: '16px', weight: 'bold', color: PERSONAL.navy,
+            align: 'end', wrap: false, maxLines: 1, adjustMode: 'shrink-to-fit',
+          },
+          { type: 'text', text: 'EXP', size: '8px', color: PERSONAL.navy, align: 'end', wrap: false },
+        ],
+      },
+    ],
+  }
+}
+
+/** 44px見出し + 268px本文 + 20pxフッター = 332px。ゲームカードとは独立。 */
+function personalCard(rows: Record<string, any>[], myLine: string, siteUrl: string): Record<string, any> {
+  const moreUrl = `${siteUrl}/ranking/personal`
+  const logo = safeImage(`${siteUrl.replace(/\/$/, '')}/static/dressup/brand-leaf.png`)
+  const sections = {
+    type: 'bubble', size: 'kilo',
+    header: {
+      type: 'box', layout: 'vertical', height: '44px', paddingAll: '0px',
+      paddingTop: '7px', paddingStart: '10px', paddingEnd: '10px', paddingBottom: '3px',
+      backgroundColor: '#FFFFFF', action: { type: 'uri', label: 'ランキングをもっと見る', uri: moreUrl },
+      contents: [
+        {
+          type: 'box', layout: 'horizontal', height: '22px', alignItems: 'center',
+          contents: [
+            {
+              type: 'text', text: 'ランキング', size: '20px', weight: 'bold', color: PERSONAL.navy,
+              flex: 1, wrap: false, maxLines: 1, adjustMode: 'shrink-to-fit',
+            },
+            {
+              type: 'box', layout: 'horizontal', width: '85px', flex: 0, spacing: '3px', alignItems: 'center',
+              contents: [
+                ...(logo ? [{ type: 'image', url: logo, size: '18px', flex: 0, aspectRatio: '1:1', aspectMode: 'fit' }] : []),
+                { type: 'text', text: '葉っぱもち', size: '11px', weight: 'bold', color: PERSONAL.navy, wrap: false, adjustMode: 'shrink-to-fit' },
+              ],
+            },
+          ],
+        },
+        {
+          type: 'box', layout: 'vertical', height: '12px', justifyContent: 'center',
+          contents: [{ type: 'text', text: '累計トークEXP', size: '10px', color: PERSONAL.navy, wrap: false }],
+        },
+      ],
+    },
+    body: {
+      type: 'box', layout: 'vertical', height: '268px', paddingAll: '0px',
+      paddingStart: '10px', paddingEnd: '10px', paddingBottom: '5px', backgroundColor: '#FFFFFF',
+      contents: [
+        { type: 'box', layout: 'vertical', height: '217px', spacing: '3px', contents: rows, flex: 0 },
+        {
+          type: 'box', layout: 'vertical', height: '16px', margin: '2px', justifyContent: 'center', flex: 0,
+          contents: [{
+            type: 'text', text: myLine || 'まだ順位がついていません', size: '10px', color: PERSONAL.navy,
+            align: 'center', wrap: false, maxLines: 1, adjustMode: 'shrink-to-fit',
+          }],
+        },
+        {
+          type: 'box', layout: 'vertical', height: '26px', margin: '2px', flex: 0,
+          backgroundColor: PERSONAL.blue, cornerRadius: '6px', justifyContent: 'center',
+          action: { type: 'postback', label: '自分のステータス', data: 'pf|status' },
+          contents: [{ type: 'text', text: '自分のステータス', size: '14px', weight: 'bold', color: '#FFFFFF', align: 'center', wrap: false }],
+        },
+      ],
+    },
+    footer: {
+      type: 'box', layout: 'vertical', height: '20px', paddingAll: '0px', justifyContent: 'center',
+      backgroundColor: PERSONAL.blue,
+      contents: [{ type: 'text', text: 'HappaMochi Bot', size: '10px', color: '#FFFFFF', align: 'center', wrap: false }],
+    },
+  }
+  // LINE stretches carousel bodies to the tallest game card. Keep these three
+  // visual sections inside the header: a bubble without a body keeps its height.
+  return {
+    type: 'bubble', size: 'kilo',
+    header: {
+      type: 'box', layout: 'vertical', height: '332px', paddingAll: '0px',
+      backgroundColor: '#FFFFFF',
+      contents: [sections.header, sections.body, sections.footer],
+    },
+  }
 }
 
 /** 1行分。アイコン + 名前 + 補足。 */
@@ -321,11 +470,16 @@ export async function buildRankingCarousel(
   siteUrl: string,
   userId: string | null
 ): Promise<LineMessage> {
-  // ─── 1枚目: 葉っぱもちランキング(Lv / 累計EXP) ───
+  // ─── 1枚目: 葉っぱもちランキング(累計EXP・表示だけ5人へ) ───
   let happaRows: Record<string, any>[]
   let happaMine = ''
   try {
-    const top = await listRanking(env, TOP_N, 0)
+    const top = await listRanking(env, PERSONAL_TOP_N, 0)
+    // 本人の強調は公開IDで照合する。LINE IDはカードやURLに含めない。
+    const own = userId
+      ? await env.DB.prepare(`SELECT public_id FROM user_profiles WHERE user_id = ?`)
+          .bind(userId).first<{ public_id: string }>()
+      : null
     // 取得に失敗しても既存ランキング自体は表示する。LINE IDはURLに載せない。
     const appearances = await getAppearanceByPublicIds(env, top.map((r) => r.public_id)).catch(
       () => ({} as Record<string, { costumeId: string; backgroundId: string }>)
@@ -333,23 +487,23 @@ export async function buildRankingCarousel(
     happaRows =
       top.length > 0
         ? top.map((r) =>
-            row(
-              r.rank,
-              r.display_name ?? '名前なし',
-              `Lv.${r.level} ・ 累計 ${num(r.total_exp)} EXP`,
-              appearances[r.public_id]
-                ? appearanceUrl(siteUrl, appearances[r.public_id])
-                : r.picture_url
-            )
+            personalRow({
+              rank: r.rank,
+              name: r.display_name ?? '名前なし',
+              exp: r.total_exp,
+              pictureUrl: appearances[r.public_id]
+                ? costumeIconUrl(siteUrl, appearances[r.public_id].costumeId)
+                : r.picture_url,
+              mine: r.public_id === own?.public_id,
+            })
           )
         : [emptyRow('まだ記録がありません')]
 
-    const total = await countProfiles(env)
     const myRank = userId ? await getPersonalRank(env, userId) : null
     happaMine =
       myRank !== null
-        ? `あなたの順位: ${myRank}位 / ${num(total)}人`
-        : 'まだ順位がついてないよ' + (total > 0 ? ` / ${num(total)}人参加中` : '')
+        ? `あなたは現在 ${num(myRank)}位`
+        : 'まだ順位がついていません'
   } catch {
     happaRows = [emptyRow('ランキングを取得できませんでした')]
     happaMine = ''
@@ -430,7 +584,7 @@ export async function buildRankingCarousel(
     contents: {
       type: 'carousel',
       contents: [
-        card('葉っぱもちランキング', happaRows, happaMine, `${siteUrl}/ranking/personal`, Boolean(userId)),
+        personalCard(happaRows, happaMine, siteUrl),
         card('もち合体パズル', mochiRows, mochiMine, `${siteUrl}/ranking/mochi`),
         card('もち軍団サバイバル', survRows, survMine, `${siteUrl}/ranking/survivor`),
       ],

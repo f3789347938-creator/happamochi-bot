@@ -13,6 +13,7 @@ const bundled = await build({
   stdin: {
     contents: `
       export { handleProfileText, handleProfilePostback } from './src/features/profile/index.ts';
+      export { buildStatusCard } from './src/features/profile/flex.ts';
       export { renderPersonalRankingPage, renderPublicStatusPage } from './src/features/profile/page.ts';
       export { buildRankingCarousel } from './src/features/rankingCards.ts';
       export { getAppearance, listOwnedCosmeticIds, GACHA_COST } from './src/features/dressup/store.ts';
@@ -29,9 +30,10 @@ const A = 'U_private_alice_00000000000000001'
 const B = 'U_private_bob_0000000000000000002'
 const C = 'U_private_charlie_000000000000003'
 const D = 'U_private_dora_000000000000000004'
-const users = [A, B, C, D]
-const names = ['Alice', 'Bob', 'Charlie', 'Dora']
-const publicIds = ['publicalice0001', 'publicbob00002', 'publiccharlie3', 'publicdora0004']
+const E = 'U_private_emma_000000000000000005'
+const users = [A, B, C, D, E]
+const names = ['Alice', 'Bob', 'Charlie', 'Dora', 'Emma']
+const publicIds = ['publicalice0001', 'publicbob00002', 'publiccharlie3', 'publicdora0004', 'publicemma0005']
 
 function fixture(t, { dressup = true, points = 15225 } = {}) {
   const sqlite = new DatabaseSync(':memory:')
@@ -68,7 +70,7 @@ function fixture(t, { dressup = true, points = 15225 } = {}) {
       }
     },
   }
-  const exp = [3840, 3260, 2980, 2460]
+  const exp = [3840, 3260, 2980, 2460, 2180]
   users.forEach((id, index) => {
     sqlite.prepare(`INSERT INTO user_profiles
       (user_id, public_id, display_name, picture_url, total_exp, points)
@@ -107,6 +109,40 @@ function nodes(value) {
 const texts = (value) => nodes(value).filter((node) => node.type === 'text').map((node) => node.text).join('\n')
 const actions = (value) => nodes(value).filter((node) => node.type === 'postback' || node.type === 'uri')
 const images = (value) => nodes(value).filter((node) => node.type === 'image')
+const textNodes = (value) => nodes(value).filter((node) => node.type === 'text')
+const px = (value) => {
+  assert.match(value, /^\d+(?:\.\d+)?px$/, 'compact layout has an explicit pixel height')
+  return Number.parseFloat(value)
+}
+function compactHeight(bubble) {
+  assert.equal(bubble.size, 'kilo', 'compact cards use the 260px bubble size')
+  const sections = compactSections(bubble)
+  const height = [sections.header, sections.body, sections.footer].reduce((sum, node) => sum + px(node.height), 0)
+  if (!bubble.body) assert.equal(px(bubble.header.height), height, 'single-section wrapper preserves the original total height')
+  assert.ok(height <= 350, `compact card height ${height}px stays below 350px`)
+  return height
+}
+
+// LINE stretches carousel body blocks to match the tallest adjacent body.
+// Personal ranking keeps its three visual sections inside one fixed header;
+// status and legacy game bubbles retain their ordinary top-level sections.
+function compactSections(bubble) {
+  if (bubble.body) return { header: bubble.header, body: bubble.body, footer: bubble.footer }
+  assert.equal(bubble.footer, undefined)
+  assert.equal(bubble.header.type, 'box')
+  assert.equal(bubble.header.layout, 'vertical')
+  assert.equal(bubble.header.contents.length, 3)
+  const [header, body, footer] = bubble.header.contents
+  return { header, body, footer }
+}
+
+function assertArtworkUrl(image, { costume, background, view }) {
+  assert.ok(image, `missing ${view} artwork`)
+  const url = new URL(image.url)
+  assert.equal(url.pathname, `/dressup-art/${costume}/${background}.png`)
+  assert.equal(url.searchParams.get('view'), view)
+  assert.equal(url.searchParams.get('v'), '2', 'updated composition must not reuse the old cached image')
+}
 const actionFor = (value, label) => {
   const action = actions(value).find((node) => node.label === label)
   assert.ok(action, `Missing action: ${label}`)
@@ -141,7 +177,21 @@ test('status and wardrobe use catalog appearance while preserving card themes an
   const f = fixture(t)
   const before = f.snapshot()
   const status = await f.text('ステータス')
-  assert.ok(images(status).some((image) => image.url.includes('/dressup-art/C000/BG000.png')))
+  const bubble = status[0].contents
+  assert.equal(compactHeight(bubble), 332)
+  const hero = images(bubble).find((image) => image.url.includes('/dressup-art/'))
+  assertArtworkUrl(hero, { costume: 'C000', background: 'BG000', view: 'status' })
+  assert.equal(hero.aspectRatio, '2:1', 'status uses the wide reference composition')
+  assert.equal(bubble.body.contents[0].height, '118px')
+  assert.equal(bubble.body.contents[1].layout, 'horizontal', 'name and title share one compact row')
+  assert.match(texts(bubble.body.contents[1]), /Alice/)
+  assert.ok(actions(bubble.body.contents[1]).some((action) => action.data === 'pf|titles'))
+  assert.deepEqual(actions(bubble).filter((action) => action.type === 'postback').map((action) => action.data).sort(), ['pf|dress|home', 'pf|titles'])
+  const visibleButtons = bubble.body.contents.filter((node) => node.action?.type === 'postback')
+  assert.equal(visibleButtons.length, 1, 'only one full-width button is visible on the status surface')
+  assert.equal(visibleButtons[0].action.data, 'pf|dress|home')
+  assert.equal(texts(bubble.footer), 'HappaMochi Bot')
+  assert.doesNotMatch(texts(bubble), /運勢|背景：|累計EXPランキング|きせかえガチャ|カードテーマ/)
   assert.match(texts(status), /15,225/)
   assert.ok(actions(status).some((action) => action.data === 'pf|dress|home'))
   const wardrobe = await f.text('着せ替え')
@@ -153,6 +203,40 @@ test('status and wardrobe use catalog appearance while preserving card themes an
   assert.equal(f.snapshot(), before)
   assert.equal(await app.handleProfileText(f.env, f.context(), 'こんにちは'), null)
   assert.equal(await app.handleProfileText(f.env, { ...f.context(), userId: null }, 'ガチャ'), null)
+})
+
+test('long status names, titles and balances cannot expand the compact card; theme preview remains read-only', async (t) => {
+  const f = fixture(t)
+  const before = f.snapshot()
+  const profile = f.sqlite.prepare('SELECT * FROM user_profiles WHERE user_id = ?').get(A)
+  const theme = f.sqlite.prepare('SELECT * FROM theme_master WHERE id = ?').get('aqua')
+  const input = {
+    profile, theme, rank: 1, titleName: 'のんびりもち',
+    level: { level: 24, expInLevel: 1320, expNeeded: 2400, percent: 55 },
+    appearance: { costumeId: 'C000', backgroundId: 'BG000' }, baseUrl: BASE,
+  }
+  const baseline = app.buildStatusCard(input)
+  const long = app.buildStatusCard({
+    ...input,
+    profile: { ...profile, display_name: 'とても長いもちの表示名'.repeat(12), points: 9999999999999 },
+    titleName: 'とても長い共通称号'.repeat(12),
+  })
+  validateMessages([baseline, long])
+  assert.equal(compactHeight(long.contents), compactHeight(baseline.contents))
+  assert.deepEqual(long.contents.body.contents.map((row) => row.height), baseline.contents.body.contents.map((row) => row.height))
+  for (const node of textNodes(long)) {
+    assert.equal(node.wrap, false, `${node.text} must remain a single line`)
+    assert.equal(node.maxLines, 1)
+    assert.equal(node.adjustMode, 'shrink-to-fit')
+  }
+  assert.match(texts(long), /9,999,999,999,999/)
+  const preview = await f.postback('pf|preview|black')
+  assert.equal(compactHeight(preview[0].contents), 332)
+  assert.match(texts(preview), /プレビュー（未適用）/)
+  assert.ok(actions(preview).some((action) => action.data === 'pf|buy|black'))
+  assert.ok(actions(preview).some((action) => action.data === 'pf|themes'))
+  assert.ok(!actions(preview).some((action) => action.data === 'pf|dress|home'))
+  assert.equal(f.snapshot(), before, 'rendering and opening a theme preview do not change equipment or points')
 })
 
 test('confirmation matches 3,000-point Yes/No UI; cancel invalidates previously copied Yes', async (t) => {
@@ -284,33 +368,78 @@ test('complete collection never opens a paid draw or changes the balance', async
   assert.equal(f.sqlite.prepare('SELECT COUNT(*) AS c FROM dressup_confirmations').get().c, 0)
 })
 
-test('LINE ranking retains cumulative EXP, three rows/cards and original game scoring/images', async (t) => {
+test('LINE ranking shows five fixed rows, cumulative tied ranks and self highlight; game cards stay unchanged', async (t) => {
   const f = fixture(t)
-  f.sqlite.prepare(`INSERT INTO mochi_scores (user_id, display_name, picture_url, best_score, best_merges, plays)
-    VALUES (?, 'Puzzle Player', 'https://avatar.example/puzzle.png', 5000, 42, 1)`).run(A)
-  f.sqlite.prepare(`INSERT INTO survivor_players (user_id, display_name, picture_url, best_score, best_seconds, plays, created_at)
-    VALUES (?, 'Survivor Player', 'https://avatar.example/survivor.png', 900, 125, 1, 1)`).run(A)
+  for (const [index, user] of [A, B, C, D].entries()) {
+    f.sqlite.prepare(`INSERT INTO mochi_scores (user_id, display_name, picture_url, best_score, best_merges, plays)
+      VALUES (?, ?, ?, ?, ?, 1)`).run(user, `Puzzle Player ${index + 1}`, `https://avatar.example/puzzle${index}.png`, 5000 - 1000 * index, 42 - 10 * index)
+    f.sqlite.prepare(`INSERT INTO survivor_players (user_id, display_name, picture_url, best_score, best_seconds, plays, created_at)
+      VALUES (?, ?, ?, ?, ?, 1, 1)`).run(user, `Survivor Player ${index + 1}`, `https://avatar.example/survivor${index}.png`, 900 - 100 * index, 125 - 20 * index)
+  }
   f.sqlite.prepare('INSERT INTO dressup_inventory (user_id, item_id) VALUES (?, ?)').run(A, 'C001')
   await f.postback('pf|dress|equip|C001')
   f.sqlite.prepare('UPDATE user_profiles SET total_exp = 3260 WHERE user_id = ?').run(C)
   const before = f.snapshot()
-  const message = await app.buildRankingCarousel(f.env, BASE, A)
+  const message = await app.buildRankingCarousel(f.env, BASE, B)
   validateMessages([message])
   assert.equal(message.contents.type, 'carousel')
   assert.equal(message.contents.contents.length, 3)
   const [personal, puzzle, survivor] = message.contents.contents
-  const rows = personal.body.contents.filter((node) => node.type === 'box')
-  assert.equal(rows.length, 3)
-  assert.deepEqual(rows.map((row) => row.contents[0].contents[0].text), ['1', '2', '2'])
-  assert.deepEqual(rows.map((row) => row.contents[2].contents[0].text), ['Alice', 'Bob', 'Charlie'])
-  assert.match(texts(personal), /累計 3,840 EXP/)
+  assert.equal(personal.body, undefined, 'no native body block means adjacent tall game cards cannot stretch personal ranking')
+  assert.equal(personal.footer, undefined)
+  assert.equal(personal.header.height, '332px')
+  assert.equal(compactHeight(personal), 332, 'ranking matches the compact status-card height')
+  const personalSections = compactSections(personal)
+  const rows = personalSections.body.contents[0].contents
+  assert.equal(rows.length, 5)
+  assert.ok(rows.every((row) => row.height === '41px' && row.flex === 0), 'all five ranking rows stay fixed height')
+  assert.deepEqual(rows.map((row) => row.contents[0].contents[0].text), ['1', '2', '2', '4', '5'])
+  assert.deepEqual(rows.map((row) => row.contents[2].contents[0].text), ['Alice', 'Bob', 'Charlie', 'Dora', 'Emma'])
+  assert.deepEqual(rows.map((row) => row.contents[3].contents[0].text), ['3,840', '3,260', '3,260', '2,460', '2,180'])
+  assert.match(texts(personal), /累計トークEXP/)
   assert.ok(!texts(personal).includes('週間'))
-  assert.ok(images(personal).some((image) => image.url.includes('/dressup-art/C001/BG000.png')))
+  assertArtworkUrl(images(rows[0])[0], { costume: 'C001', background: 'BG000', view: 'icon' })
+  const highlighted = rows.filter((row) => texts(row).includes('あなた'))
+  assert.equal(highlighted.length, 1)
+  assert.equal(highlighted[0], rows[1], 'only the viewer’s row is highlighted, including ties')
+  assert.equal(rows[1].borderWidth, '2px')
+  assert.notEqual(rows[1].backgroundColor, rows[0].backgroundColor)
+  assert.match(texts(personal), /あなたは現在 2位/)
+  assert.equal(texts(personalSections.footer), 'HappaMochi Bot')
   assert.ok(actions(personal).some((action) => action.data === 'pf|status'))
   assert.match(texts(puzzle), /5,000 点 ・ 42 回合体/)
   assert.match(texts(survivor), /900 pt ・ 2:05 生存/)
-  assert.equal(images(puzzle)[0].url, 'https://avatar.example/puzzle.png')
-  assert.equal(images(survivor)[0].url, 'https://avatar.example/survivor.png')
+  for (const [game, kind] of [[puzzle, 'puzzle'], [survivor, 'survivor']]) {
+    assert.equal(game.body.contents.filter((node) => node.type === 'box').length, 3, 'game rankings remain top three, not five')
+    assert.equal(game.header.backgroundColor, '#039BE5', 'existing game-card colors stay unchanged')
+    assert.match(texts(game.footer), /© 2026 HappaMochi Bot/)
+    assert.deepEqual(images(game).map((image) => image.url), [0, 1, 2].map((index) => `https://avatar.example/${kind}${index}.png`))
+    assert.ok(images(game).every((image) => !image.url.includes('/dressup-art/')), 'games retain LINE avatars')
+  }
+  assert.equal(f.snapshot(), before)
+})
+
+test('long ranking names and large cumulative scores cannot expand the five fixed rows', async (t) => {
+  const f = fixture(t)
+  const baseline = await app.buildRankingCarousel(f.env, BASE, A)
+  f.sqlite.prepare('UPDATE user_profiles SET display_name = ?, total_exp = ? WHERE user_id = ?')
+    .run('非常に長いランキングの表示名'.repeat(10), 1234567890, A)
+  const before = f.snapshot()
+  const changed = await app.buildRankingCarousel(f.env, BASE, A)
+  validateMessages([changed])
+  const personal = changed.contents.contents[0]
+  assert.equal(compactHeight(personal), compactHeight(baseline.contents.contents[0]))
+  const rows = compactSections(personal).body.contents[0].contents
+  assert.equal(rows.length, 5)
+  assert.ok(rows.every((row) => row.height === '41px' && row.flex === 0))
+  const [name, exp] = [rows[0].contents[2].contents[0], rows[0].contents[3].contents[0]]
+  for (const node of [name, exp]) {
+    assert.equal(node.wrap, false)
+    assert.equal(node.maxLines, 1)
+    assert.equal(node.adjustMode, 'shrink-to-fit')
+  }
+  assert.ok(Array.from(name.text).length <= 24, 'long names are bounded before rendering')
+  assert.equal(exp.text, '1,234,567,890')
   assert.equal(f.snapshot(), before)
 })
 
@@ -349,7 +478,7 @@ test('before additive migration, public ranking/status retain legacy avatars and
   assert.ok(images(statusMessage).some((image) => image.url === 'https://avatar.example/0.png'))
   const ranking = await app.buildRankingCarousel(f.env, BASE, A)
   validateMessages([ranking])
-  assert.equal(images(ranking.contents.contents[0])[0].url, 'https://avatar.example/0.png')
+  assert.equal(images(compactSections(ranking.contents.contents[0]).body.contents[0].contents[0])[0].url, 'https://avatar.example/0.png')
   const page = await app.renderPersonalRankingPage(f.env, BASE)
   const status = await app.renderPublicStatusPage(f.env, BASE, publicIds[0])
   assert.ok(page.includes('https://avatar.example/0.png'))

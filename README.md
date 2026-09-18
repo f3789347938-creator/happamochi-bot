@@ -19,6 +19,10 @@
     **順位・EXP・レベル計算は従来の累計EXPのまま**。週間ランキングへの変更なし。
     パズル・サバイバルのゲーム内衣装／スコアランキングとは別管理。
     送信済みカードは書き換えられないため、装備後はコマンドで新しいカードを表示する。
+  - LINEステータスと個人ランキングは `kilo` 幅260px・高さ332pxのコンパクト表示。
+    ステータスは2:1画像、名前と称号を横並びにし、称号をタップすると変更できる。
+    個人ランキングは上位5人、本人の行を青枠で強調。累計EXPと同順位の計算は維持。
+    ガチャ・カードテーマは「着せ替え」から開ける。
   - 従来のカード配色は `カードテーマ` と着せ替え画面内ボタンから利用でき、所持・購入履歴を維持。
     名言カードには従来どおり配色だけを反映し、もち衣装・背景は反映しない。
   - `migrations/0024_dressup.sql` は新規テーブル・索引・トリガーの追加のみ。
@@ -27,6 +31,8 @@
   - 元の図鑑の名前・番号・画像を使用。`scripts/import-dressup-assets.py`で取り込みを再現できる。
     `/dressup-art/:costume/:background.png`は許可済みの衣装と背景を合成したPNGを配信する。
     URLにLINEユーザーIDや残高を含めず、任意の外部画像URLも受け付けない。
+    `view=status` は2:1の画像、`view=icon` は透明な余白を詰めたランキング画像。
+    元画像を変更せず、`node scripts/prepare-dressup-layout-assets.mjs` で余白情報と葉ロゴを再生成できる。
   - 送信は既存のReply経路のみ。Push APIは追加していない。
   - 検証: `node --test tests/dressup/*.test.mjs tests/game/*.test.mjs` と `npm run build`。
     `node scripts/render-dressup-preview.mjs /tmp/mochi-dressup-preview` で、外部通信不要のHTMLと合成PNGを生成する。

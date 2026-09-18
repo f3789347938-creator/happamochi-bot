@@ -1,5 +1,8 @@
 // Offline visual QA of the actual Flex builders. This approximates LINE layout;
 // the native LINE client remains the authority for final font/layout rendering.
+// --screenshot tries Chromium and falls back to offline Satori/resvg; --svg
+// directly uses the fallback. --default shows C000/BG000. --fixtures=FILE loads
+// a saved actual Flex fixture for baseline comparisons without rewriting it.
 import fs from 'node:fs'
 import path from 'node:path'
 import { build } from 'esbuild'
@@ -18,11 +21,13 @@ const api = await import(`data:text/javascript;base64,${Buffer.from(bundle.outpu
 const { DatabaseSync } = await import('node:sqlite')
 const db = new DatabaseSync(':memory:')
 for (const f of fs.readdirSync(path.join(root, 'migrations')).filter(f => f.endsWith('.sql')).sort()) db.exec(fs.readFileSync(path.join(root, 'migrations', f), 'utf8'))
-const names = ['こはく', 'なの', 'もちこ']
+const names = ['こはく', 'なの', 'もちこ', 'しずく', 'まめ']
 for (const [i, name] of names.entries()) {
-  db.prepare('INSERT INTO user_profiles(user_id,public_id,display_name,total_exp,points) VALUES(?,?,?,?,?)').run(`preview-${i}`, `public-${i}`, name, 10000 - i * 1000, 15000)
-  db.prepare('INSERT INTO dressup_appearances(user_id,costume_id,background_id) VALUES(?,?,?)').run(`preview-${i}`, ['C049','C001','C061'][i], ['BG004','BG001','BG007'][i])
+  db.prepare('INSERT INTO user_profiles(user_id,public_id,display_name,total_exp,points) VALUES(?,?,?,?,?)').run(`preview-${i}`, `public-${i}`, name, [3840,3260,2980,2460,2180][i], 12500)
+  db.prepare('INSERT INTO dressup_appearances(user_id,costume_id,background_id) VALUES(?,?,?)').run(`preview-${i}`, ['C049','C001','C061','C050','C000'][i], ['BG004','BG001','BG007','BG012','BG000'][i])
 }
+const defaultArt = process.argv.includes('--default')
+if (defaultArt) db.prepare("UPDATE dressup_appearances SET costume_id='C000',background_id='BG000' WHERE user_id='preview-1'").run()
 const env = { DB: { prepare(sql) { let args = []; return {
   bind(...v) { args = v; return this },
   async first(col) { const row = db.prepare(sql).get(...args); return row ? col ? row[col] : row : null },
@@ -30,13 +35,15 @@ const env = { DB: { prepare(sql) { let args = []; return {
 } } } }
 const theme = {id:'aqua',name:'水色',price:0,header_bg:'#009FDE',body_bg:'#E4F7FF',text_color:'#17364C',accent:'#16BCEC',header_text:'#FFFFFF',display_order:1}
 const status = api.buildStatusCard({
-  profile:{user_id:'preview-1', public_id:'public-1', display_name:'なの', picture_url:null,total_exp:9000,points:15000,active_theme:'aqua',equipped_title:null},
-  level:{level:24,expInLevel:132,expNeeded:284,percent:46}, theme,rank:2,titleName:'のんびりもち',
-  appearance:{costumeId:'C001',backgroundId:'BG001'},baseUrl,
+  profile:{user_id:'preview-1', public_id:'public-1', display_name:'なの', picture_url:null,total_exp:3260,points:12500,active_theme:'aqua',equipped_title:null},
+  // QA reference values only, not the production EXP-to-level calculation.
+  level:{level:24,expInLevel:1320,expNeeded:2400,percent:55}, theme,rank:2,titleName:'のんびりもち',
+  appearance:defaultArt ? {costumeId:'C000',backgroundId:'BG000'} : {costumeId:'C001',backgroundId:'BG001'},baseUrl,
 })
-const gacha = api.buildGachaConfirmation({baseUrl,points:15000,token:'00000000-0000-4000-8000-000000000000',remaining:150})
+const gacha = api.buildGachaConfirmation({baseUrl,points:15225,token:'00000000-0000-4000-8000-000000000000',remaining:150})
 const ranking = await api.buildRankingCarousel(env, baseUrl, 'preview-1')
-const documents = [{label:'ステータス',message:status},{label:'きせかえガチャ',message:gacha},{label:'ランキング（累計EXPを維持）',message:{...ranking,contents:ranking.contents.contents[0]}}]
+const fixtureArg = process.argv.find(arg => arg.startsWith('--fixtures='))
+const documents = fixtureArg ? JSON.parse(fs.readFileSync(fixtureArg.slice('--fixtures='.length), 'utf8')) : [{label:'ステータス',message:status},{label:'ランキング（累計EXP）',message:{...ranking,contents:ranking.contents.contents[0]}},{label:'きせかえガチャ',message:gacha}]
 // Use local asset bytes: the visual check needs no server or external requests.
 await initWasm(fs.readFileSync(path.join(root, 'node_modules/@resvg/resvg-wasm/index_bg.wasm')))
 const inlinePng = filename => `data:image/png;base64,${fs.readFileSync(filename).toString('base64')}`
@@ -44,16 +51,18 @@ const images = new Map()
 function collectImages(node) {
   if (!node || typeof node !== 'object') return
   if (node.type === 'image' && !images.has(node.url)) {
-    const pathname = new URL(node.url).pathname
+    const url = new URL(node.url)
+    const pathname = url.pathname
     const match = pathname.match(/^\/dressup-art\/(C\d{3})\/(BG\d{3})\.png$/)
     if (match) {
-      const svg = api.appearanceSvg(...match.slice(1).map(id => inlinePng(path.join(root, 'public/static/dressup', `${id}.png`))))
+      const view = ['status','icon'].includes(url.searchParams.get('view')) ? url.searchParams.get('view') : 'standard'
+      const svg = api.appearanceSvg(...match.slice(1).map(id => inlinePng(path.join(root, 'public/static/dressup', `${id}.png`))), view, match[1])
       const renderer = new Resvg(svg)
       try {
         const rendered = renderer.render()
         try {
           const png = Buffer.from(rendered.asPng())
-          fs.writeFileSync(path.join(output, `${match[1]}-${match[2]}.png`), png)
+          fs.writeFileSync(path.join(output, `${match[1]}-${match[2]}-${view}.png`), png)
           images.set(node.url, `data:image/png;base64,${png.toString('base64')}`)
         }
         finally { rendered.free() }
@@ -70,65 +79,173 @@ function collectImages(node) {
   }
 }
 documents.forEach(x => collectImages(x.message))
-const fontUri = `data:font/ttf;base64,${fs.readFileSync(path.join(root, 'public/static/fonts/NotoSansJP-Regular.ttf')).toString('base64')}`
+const regular = fs.readFileSync(path.join(root, 'public/static/fonts/NotoSansJP-Regular.ttf'))
+const bold = fs.readFileSync(path.join(root, 'public/static/fonts/NotoSansJP-Bold.ttf'))
 const escape = value => String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;')
-const sizes = {none:'0',xxs:'2px',xs:'4px',sm:'8px',md:'16px',lg:'20px',xl:'24px',xxl:'32px'}
-const fontSizes = {xxs:'11px',xs:'12px',sm:'14px',md:'16px',lg:'19px',xl:'23px',xxl:'29px',xxxl:'36px'}
-const size = x => sizes[x] ?? x
-function render(n) {
-  if (!n) return ''
-  if (n.type === 'bubble') return `<article class="card">${render(n.header)}${render(n.body)}${render(n.footer)}</article>`
-  const style = {boxSizing:'border-box'}
-  for (const k of ['width','height','backgroundColor','borderColor','borderWidth']) if(n[k]) style[k]=n[k]
-  if(n.borderWidth) style.borderStyle='solid'
-  if(n.cornerRadius) style.borderRadius=size(n.cornerRadius)
-  if(n.paddingAll) style.padding=size(n.paddingAll)
-  for(const [key,css] of [['paddingTop','paddingTop'],['paddingBottom','paddingBottom'],['paddingStart','paddingLeft'],['paddingEnd','paddingRight']]) if(n[key]) style[css]=size(n[key])
-  if(n.margin) style.marginTop=size(n.margin)
-  if(n.flex !== undefined) style.flex=String(n.flex)
-  else if(n.type !== 'separator') style.flexShrink='1'
-  let content=''
-  let tag='div'
-  if(n.type==='box') {
-    Object.assign(style,{display:'flex',flexDirection:n.layout==='horizontal'||n.layout==='baseline'?'row':'column',minWidth:'0',overflow:'hidden'})
-    if(n.spacing) style.gap=size(n.spacing)
-    if(n.alignItems) style.alignItems=n.alignItems
-    if(n.justifyContent) style.justifyContent=n.justifyContent
-    content=(n.contents??[]).map(render).join('')
-  } else if(n.type==='text') {
-    Object.assign(style,{fontSize:fontSizes[n.size]??n.size??'16px',color:n.color??'#17364C',fontWeight:n.weight==='bold'?'700':'400',textAlign:n.align==='end'?'right':n.align??'left',lineHeight:'1.5',minWidth:'0'})
-    if(n.wrap===false) Object.assign(style,{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'})
-    content=escape(n.text)
-  } else if(n.type==='image') {
-    tag='img';style.width='100%';style.display='block'
-    style.aspectRatio=(n.aspectRatio??'1:1').replace(':',' / ')
-    style.objectFit=n.aspectMode==='cover'?'cover':'contain'
-  } else if(n.type==='button') {
-    tag='button';Object.assign(style,{flex:'1',border:'none',borderRadius:'8px',padding:'12px 8px',fontSize:'16px',fontFamily:'inherit',color:n.style==='primary'?'white':'#17364C',backgroundColor:n.style==='primary'?(n.color??'#009FDE'):'#DDE1E8'})
-    content=escape(n.action.label)
-  } else if(n.type==='separator') {Object.assign(style,{minWidth:'1px',minHeight:'1px',backgroundColor:n.color??'#CCDDE5'})}
-  else if(n.type==='filler') style.flex='1'
-  else return ''
-  const css=Object.entries(style).map(([k,v])=>`${k.replace(/[A-Z]/g,x=>`-${x.toLowerCase()}`)}:${v}`).join(';')
-  return tag==='img'?`<img src="${escape(images.get(n.url))}" style="${escape(css)}">`:`<${tag} style="${escape(css)}">${content}</${tag}>`
+const lengths = {none:0,xxs:2,xs:4,sm:8,md:16,lg:20,xl:24,xxl:32}
+const fontSizes = {xxs:11,xs:12,sm:14,md:16,lg:19,xl:23,xxl:29,xxxl:36,xxxxl:48,xxxxxl:64}
+const imageSizes = {xxs:40,xs:48,sm:56,md:80,lg:120,xl:160,xxl:200,full:'100%'}
+const bubbleWidths = {nano:120,micro:160,deca:220,hecto:240,kilo:260,mega:300,giga:400}
+const scalar = value => typeof value === 'string' && /^-?\d+(\.\d+)?px$/.test(value) ? Number.parseFloat(value) : value
+const length = value => lengths[value] ?? scalar(value)
+const align = value => ({start:'flex-start',end:'flex-end'})[value] ?? value
+const el = (type,style,children,props={}) => ({type,props:{style,...props,...(children === undefined ? {} : {children})}})
+const textWidth = (text,size) => [...text].reduce((w,ch) => w + (/[^\x00-\x7f]/.test(ch) ? 1 : /[il.,:;! ]/.test(ch) ? .3 : .58)*size,0)
+
+// Keep fixed dimensions/flex:0 intact. For unconstrained horizontal children,
+// share remaining space; vertical children retain their intrinsic/fixed height.
+function flexNode(n,ctx={}) {
+  if (!n) return null
+  if (n.type === 'bubble') {
+    const width = bubbleWidths[n.size] ?? 300
+    return el('article',{display:'flex',flexDirection:'column',width,flexShrink:0,borderRadius:14,overflow:'hidden',backgroundColor:'#FFFFFF'},
+      ['header','hero','body','footer'].filter(k=>n[k]).map(k=>flexNode(n[k],{axis:'column',width,section:k})),
+      {'data-bubble':true,'data-native-width':width})
+  }
+  const horizontal = ctx.axis === 'row'
+  const fixed = horizontal ? n.width !== undefined : n.height !== undefined
+  const grow = fixed ? 0 : n.flex ?? (horizontal && ['box','text','image','button'].includes(n.type) ? 1 : 0)
+  const style = {display:'flex',boxSizing:'border-box',minWidth:0,flexGrow:grow,flexShrink:n.flex === 0 || fixed || !horizontal ? 0 : 1}
+  if (grow > 0) style.flexBasis = 0
+  for (const key of ['width','height','maxWidth','maxHeight','backgroundColor','borderColor']) if (n[key] !== undefined) style[key] = scalar(n[key])
+  if (n.borderWidth) Object.assign(style,{borderWidth:length(n.borderWidth),borderStyle:'solid'})
+  if (n.cornerRadius) style.borderRadius = length(n.cornerRadius)
+  if (n.background?.type === 'linearGradient') {
+    const bg = n.background
+    style.backgroundImage = 'linear-gradient('+(bg.angle ?? '180deg')+', '+bg.startColor+', '+(bg.centerColor ? bg.centerColor+' '+(bg.centerPosition ?? '50%')+', ' : '')+bg.endColor+')'
+  }
+  if (n.position === 'absolute') style.position = 'absolute'
+  for (const [from,to] of [['offsetTop','top'],['offsetBottom','bottom'],['offsetStart','left'],['offsetEnd','right']]) if (n[from] !== undefined) style[to] = scalar(n[from])
+  if (n.margin !== undefined) style[horizontal ? 'marginLeft' : 'marginTop'] = length(n.margin)
+  if (n.gravity) style.alignSelf = align({top:'start',bottom:'end',center:'center'}[n.gravity] ?? n.gravity)
+  if (n.type === 'box') {
+    const axis = ['horizontal','baseline'].includes(n.layout) ? 'row' : 'column'
+    Object.assign(style,{flexDirection:axis,position:style.position ?? 'relative',overflow:'hidden'})
+    const padding = length(n.paddingAll ?? (ctx.section ? '20px' : '0px'))
+    style.padding = padding
+    for (const [from,to] of [['paddingTop','paddingTop'],['paddingBottom','paddingBottom'],['paddingStart','paddingLeft'],['paddingEnd','paddingRight']]) if (n[from] !== undefined) style[to] = length(n[from])
+    if (n.spacing) style.gap = length(n.spacing)
+    if (n.alignItems || n.layout === 'baseline') style.alignItems = align(n.alignItems ?? 'baseline')
+    if (n.justifyContent) style.justifyContent = align(n.justifyContent)
+    const ownWidth = typeof style.width === 'number' ? style.width : ctx.width
+    const available = ownWidth - Number(style.paddingLeft ?? padding) - Number(style.paddingRight ?? padding)
+    const children = n.contents ?? []
+    const gaps = Number(length(n.spacing ?? 'none'))*Math.max(0,children.length-1)
+    let fixedWidth=0, weights=0
+    if (axis === 'row') for (const child of children) {
+      if (child.width) fixedWidth += Number(scalar(child.width)) || 0
+      else if (child.flex === 0 && child.type === 'image') fixedWidth += Number(imageSizes[child.size] ?? scalar(child.size) ?? 80) || 0
+      else if (child.flex === 0 && child.type === 'text') fixedWidth += textWidth(child.text ?? '',fontSizes[child.size] ?? scalar(child.size) ?? 16)
+      else if (child.flex !== 0) weights += child.flex ?? 1
+    }
+    return el('div',style,children.map(child=>{
+      const width = axis === 'column' ? available : child.width ? Number(scalar(child.width)) : child.flex === 0 ? undefined : Math.max(0,(available-fixedWidth-gaps)*(child.flex ?? 1)/(weights || 1))
+      return flexNode(child,{axis,width,height:style.height})
+    }))
+  }
+  if (n.type === 'text') {
+    let size = fontSizes[n.size] ?? scalar(n.size) ?? 16
+    if (n.adjustMode === 'shrink-to-fit' && ctx.width > 0) size = Math.min(size,Math.max(8,ctx.width / Math.max(1,textWidth(n.text ?? '',1))))
+    Object.assign(style,{display:'flex',justifyContent:n.align === 'center' ? 'center' : n.align === 'end' ? 'flex-end' : 'flex-start',fontSize:size,fontWeight:n.weight === 'bold' ? 700 : 400,color:n.color ?? '#17364C',textAlign:({start:'left',end:'right'})[n.align] ?? n.align ?? 'left',lineHeight:1.25+Number(scalar(n.lineSpacing ?? 0))/size,whiteSpace:n.wrap === true ? 'pre-wrap' : 'nowrap'})
+    // Yoga otherwise sizes a plain text div to its glyphs in a vertical box,
+    // making center/end alignment appear left-aligned in the PNG fallback.
+    if (!horizontal && style.width === undefined) style.width='100%'
+    if (!n.wrap) Object.assign(style,{overflow:'hidden',textOverflow:'ellipsis'})
+    if (n.maxLines) style.lineClamp=n.maxLines
+    return el('div',style,n.text ?? '')
+  }
+  if (n.type === 'image') {
+    const width = imageSizes[n.size] ?? scalar(n.size) ?? 80
+    const ratio = (n.aspectRatio ?? '1:1').split(':').map(Number)
+    Object.assign(style,{width,maxWidth:'100%',objectFit:n.aspectMode === 'cover' ? 'cover' : 'contain',objectPosition:({top:'top',bottom:'bottom'})[n.gravity] ?? 'center',flexGrow:0,flexShrink:0})
+    if (typeof width === 'number') style.height=width*ratio[1]/ratio[0]
+    else if (ctx.height && typeof ctx.height === 'number') style.height=ctx.height
+    else if (ctx.width > 0) style.height=ctx.width*ratio[1]/ratio[0]
+    else style.aspectRatio=ratio[0]/ratio[1]
+    return el('img',style,undefined,{src:images.get(n.url)})
+  }
+  if (n.type === 'button') {
+    const primary=n.style === 'primary', link=n.style === 'link'
+    Object.assign(style,{height:n.height === 'sm' ? 40 : 52,justifyContent:'center',alignItems:'center',padding:'0 8px',borderRadius:8,fontSize:16,color:primary ? '#FFFFFF' : link ? n.color ?? '#42659A' : '#17364C',backgroundColor:primary ? n.color ?? '#17C950' : link ? 'transparent' : '#DDE1E8'})
+    return el('div',style,n.action?.label ?? '')
+  }
+  if (n.type === 'separator') return el('div',{...style,flexGrow:0,flexShrink:0,...(horizontal ? {width:1,alignSelf:'stretch'} : {height:1,width:'100%'}),backgroundColor:n.color ?? '#E0E0E0'})
+  if (n.type === 'filler' || n.type === 'spacer') return el('div',{...style,flexGrow:n.flex ?? 1})
+  return null
 }
-const html=`<!doctype html><meta charset="utf-8"><style>@font-face{font-family:Noto;src:url('${fontUri}')}*{box-sizing:border-box}body{margin:0;padding:34px;background:#F1F9FD;font-family:Noto,sans-serif;color:#17364C}.columns{display:flex;gap:28px;align-items:flex-start}.column{width:350px;flex:none}.card{border-radius:18px;overflow:hidden;background:white;box-shadow:0 8px 25px #193d5712}h2{font-size:17px;margin:0 0 16px}.note{font-size:12px;color:#61778A;margin:24px 0 0}</style><div class="columns">${documents.map(x=>`<section class="column"><h2>${escape(x.label)}</h2>${render(x.message.contents)}</section>`).join('')}</div><p class="note">実装したFlex Messageのローカル確認用プレビュー。LINE実機の文字サイズ・表示とは差が生じる場合があります。</p>`
-fs.writeFileSync(path.join(output,'preview.html'),html)
+
+const unitless=new Set(['fontWeight','lineHeight','lineClamp','flexGrow','flexShrink','flex','opacity','zIndex','aspectRatio'])
+function serialize(node) {
+  if (node === null || node === undefined) return ''
+  if (typeof node !== 'object') return escape(node)
+  const {style,children,...props}=node.props
+  const css=Object.entries(style).map(([k,v])=>k.replace(/[A-Z]/g,c=>'-'+c.toLowerCase())+':'+(typeof v === 'number' && !unitless.has(k) ? v+'px' : v)).join(';')
+  const attrs=Object.entries(props).map(([k,v])=>k+'="'+escape(v)+'"').join(' ')
+  return '<'+node.type+' style="'+escape(css)+'" '+attrs+'>'+ (node.type === 'img' ? '' : (Array.isArray(children) ? children : [children]).map(serialize).join('')+'</'+node.type+'>')
+}
+function previewTree(selected) {
+  const width=selected.reduce((sum,doc)=>sum+(bubbleWidths[doc.message.contents.size] ?? 300),0)+48+(selected.length-1)*24
+  return el('main',{display:'flex',flexDirection:'column',width,padding:24,backgroundColor:'#EDF8FC',fontFamily:'Noto',color:'#17364C'},[
+    el('div',{fontSize:13,fontWeight:700,marginBottom:16},'実装Flexのレイアウト確認 · QA'),
+    el('div',{display:'flex',alignItems:'flex-start',gap:24},selected.map(doc=>el('section',{display:'flex',flexDirection:'column',width:bubbleWidths[doc.message.contents.size] ?? 300,flexShrink:0},[
+      el('div',{fontSize:12,lineHeight:1.3,fontWeight:700,marginBottom:10},doc.label+' · '+(bubbleWidths[doc.message.contents.size] ?? 300)+'px'),
+      flexNode(doc.message.contents),
+    ]))),
+    el('div',{fontSize:10,lineHeight:1.4,marginTop:18,color:'#61778A'},'QA用サンプル値・実装Flexから描画。累計EXPのまま。LINE実機とは文字組み等に差があります。'),
+  ])
+}
+const mainDocs=documents.filter(doc=>!doc.label.includes('ガチャ')).slice(0,2)
+const gachaDocs=documents.filter(doc=>doc.label.includes('ガチャ'))
+const pages=[{name:'preview',tree:previewTree(mainDocs)},...(gachaDocs.length ? [{name:'gacha',tree:previewTree(gachaDocs)}] : [])]
+const fontCss='@font-face{font-family:Noto;src:url(data:font/ttf;base64,'+regular.toString('base64')+');font-weight:400}@font-face{font-family:Noto;src:url(data:font/ttf;base64,'+bold.toString('base64')+');font-weight:700}'
+for (const page of pages) {
+  page.html='<!doctype html><meta charset="utf-8"><style>'+fontCss+'*{box-sizing:border-box}body{margin:0;font-family:Noto,sans-serif}img{display:block}</style>'+serialize(page.tree)
+  fs.writeFileSync(path.join(output,page.name+'.html'),page.html)
+}
 fs.writeFileSync(path.join(output,'flex-samples.json'),JSON.stringify(documents,null,2))
-console.log(`Offline preview written: ${path.join(output,'preview.html')}`)
-if (!process.argv.includes('--screenshot')) {
-  db.close()
-  process.exit(0)
+db.close()
+console.log('Offline HTML and actual Flex fixtures written: '+output)
+if (process.argv.includes('--screenshot') || process.argv.includes('--svg')) {
+  let browser
+  if (!process.argv.includes('--svg')) {
+    try {
+      const require=createRequire(import.meta.url)
+      const {chromium}=require(path.join(process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES||path.join(root,'node_modules'),'playwright'))
+      browser=await chromium.launch({headless:true,args:['--no-sandbox']})
+    } catch(error) { console.warn('Chromium unavailable; using Satori/resvg approximation: '+String(error.message).split('\n')[0]) }
+  }
+  const metrics={renderer:browser ? 'chromium' : 'satori-resvg',nativeLineScreenshot:false,pages:[]}
+  if (browser) {
+    try {
+      for (const document of pages) {
+        const page=await browser.newPage({viewport:{width:document.tree.props.style.width,height:1000},deviceScaleFactor:2})
+        await page.setContent(document.html,{waitUntil:'load'})
+        await page.evaluate(()=>document.fonts.ready)
+        const broken=await page.locator('img').evaluateAll(nodes=>nodes.filter(n=>!n.complete||!n.naturalWidth).length)
+        if(broken) throw new Error('Broken preview images: '+broken)
+        metrics.pages.push({name:document.name,cards:await page.locator('[data-bubble]').evaluateAll(nodes=>nodes.map(n=>({width:n.getBoundingClientRect().width,height:n.getBoundingClientRect().height})))})
+        await page.screenshot({path:path.join(output,document.name+'.png'),fullPage:true})
+        await page.close()
+      }
+    } finally { await browser.close() }
+  } else {
+    globalThis.__filename ??= './satori-standalone-yoga.js'
+    process.type='renderer'
+    const {default:satori,init}=await import('satori/standalone')
+    await init(await WebAssembly.compile(fs.readFileSync(path.join(root,'node_modules/satori/yoga.wasm'))))
+    for (const document of pages) {
+      const cards=[]
+      const svg=await satori(document.tree,{
+        width:document.tree.props.style.width,
+        fonts:[{name:'Noto',data:regular,weight:400,style:'normal'},{name:'Noto',data:bold,weight:700,style:'normal'}],
+        onNodeDetected:node=>{if(node.props?.['data-bubble']) cards.push({width:node.width,height:node.height})},
+      })
+      fs.writeFileSync(path.join(output,document.name+'.svg'),svg)
+      const renderer=new Resvg(svg)
+      try {const rendered=renderer.render();try {fs.writeFileSync(path.join(output,document.name+'.png'),Buffer.from(rendered.asPng()))}finally{rendered.free()}}finally{renderer.free()}
+      metrics.pages.push({name:document.name,cards})
+    }
+  }
+  fs.writeFileSync(path.join(output,'layout-metrics.json'),JSON.stringify(metrics,null,2))
+  console.log(JSON.stringify(metrics,null,2))
 }
-const require=createRequire(import.meta.url)
-const {chromium}=require(path.join(process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES||path.join(root,'node_modules'),'playwright'))
-const browser=await chromium.launch({headless:true,args:['--no-sandbox']})
-try {
-  const page=await browser.newPage({viewport:{width:1174,height:1100},deviceScaleFactor:1.5})
-  await page.setContent(html,{waitUntil:'networkidle'})
-  await page.evaluate(()=>document.fonts.ready)
-  const broken=await page.locator('img').evaluateAll(imgs=>imgs.filter(i=>!i.complete||i.naturalWidth===0).map(i=>i.src))
-  if(broken.length) throw new Error(`Failed preview images: ${broken.join(', ')}`)
-  await page.screenshot({path:path.join(output,'preview.png'),fullPage:true})
-} finally {await browser.close();db.close()}
-console.log(`Preview written: ${path.join(output,'preview.png')}`)
