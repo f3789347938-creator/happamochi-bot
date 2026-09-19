@@ -11,11 +11,11 @@ if (!['localhost', '127.0.0.1', '[::1]'].includes(BASE.hostname)) {
 }
 const manifest = JSON.parse(await readFile(new URL('../src/features/menu/helpAssets.json', import.meta.url), 'utf8'))
 const expectedPages = [
-  ['ヘルプ', 'ステータス', 'ランキング', 'お知らせ', '着せ替え'],
-  ['パズル', 'サバイバル', 'オセロ', 'オセロ参加', 'オセロ戦績'],
-  ['チェス', '盤面', 'めいく 装飾', 'めいく:本文', '返信して めいく'],
-  ['めいく bold虹7:文', 'ウェルカムオン', 'ウェルカムオフ', '取り消し通知オン', '取り消し通知オフ'],
-  ['りぷかく', 'めんかく'],
+  ['ヘルプ', 'ステータス', '既読セット', 'りぷかく', 'めんかく'],
+  ['ランキング', 'めいく', 'お知らせ', '着せ替え', 'パズル'],
+  ['サバイバル', 'オセロ', 'オセロ参加', 'オセロ戦績', 'チェス'],
+  ['盤面', 'めいく 装飾', 'めいく:本文', 'めいく bold虹7:文', 'ウェルカムオン'],
+  ['ウェルカムオフ', '取り消し通知オン', '取り消し通知オフ', '設定'],
 ]
 
 let pass = 0
@@ -73,7 +73,8 @@ async function main() {
   ok(manifest.version === 1, '画像一覧の形式が version 1')
   ok(/^[a-f0-9]{64}$/.test(manifest.designHash ?? ''), '描画元を識別する SHA-256 がある')
   ok(HELP_DESIGN.perCard === 5, '1ページ5項目の指定を維持')
-  ok(same(HELP_DESIGN.commands.map((c) => c.label), expectedPages.flat()), '既存20項目の後に新しい2コマンドを掲載')
+  ok(same(HELP_DESIGN.commands.map((c) => c.label), expectedPages.flat()), '先頭7項目の指定順を含め、全24項目を掲載')
+  ok(HELP_DESIGN.commands.find((c) => c.label === 'めいく')?.desc === '発言にリプライして使うと、その発言の画像を作成', '「めいく」は返信して使うことを説明')
   ok(same(manifest.rows.map(commandData), HELP_DESIGN.commands.map(commandData)), '全行の画像とコマンド定義が一致')
   ok(HELP_DESIGN.coverTitle === 'ヘルプ' && HELP_DESIGN.commandTitle === 'コマンド一覧', '表紙と一覧の見出しを維持')
   ok(HELP_DESIGN.welcomeTitle === '葉っぱもちへようこそ', '「葉っぱもちへようこそ」を維持')
@@ -121,7 +122,7 @@ async function main() {
   console.log('\n=== 3. 画像のタップと既存コマンドの対応 ===')
   const rowImages = cards.slice(1).flatMap((card) => (card.body?.contents ?? []).slice(1))
   const msgActions = actions(msg?.contents).filter((action) => action.type === 'message')
-  ok(msgActions.length === 19, '押せるコマンドは新しい2項目を含む19個')
+  ok(msgActions.length === 21, '押せるコマンドは既読セットを含む21個')
   ok(actions(msg?.contents).every((action) => action.type !== 'postback'), 'コマンドは発言として送る message アクション')
   ok(new Set(msgActions.map((action) => action.text)).size === msgActions.length, '送信コマンドに重複がない')
   manifest.rows.forEach((row, index) => {
@@ -132,15 +133,18 @@ async function main() {
       ok(same(action, { type: 'message', label: row.label, text: row.send ?? row.label }), `「${row.label}」は対応するコマンドを送る`)
     }
   })
-  ok(same(manifest.rows.filter((row) => row.noAction).map((row) => row.label), ['めいく:本文', '返信して めいく', 'めいく bold虹7:文']), '説明のみの3項目を維持')
+  ok(same(manifest.rows.filter((row) => row.noAction).map((row) => row.label), ['めいく', 'めいく:本文', 'めいく bold虹7:文']), '返信や本文の入力が必要な3項目は説明のみ')
   const uris = actions(cards[0]).filter((action) => action.type === 'uri')
   ok(uris.length === 1 && uris[0]?.label === '公式サイトを見る', '表紙に公式サイトのリンクが1つある')
   ok(uris[0]?.uri?.startsWith('https://'), '公式サイトのリンクは https')
   ok(cards[0]?.body?.contents?.[1]?.action === uris[0], '公式サイトの画像そのものをタップできる')
-  ok(actions(msg?.contents).length === 20, '見出しやフッターに余計な操作がない')
+  ok(actions(msg?.contents).length === 22, '21コマンドとサイトリンク以外に余計な操作がない')
 
   console.log('\n=== 4. 既存コマンド・メニューの回帰 ===')
   for (const command of msgActions) {
+    // 既読セットは別WorkerがOAのSSE経由で処理する。Pagesの返信は要求しない。
+    // image.action の送信文字列は上の全行検査で他のコマンドと同様に確認する。
+    if (command.text === '既読セット') continue
     const rr = await simulate(command.text)
     ok((rr.would_reply_with ?? []).length > 0, `「${command.text}」に既存処理が返信する`)
   }
@@ -155,7 +159,7 @@ async function main() {
   const assets = [manifest.header, manifest.cover, manifest.cta, manifest.footer, ...manifest.rows]
   const assetsByPath = new Map(assets.map((asset) => [assetPath(asset), asset]))
   const allImages = images(msg?.contents)
-  ok(assetsByPath.size === 26, '描画済みの26素材をすべて識別できる')
+  ok(assetsByPath.size === 28, '描画済みの28素材をすべて識別できる')
   ok(allImages.every((im) => im.url?.startsWith('https://')), '画像URLはすべて https')
   ok(allImages.every((im) => im.width === undefined && im.height === undefined), 'Flex image に未対応の width / height を指定していない')
   ok(allImages.every((im) => im.size === 'full' && im.aspectMode === 'fit'), 'すべての画像は全幅・縦横比維持で表示')
@@ -168,7 +172,7 @@ async function main() {
   const heights = expectedBodies.map((body) => normalizedHeight([...body, manifest.footer]))
   const fullHeights = heights.slice(0, -1)
   ok(Math.max(...fullHeights) - Math.min(...fullHeights) < 0.000001, '表紙と5項目の一覧は画像の高さ合計が一致')
-  ok(Math.abs(heights[0] - heights.at(-1) - 3 * HELP_DESIGN.rowHeight / HELP_DESIGN.width) < 0.000001, '最後の2項目は行を引き伸ばさず、3行分の余白を許容')
+  ok(Math.abs(heights[0] - heights.at(-1) - HELP_DESIGN.rowHeight / HELP_DESIGN.width) < 0.000001, '最後の4項目は行を引き伸ばさず、1行分の余白を許容')
   ok(assets.every((asset) => asset.width > 0 && asset.width <= 1024 && asset.height > 0 && asset.height <= 1024), '各画像が1024px以内')
   ok(assets.every((asset) => asset.height <= asset.width * 3), '画像の縦横比がFlexの範囲内')
   ok(Buffer.byteLength(JSON.stringify(msg?.contents)) < 30000, 'Flex全体が従来の30KB予算以内')

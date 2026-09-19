@@ -134,6 +134,11 @@ function splitDescription(command) {
     && measure(command.desc.slice(note), D.type.description) <= D.tile.textWidth) {
     return [command.desc.slice(0, note), command.desc.slice(note)]
   }
+  const comma = command.desc.indexOf('、') + 1
+  if (comma > 0 && measure(command.desc.slice(0, comma), D.type.description) <= D.tile.textWidth
+    && measure(command.desc.slice(comma), D.type.description) <= D.tile.textWidth) {
+    return [command.desc.slice(0, comma), command.desc.slice(comma)]
+  }
   const lines = []
   let line = ''
   for (const ch of command.desc) {
@@ -193,13 +198,8 @@ for (const [index, command] of D.commands.entries()) {
 
 const manifest = { version: 1, designHash, header, cover, cta, footer, rows }
 fs.writeFileSync(path.join(ROOT, 'src/features/menu/helpAssets.json'), JSON.stringify(manifest, null, 2) + '\n')
-// Remove only obsolete files owned by this generator, keeping deploy assets tidy.
-const retained = new Set(assets.map((asset) => asset.file))
-for (const file of fs.readdirSync(OUT)) {
-  if (/^(?:header|footer|cover|cta|row-\d+)-[a-f0-9]{12}\.png$/.test(file) && !retained.has(file)) {
-    fs.unlinkSync(path.join(OUT, file))
-  }
-}
+// Previously sent LINE cards retain their hashed image URLs. Keep those images
+// available after a reorder so opening an older card does not produce a 404.
 
 const previewCards = [[cover, cta, footer]]
 for (let i = 0; i < rows.length; i += D.perCard) previewCards.push([header, ...rows.slice(i, i + D.perCard), footer])

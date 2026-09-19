@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "designHash": "d9c996fd6f727cb2947428726b378f296d910f2327ce6e97244f70dffe56baaa",
+  "designHash": "19ffb2d6dc64f222caf9fde834988e95fe5b8466935ccc4fac9becbf71b6e30a",
   "header": {
     "file": "header-e7d7e059623e.png",
     "width": 520,
@@ -37,37 +37,66 @@
       "height": 140
     },
     {
+      "label": "既読セット",
+      "desc": "既読確認の開始・リセット",
+      "file": "row-03-746bc74d3c5c.png",
+      "width": 520,
+      "height": 140
+    },
+    {
+      "label": "りぷかく",
+      "desc": "自分への返信を確認",
+      "file": "row-04-9c2dbfa66f56.png",
+      "width": 520,
+      "height": 140
+    },
+    {
+      "label": "めんかく",
+      "desc": "自分宛のメンションを確認",
+      "file": "row-05-9ced73978c9f.png",
+      "width": 520,
+      "height": 140
+    },
+    {
       "label": "ランキング",
       "desc": "各種ランキングを表示",
-      "file": "row-03-c0e100f03628.png",
+      "file": "row-06-f5615668ce7c.png",
+      "width": 520,
+      "height": 140
+    },
+    {
+      "label": "めいく",
+      "desc": "発言にリプライして使うと、その発言の画像を作成",
+      "noAction": true,
+      "file": "row-07-347e4e6ecdeb.png",
       "width": 520,
       "height": 140
     },
     {
       "label": "お知らせ",
       "desc": "直近のお知らせを表示",
-      "file": "row-04-166f3e6aaf70.png",
+      "file": "row-08-bdd88fbed159.png",
       "width": 520,
       "height": 140
     },
     {
       "label": "着せ替え",
       "desc": "ガチャで衣装・背景を集める",
-      "file": "row-05-e6db376c3ddd.png",
+      "file": "row-09-257c985a59da.png",
       "width": 520,
       "height": 140
     },
     {
       "label": "パズル",
       "desc": "もち合体パズルで遊ぶ",
-      "file": "row-06-237d27408f6f.png",
+      "file": "row-10-597abc71b2ea.png",
       "width": 520,
       "height": 140
     },
     {
       "label": "サバイバル",
       "desc": "もち軍団サバイバルで遊ぶ",
-      "file": "row-07-3eb533837162.png",
+      "file": "row-11-bddebf1ec5f3.png",
       "width": 520,
       "height": 140
     },
@@ -75,35 +104,35 @@
       "label": "オセロ",
       "desc": "対局を募集する",
       "send": "オセロ開始",
-      "file": "row-08-25bddd4544df.png",
+      "file": "row-12-074a3e1f8b51.png",
       "width": 520,
       "height": 140
     },
     {
       "label": "オセロ参加",
       "desc": "募集中の対局に入る",
-      "file": "row-09-7ab49790e6df.png",
+      "file": "row-13-b29e69fad391.png",
       "width": 520,
       "height": 140
     },
     {
       "label": "オセロ戦績",
       "desc": "自分の勝敗数を見る",
-      "file": "row-10-dde42eb0bcdf.png",
+      "file": "row-14-efada0d7cb67.png",
       "width": 520,
       "height": 140
     },
     {
       "label": "チェス",
       "desc": "対局を募集する",
-      "file": "row-11-0f646c1288f6.png",
+      "file": "row-15-08e484680037.png",
       "width": 520,
       "height": 140
     },
     {
       "label": "盤面",
       "desc": "チェスの盤面を出す",
-      "file": "row-12-2b9e8c26a6ad.png",
+      "file": "row-16-6df0a5cd126a.png",
       "width": 520,
       "height": 140
     },
@@ -111,7 +140,7 @@
       "label": "めいく 装飾",
       "desc": "使える装飾の一覧",
       "send": "めいく装飾",
-      "file": "row-13-cf1b7e2d2f7f.png",
+      "file": "row-17-4c4803770281.png",
       "width": 520,
       "height": 140
     },
@@ -119,15 +148,7 @@
       "label": "めいく:本文",
       "desc": "文字を入れて画像を作る",
       "noAction": true,
-      "file": "row-14-3e7916dd8416.png",
-      "width": 520,
-      "height": 140
-    },
-    {
-      "label": "返信して めいく",
-      "desc": "その発言の画像を作る",
-      "noAction": true,
-      "file": "row-15-1f684f82f321.png",
+      "file": "row-18-fa7cd1c47961.png",
       "width": 520,
       "height": 140
     },
@@ -135,56 +156,42 @@
       "label": "めいく bold虹7:文",
       "desc": "装飾つきの書き方",
       "noAction": true,
-      "file": "row-16-ab2c617129b8.png",
+      "file": "row-19-3bbb1f996ea8.png",
       "width": 520,
       "height": 140
     },
     {
       "label": "ウェルカムオン",
       "desc": "参加時のあいさつを出す",
-      "file": "row-17-385846e6c004.png",
+      "file": "row-20-a88958328659.png",
       "width": 520,
       "height": 140
     },
     {
       "label": "ウェルカムオフ",
       "desc": "あいさつを止める",
-      "file": "row-18-6339cca5f958.png",
+      "file": "row-21-0c3d8ba67b8b.png",
       "width": 520,
       "height": 140
     },
     {
       "label": "取り消し通知オン",
       "desc": "送信取消を知らせる（初期はオフ）",
-      "file": "row-19-94903f34c692.png",
+      "file": "row-22-730e276364ad.png",
       "width": 520,
       "height": 140
     },
     {
       "label": "取り消し通知オフ",
       "desc": "知らせない",
-      "file": "row-20-03c0442c5b3f.png",
-      "width": 520,
-      "height": 140
-    },
-    {
-      "label": "りぷかく",
-      "desc": "自分への返信を確認",
-      "file": "row-21-f0c46c7d0403.png",
-      "width": 520,
-      "height": 140
-    },
-    {
-      "label": "めんかく",
-      "desc": "自分宛のメンションを確認",
-      "file": "row-22-b75b7418c321.png",
+      "file": "row-23-3e16dc299ea4.png",
       "width": 520,
       "height": 140
     },
     {
       "label": "設定",
       "desc": "ランキングアイコンなどを変更",
-      "file": "row-23-6c44a34d7119.png",
+      "file": "row-24-8ee00764d5ab.png",
       "width": 520,
       "height": 140
     }
