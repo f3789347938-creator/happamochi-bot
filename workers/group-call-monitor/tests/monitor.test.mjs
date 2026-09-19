@@ -316,3 +316,284 @@ test('expanding the authorized scope excludes both queued and newly discovered p
   assert.equal(status.recent.some(row => row.message_id === 'old-undiscovered'), false);
   assert.equal(status.recent.find(row => row.message_id === 'new-call').status, 'sent');
 });
+
+async function prepareLiveStore(store, now) {
+  await store.state(now - 60_000);
+  await store.activateScope(chatId, true, now - 60_000);
+  await store.cursor('before-live-call', now - 60_000);
+}
+
+function liveCallSignal(timestamp, duration = 3129) {
+  return {
+    event: 'chat', subEvent: 'callHistory', botId: 'test-bot', chatId,
+    // Delivery time is deliberately different from the canonical message time.
+    timestamp: timestamp + 500,
+    payload: {
+      type: 'message', timestamp, source: { chatId },
+      message: { type: 'callHistory', version: 1, serviceType: 'GROUP_CALL', result: 'INFO', duration },
+    },
+  };
+}
+
+function sseCall(signal, id = 'live-call-end') {
+  return `id: ${id}\nevent: chat\ndata: ${JSON.stringify(signal)}\n\n`;
+}
+
+function deferred() {
+  let resolve;
+  const promise = new Promise(done => { resolve = done; });
+  return { promise, resolve };
+}
+
+test('ID-less live end fetches canonical history immediately and later reconciliation cannot duplicate it', async t => {
+  const { store } = fixture();
+  const now = Date.now();
+  await prepareLiveStore(store, now);
+  const signal = liveCallSignal(now);
+  assert.equal(Object.hasOwn(signal.payload.message, 'id'), false);
+  const canonical = entry(now, 'canonical-live-call');
+  const actions = [];
+  t.mock.method(globalThis, 'fetch', async () => {
+    actions.push('stream');
+    // A repeated ID-less notification should not even require another history GET.
+    return new Response(sseCall(signal) + sseCall(signal, 'live-call-end-replayed'));
+  });
+  let discover = false;
+  let historyCalls = 0;
+  let sent = 0;
+  const api = {
+    async streamToken() { return {}; },
+    streamUrl() { return 'https://chat-streaming-api.line.biz/api/v2/sse'; },
+    async chats() { return { list: discover ? [{ chatId, chatType: 'GROUP', updatedAt: now }] : [] }; },
+    async history(id) {
+      assert.equal(id, chatId);
+      historyCalls++;
+      actions.push('history');
+      return { list: [canonical] };
+    },
+    async sendText(id, text) {
+      assert.equal(id, chatId);
+      assert.equal(text, 'グループ通話が終了しました\n通話時間：3秒');
+      const row = (await store.status()).recent[0];
+      assert.equal(row.message_id, canonical.message.id);
+      sent++;
+      actions.push('send');
+    },
+  };
+  const config = { ...scope, botId: 'test-bot' };
+  assert.equal((await runMonitor(store, api, config)).ok, true);
+  assert.deepEqual(actions, ['stream', 'history', 'send']);
+  assert.equal(historyCalls, 1);
+  assert.equal(sent, 1);
+  assert.equal((await store.state()).cursor, 'live-call-end-replayed');
+  assert.deepEqual((await store.status()).recent.map(row => row.message_id), [canonical.message.id]);
+
+  discover = true;
+  await store.acquire('history-follow-up', Date.now());
+  await reconcile(store, api, config, now - 60_000, 'history-follow-up');
+  assert.equal(historyCalls, 2);
+  assert.equal(sent, 1, 'canonical history and SSE must share one outbox record');
+  assert.equal((await store.status()).recent.length, 1);
+  assert.equal((await store.status()).recent[0].status, 'sent');
+});
+
+test('history visibility delay preserves the cursor and replay of the same ID-less end sends once', async t => {
+  const { store } = fixture();
+  const now = Date.now();
+  await prepareLiveStore(store, now);
+  const signal = liveCallSignal(now);
+  const canonical = entry(now, 'canonical-delayed-call');
+  t.mock.method(globalThis, 'fetch', async () => new Response(sseCall(signal)));
+  t.mock.method(console, 'error', () => {});
+  const cursors = [];
+  let visible = false;
+  let sent = 0;
+  let historyCalls = 0;
+  const recoveryGate = deferred();
+  const api = {
+    async streamToken() { return {}; },
+    streamUrl(_token, cursor) { cursors.push(cursor); return 'https://chat-streaming-api.line.biz/api/v2/sse'; },
+    async chats() {
+      // On the retry, let the replayed live frame resolve history before backfill.
+      if (visible) await recoveryGate.promise;
+      return { list: [] };
+    },
+    async history() { historyCalls++; return { list: visible ? [canonical] : [] }; },
+    async sendText() { sent++; recoveryGate.resolve(); },
+  };
+  const config = { ...scope, botId: 'test-bot' };
+  const first = await runMonitor(store, api, config);
+  assert.equal(first.ok, false);
+  assert.equal(sent, 0);
+  assert.equal(historyCalls, 1);
+  assert.equal((await store.state()).cursor, 'before-live-call', 'unresolved call must not advance replay position');
+  assert.ok((await store.queuedChats()).some(row => row.chat_id === chatId));
+
+  visible = true;
+  // Avoid an unbounded test hang if a regression serializes recovery ahead of SSE.
+  let stalled = false;
+  const watchdog = setTimeout(() => { stalled = true; recoveryGate.resolve(); }, 1000);
+  let second;
+  try { second = await runMonitor(store, api, config, { reconcileFirst: false }); }
+  finally { clearTimeout(watchdog); recoveryGate.resolve(); }
+  assert.equal(stalled, false);
+  assert.equal(second.ok, true);
+  assert.deepEqual(cursors, ['before-live-call', 'before-live-call']);
+  assert.equal((await store.state()).cursor, 'live-call-end');
+  assert.equal(sent, 1);
+  assert.deepEqual((await store.status()).recent.map(row => [row.message_id, row.status]), [[canonical.message.id, 'sent']]);
+});
+
+test('a blocked backfill cannot delay an ID-less live end notification', async t => {
+  const { store } = fixture();
+  const now = Date.now();
+  await prepareLiveStore(store, now);
+  const signal = liveCallSignal(now, 32140);
+  const canonical = { ...entry(now, 'canonical-during-backfill'), message: { ...entry(now).message, id: 'canonical-during-backfill', duration: 32140 } };
+  const backfillStarted = deferred();
+  const releaseBackfill = deferred();
+  const actions = [];
+  let backfillFinished = false;
+  let sent = 0;
+  let stalled = false;
+  t.mock.method(globalThis, 'fetch', async () => {
+    actions.push('stream-connected');
+    return new Response(new ReadableStream({
+      async start(controller) {
+        // The live call is delivered while the independently running history scan is stuck.
+        await backfillStarted.promise;
+        controller.enqueue(new TextEncoder().encode(sseCall(signal)));
+        controller.close();
+      },
+    }));
+  });
+  const api = {
+    async streamToken() { return {}; },
+    streamUrl() { return 'https://chat-streaming-api.line.biz/api/v2/sse'; },
+    async chats() {
+      actions.push('backfill-started');
+      backfillStarted.resolve();
+      await releaseBackfill.promise;
+      backfillFinished = true;
+      actions.push('backfill-finished');
+      return { list: [] };
+    },
+    async history(id) { assert.equal(id, chatId); actions.push('live-history'); return { list: [canonical] }; },
+    async sendText(id, text) {
+      assert.equal(id, chatId);
+      assert.equal(backfillFinished, false, 'live notification must not wait for backfill');
+      assert.match(text, /32秒/);
+      sent++;
+      actions.push('send');
+      releaseBackfill.resolve();
+    },
+  };
+  const watchdog = setTimeout(() => {
+    stalled = true;
+    backfillStarted.resolve();
+    releaseBackfill.resolve();
+  }, 1000);
+  let result;
+  try { result = await runMonitor(store, api, { ...scope, botId: 'test-bot' }, { reconcileFirst: false }); }
+  finally { clearTimeout(watchdog); backfillStarted.resolve(); releaseBackfill.resolve(); }
+  assert.equal(stalled, false, 'only successful live sending should release the blocked backfill');
+  assert.equal(result.ok, true);
+  assert.equal(sent, 1);
+  assert.deepEqual(actions, ['stream-connected', 'backfill-started', 'live-history', 'send', 'backfill-finished']);
+  assert.equal((await store.status()).recent[0].status, 'sent');
+});
+
+test('ID-less call start with no duration neither fetches history nor sends', async t => {
+  const { store } = fixture();
+  const now = Date.now();
+  await prepareLiveStore(store, now);
+  const start = liveCallSignal(now);
+  delete start.payload.message.duration;
+  assert.deepEqual(Object.keys(start.payload.message).sort(), ['result', 'serviceType', 'type', 'version']);
+  t.mock.method(globalThis, 'fetch', async () => new Response(sseCall(start, 'live-call-start')));
+  let historyCalls = 0;
+  let sent = 0;
+  const api = {
+    async streamToken() { return {}; },
+    streamUrl() { return 'https://chat-streaming-api.line.biz/api/v2/sse'; },
+    async chats() { return { list: [] }; },
+    async history() { historyCalls++; return { list: [] }; },
+    async sendText() { sent++; },
+  };
+  assert.equal((await runMonitor(store, api, { ...scope, botId: 'test-bot' }, { reconcileFirst: false })).ok, true);
+  assert.equal(historyCalls, 0);
+  assert.equal(sent, 0);
+  assert.equal((await store.status()).recent.length, 0);
+  assert.equal((await store.queuedChats()).length, 0);
+  assert.equal((await store.state()).cursor, 'live-call-start');
+});
+
+test('aborted backfill stops before the next page and resumes from the last durable boundary', async () => {
+  const { store } = fixture();
+  const now = Date.now();
+  const cutoff = now - 60_000;
+  const abort = new AbortController();
+  await store.acquire('first', now);
+  const pages = [];
+  let stopDuringRequest = true;
+  let sent = 0;
+  const api = {
+    async chats() { return { list: [{ chatId, chatType: 'GROUP', updatedAt: now }] }; },
+    async history(id, { backward }) {
+      assert.equal(id, chatId);
+      pages.push(backward ?? 'first-page');
+      if (backward === undefined) {
+        return { list: [{ timestamp: now, message: { type: 'text' } }], backward: 'page:1' };
+      }
+      if (backward === 'page:1') {
+        // The in-flight request finishes after SSE was disconnected. Its page
+        // must be retried from the saved boundary, not skipped or kept running.
+        if (stopDuringRequest) abort.abort();
+        return { list: [entry(now - 1000, 'call-after-backfill-abort')], backward: 'page:2' };
+      }
+      assert.equal(backward, 'page:2');
+      return { list: [{ timestamp: cutoff - 1, message: { type: 'text' } }] };
+    },
+    async sendText() { sent++; },
+  };
+  await reconcile(store, api, scope, cutoff, 'first', { signal: abort.signal });
+  assert.deepEqual(pages, ['first-page', 'page:1']);
+  const queued = (await store.queuedChats()).find(row => row.chat_id === chatId);
+  assert.equal(queued.history_backward, 'page:1');
+  assert.equal(queued.scan_cutoff, cutoff);
+  assert.equal(sent, 0);
+  assert.equal((await store.status()).recent.length, 0);
+
+  stopDuringRequest = false;
+  await reconcile(store, api, scope, cutoff, 'first');
+  assert.deepEqual(pages, ['first-page', 'page:1', 'page:1', 'page:2']);
+  assert.equal(sent, 1);
+  assert.equal((await store.status()).recent[0].message_id, 'call-after-backfill-abort');
+  assert.equal((await store.status()).recent[0].status, 'sent');
+});
+
+test('a send acknowledgement arriving before HTTP timeout remains confirmed and never resends', async () => {
+  const { store } = fixture();
+  const now = Date.now();
+  const acknowledgedAt = now - 10;
+  await store.acquire('first', now);
+  await observe(store, entry(now - 1000, 'ack-before-timeout'), chatId, scope, now - 60_000);
+  let attempts = 0;
+  const api = {
+    async sendText(id, _text, sendId) {
+      attempts++;
+      // SSE or the concurrent history scan confirms the same stable sendId,
+      // even though the original POST's response subsequently times out.
+      await store.acknowledge(id, sendId, acknowledgedAt);
+      throw new DOMException('HTTP timeout after acknowledgement', 'TimeoutError');
+    },
+  };
+  await dispatch(store, api, scope, 'first');
+  const row = (await store.status()).recent[0];
+  assert.equal(row.status, 'sent');
+  assert.equal(row.sent_at, acknowledgedAt);
+  assert.equal(row.error_code, null);
+  await dispatch(store, api, scope, 'first');
+  assert.equal(attempts, 1);
+  assert.equal((await store.pending()).length, 0);
+});

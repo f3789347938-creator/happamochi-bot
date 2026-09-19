@@ -8,6 +8,16 @@ function isRecord(value) {
 
 /** Parse an already-normalized OA history entry without retaining its other data. */
 export function parseGroupCall(entry, chatId, { now = Date.now(), cutoff = 0 } = {}) {
+  const call = parseGroupCallSignal(entry, chatId, { now, cutoff });
+  if (!call) return null;
+  const messageId = entry.message.id;
+  // History IDs are opaque strings, never numeric conversions or local dummy IDs.
+  if (typeof messageId !== 'string' || !messageId || messageId.trim() !== messageId) return null;
+  return { ...call, messageId };
+}
+
+/** Live GROUP_CALL signals omit message.id; only history yields a durable ID. */
+export function parseGroupCallSignal(entry, chatId, { now = Date.now(), cutoff = 0 } = {}) {
   if (typeof chatId !== "string" || !CHAT_ID.test(chatId)) return null;
   if (!Number.isSafeInteger(now) || now <= 0) return null;
   if (!Number.isSafeInteger(cutoff) || cutoff < 0) return null;
@@ -15,10 +25,6 @@ export function parseGroupCall(entry, chatId, { now = Date.now(), cutoff = 0 } =
 
   const { message, timestamp: endedAt } = entry;
   if (message.type !== "callHistory" || message.serviceType !== "GROUP_CALL" || message.result !== "INFO") return null;
-
-  // IDs are opaque strings: even apparently safe numeric IDs must not be coerced.
-  const messageId = message.id;
-  if (typeof messageId !== "string" || !messageId || messageId.trim() !== messageId) return null;
 
   const durationMs = message.duration;
   if (!Number.isSafeInteger(durationMs) || durationMs <= 0 || durationMs > MAX_CALL_DURATION_MS) return null;
@@ -28,7 +34,7 @@ export function parseGroupCall(entry, chatId, { now = Date.now(), cutoff = 0 } =
   // This is an estimate from the reported duration, not a matched start event.
   const startedAt = endedAt - durationMs;
   if (startedAt < 0) return null;
-  return { chatId, messageId, endedAt, durationMs, startedAt };
+  return { chatId, endedAt, durationMs, startedAt };
 }
 
 export function formatDuration(ms) {

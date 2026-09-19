@@ -35,12 +35,16 @@ export class MonitorStore {
   async pending() {
     return (await this.db.prepare("SELECT * FROM oa_call_notifications WHERE status = 'pending' ORDER BY ended_at LIMIT 20").all()).results;
   }
+  async hasCall(chatId, endedAt, durationMs) {
+    return Boolean(await this.db.prepare('SELECT message_id FROM oa_call_notifications WHERE chat_id = ? AND ended_at = ? AND duration_ms = ? LIMIT 1')
+      .bind(chatId, endedAt, durationMs).first());
+  }
   async claim(row, now) {
     return Boolean(await this.db.prepare("UPDATE oa_call_notifications SET status = 'sending', attempts = attempts + 1, last_attempt_at = ? WHERE chat_id = ? AND message_id = ? AND status = 'pending' RETURNING message_id")
       .bind(now, row.chat_id, row.message_id).first());
   }
   async finish(row, status, code = null) {
-    await this.db.prepare('UPDATE oa_call_notifications SET status = ?, error_code = ?, sent_at = ? WHERE chat_id = ? AND message_id = ?')
+    await this.db.prepare("UPDATE oa_call_notifications SET status = ?, error_code = ?, sent_at = ? WHERE chat_id = ? AND message_id = ? AND status <> 'sent'")
       .bind(status, code, status === 'sent' ? Date.now() : null, row.chat_id, row.message_id).run();
   }
   async acknowledge(chatId, sendId, timestamp) {
@@ -80,7 +84,7 @@ export class MonitorStore {
   async status() {
     const state = await this.state();
     const counts = (await this.db.prepare('SELECT status, COUNT(*) AS count FROM oa_call_notifications GROUP BY status').all()).results;
-    const recent = (await this.db.prepare('SELECT chat_id,message_id,ended_at,duration_ms,status,error_code FROM oa_call_notifications ORDER BY detected_at DESC LIMIT 10').all()).results;
+    const recent = (await this.db.prepare('SELECT chat_id,message_id,ended_at,duration_ms,detected_at,sent_at,sent_at - ended_at AS notification_latency_ms,status,error_code FROM oa_call_notifications ORDER BY detected_at DESC LIMIT 10').all()).results;
     return { state, counts, recent };
   }
 }

@@ -12,6 +12,8 @@ Workerd compatibility required a wrapper around the global fetch function and `r
 
 ## Event semantics
 
+A replay of the three test calls established the latency cause: live `chat/callHistory` envelopes contain `payload.message` with type, version, serviceType, duration (end only), and result, but **no message.id**. The positive duration and payload timestamp exactly match the corresponding history entries. The earlier strict history parser therefore discarded the live signals and waited for scheduled history scans. The live delivery timestamps were 190–683 ms after the recorded call ends. The corrected receiver validates the signal without an ID, immediately reads that chat's history, and records the canonical message ID; it does not invent an ID or weaken durable duplicate suppression.
+
 The account owner supplied access to the OA manager history through the parent task. Two observed pairs of normalized history entries had `message.type = callHistory`, `serviceType = GROUP_CALL`, `result = INFO`, and `version = UNKNOWN`. Each pair had a zero-duration entry followed by a positive-duration entry. The positive durations were 3,129 and 7,891; the respective timestamp differences were 3,119 and 7,901 milliseconds. Message IDs were decimal strings beyond JavaScript's safe integer range.
 
 The public OA chat frontend [cms.DwkJzN5V.js](https://vos.line-scdn.net/line-oa-crm-pc/js/cms.DwkJzN5V.js), referenced by [main.NmWJZa55.js](https://vos.line-scdn.net/line-oa-crm-pc/js/main.NmWJZa55.js), provides corroborating static evidence. Offsets below are zero-based JavaScript string offsets of the downloaded original, not byte offsets or line numbers:
