@@ -1,6 +1,12 @@
 const MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
 const CHAT_ID = /^C[0-9a-fA-F]{32}$/;
 const USER_ID = /^U[0-9a-fA-F]{32}$/;
+const READ_TIME_FORMAT = new Intl.DateTimeFormat("ja-JP", {
+  timeZone: "Asia/Tokyo", month: "numeric", day: "numeric",
+  hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+});
+// Leave room for the service's group/set heading within LINE's 5,000-unit limit.
+const MAX_LIST_LENGTH = 4800;
 
 function isRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -46,6 +52,11 @@ function displayName(value) {
   return points.length > 40 ? `${points.slice(0, 39).join("")}…` : singleLine;
 }
 
+function readTime(eventAt) {
+  if (!isPositiveTimestamp(eventAt) || eventAt > 8_640_000_000_000_000) return null;
+  return READ_TIME_FORMAT.format(new Date(eventAt));
+}
+
 /** Format only readers the caller has confirmed for the requested check. */
 export function formatReadReceipts(readers, { maxNames = 40 } = {}) {
   if (!Array.isArray(readers)) throw new TypeError("Readers must be an array");
@@ -54,14 +65,28 @@ export function formatReadReceipts(readers, { maxNames = 40 } = {}) {
   for (const reader of readers) {
     if (!isRecord(reader) || typeof reader.userId !== "string" || reader.userId.length !== 33 || !USER_ID.test(reader.userId)) continue;
     const key = reader.userId.toLowerCase();
-    if (!unique.has(key)) unique.set(key, displayName(reader.displayName));
+    if (!unique.has(key)) {
+      // Use LINE's latest read-event timestamp, not its message watermark or our clock.
+      const time = readTime(reader.eventAt);
+      unique.set(key, `${displayName(reader.displayName)}${time ? `（最終既読確認 ${time}）` : ""}`);
+    }
   }
   const names = [...unique.values()];
   const lines = [`既読が確認できた人（${names.length}人）`];
   if (names.length === 0) lines.push("まだ既読イベントを受信していません。");
   else {
-    lines.push(...names.slice(0, maxNames).map(name => `・${name}`));
-    if (names.length > maxNames) lines.push(`ほか${names.length - maxNames}人`);
+    let shown = 0;
+    let length = lines[0].length;
+    for (const name of names.slice(0, maxNames)) {
+      const line = `・${name}`;
+      const remaining = names.length - shown - 1;
+      const tailLength = remaining > 0 ? `\nほか${remaining}人`.length : 0;
+      if (length + 1 + line.length + tailLength > MAX_LIST_LENGTH) break;
+      lines.push(line);
+      length += 1 + line.length;
+      shown++;
+    }
+    if (names.length > shown) lines.push(`ほか${names.length - shown}人`);
   }
   return lines.join("\n");
 }

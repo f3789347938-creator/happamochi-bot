@@ -67,7 +67,9 @@ export class ReadReceiptService {
           else {
             const receipts = await this.store.listReceipts(command.chatId, now);
             // Only display members whose current group profile can be verified.
-            const readers = receipts.filter(r => names.has(r.user_id)).map(r => ({userId: r.user_id, displayName: names.get(r.user_id)}));
+            const readers = receipts.filter(r => names.has(r.user_id)).map(r => ({
+              userId: r.user_id, displayName: names.get(r.user_id), eventAt: r.event_at,
+            }));
             const started = new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false }).format(new Date(session.checkpoint_at));
             text = `このグループの既読確認\nセット：${started}\n\n${formatReadReceipts(readers)}`;
           }

@@ -111,6 +111,25 @@ test("formats confirmed distinct people and an empty result", () => {
   assert.equal(formatReadReceipts([]), "既読が確認できた人（0人）\nまだ既読イベントを受信していません。");
 });
 
+test("formats event timestamps in Japan time across UTC date boundaries and midnight", () => {
+  for (const [eventAt, expected] of [
+    [Date.UTC(2026, 8, 19, 19, 8, 59), "9/20 04:08"],
+    [Date.UTC(2026, 8, 19, 15, 0), "9/20 00:00"],
+    [Date.UTC(2026, 11, 31, 15, 5), "1/1 00:05"],
+  ]) {
+    assert.equal(formatReadReceipts([{ userId: USER, displayName: "もち", eventAt }]),
+      `既読が確認できた人（1人）\n・もち（最終既読確認 ${expected}）`);
+  }
+});
+
+test("missing or invalid event timestamps keep names without inventing read times", () => {
+  for (const eventAt of [undefined, null, 0, -1, 1.5, "1789841375102", NaN, Infinity, Number.MAX_SAFE_INTEGER, new Date()]) {
+    assert.equal(formatReadReceipts([{
+      userId: USER, displayName: "もち", eventAt, watermark: Date.UTC(2026, 8, 19, 19, 8),
+    }]), "既読が確認できた人（1人）\n・もち");
+  }
+});
+
 test("names cannot add output lines and missing names do not expose IDs", () => {
   const text = formatReadReceipts([
     { userId: USER, displayName: " \u202eA\r\nB\u0000C " },
@@ -126,14 +145,22 @@ test("names cannot add output lines and missing names do not expose IDs", () => 
 test("bounds names and output without changing the total confirmed count", () => {
   const readers = Array.from({ length: 500 }, (_, index) => ({
     userId: `U${index.toString(16).padStart(32, "0")}`, displayName: "🌿".repeat(100),
+    eventAt: Date.UTC(2026, 8, 19, 19, 8),
   }));
   const text = formatReadReceipts(readers, { maxNames: 50 });
   assert.ok(text.startsWith("既読が確認できた人（500人）\n"));
-  assert.equal(text.split("\n").filter(line => line.startsWith("・")).length, 50);
-  assert.ok(text.includes("ほか450人"));
-  assert.ok(text.length < 5000);
+  const shown = text.split("\n").filter(line => line.startsWith("・")).length;
+  assert.ok(shown > 0 && shown < 50);
+  assert.ok(text.endsWith(`ほか${500 - shown}人`));
+  assert.ok(text.length <= 4800);
   assert.equal(text.isWellFormed(), true);
-  assert.ok(text.includes("・" + "🌿".repeat(39) + "…"));
+  assert.ok(text.includes("・" + "🌿".repeat(39) + "…（最終既読確認 9/20 04:08）"));
+  const defaultText = formatReadReceipts(readers);
+  assert.equal(defaultText.split("\n").filter(line => line.startsWith("・")).length, 40);
+  assert.ok(defaultText.endsWith("ほか460人"));
+  const shortNames = formatReadReceipts(readers.map(r => ({ ...r, displayName: "もち" })), { maxNames: 50 });
+  assert.equal(shortNames.split("\n").filter(line => line.startsWith("・")).length, 50);
+  assert.ok(shortNames.endsWith("ほか450人"));
   for (const maxNames of [0, 51, -1, 1.2, "1", NaN, Infinity]) assert.throws(() => formatReadReceipts([], { maxNames }), RangeError);
   for (const readers of [null, {}, "names"]) assert.throws(() => formatReadReceipts(readers), TypeError);
 });

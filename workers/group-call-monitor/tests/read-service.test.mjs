@@ -270,6 +270,23 @@ test('lists only current verified member names, deduplicating receipts and avoid
   for (const id of [ALICE, BOB, FORMER]) assert.equal(text.includes(id), false);
 });
 
+test('reader times use the stored event_at rather than watermark, checkpoint or current time', async () => {
+  const eventAt = Date.UTC(2026, 8, 19, 15, 8);
+  const f = fixture({ store: {
+    async getSession() { return { checkpoint_at: eventAt - 120_000 }; },
+    async listReceipts() { return [
+      { user_id: BOB, event_at: eventAt, watermark: eventAt - 60_000 },
+      { user_id: ALICE, watermark: eventAt },
+    ]; },
+  } });
+  await f.service.receive(message(), 'reader-times', options.cutoff, NOW);
+  const text = f.calls.sent[0].text;
+  assert.ok(text.includes('・はっぱ（最終既読確認 9/20 00:08）'));
+  assert.equal(text.includes('最終既読確認 9/20 00:07'), false);
+  assert.ok(text.split('\n').includes('・もち'));
+  assert.equal(text.includes('・もち（最終既読確認'), false);
+});
+
 test('member pagination covers later readers and rejects looping cursors', async () => {
   const requests = [];
   const f = fixture({ client: { async members(chat, { next }) {
@@ -315,13 +332,15 @@ test('large reader groups stay under LINE text limits while reporting omitted co
   const members = Array.from({ length: 500 }, (_, i) => ({ userId: `U${(i + 1).toString(16).padStart(32, '0')}`, name: '🌿'.repeat(100) }));
   members.push({ userId: ALICE, name: 'owner' });
   const f = fixture({
-    store: { async listReceipts() { return members.slice(0, 500).map(x => ({ user_id: x.userId })); } },
+    store: { async listReceipts() { return members.slice(0, 500).map(x => ({ user_id: x.userId, event_at: Date.UTC(2026, 8, 19, 15, 8) })); } },
     client: { async members() { return { list: members }; } },
   });
   await f.service.receive(message(), 'large', options.cutoff, NOW);
   const text = f.calls.sent[0].text;
   assert.ok(text.includes('既読が確認できた人（500人）'));
   assert.ok(text.includes('ほか460人'));
+  assert.equal(text.split('\n').filter(line => line.startsWith('・')).length, 40);
+  assert.ok(text.includes('最終既読確認 9/20 00:08'));
   assert.ok(text.length < 5000);
   assert.equal(text.isWellFormed(), true);
 });
