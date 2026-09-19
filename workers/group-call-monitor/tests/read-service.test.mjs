@@ -178,7 +178,7 @@ test('set claims a group reset with the actor identity and a concise acknowledge
   assert.equal(f.calls.claimed[0].command.action, 'start');
   assert.equal(f.calls.claimed[0].command.userId, ALICE);
   assert.equal(f.calls.sent[0].sendId, 'send-start-1');
-  assert.equal(f.calls.sent[0].text, 'もちさんが既読をセットしました。\nこのグループの既読記録をリセットしました。\n「既読確認」で名前を表示できます。');
+  assert.equal(f.calls.sent[0].text, 'もちさんが既読をセットしました。\n「既読確認」で名前を表示できます。');
   assert.equal(f.calls.sessions.length + f.calls.receipts.length, 0);
   assert.equal(f.calls.finished[0].status, 'sent');
 });

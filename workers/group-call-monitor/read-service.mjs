@@ -58,7 +58,7 @@ export class ReadReceiptService {
         const names = await this.memberNames(command.chatId);
         const actorName = names.get(command.userId) || 'メンバー';
         if (command.action === 'start') {
-          text = `${actorName}さんが既読をセットしました。\nこのグループの既読記録をリセットしました。\n「既読確認」で名前を表示できます。`;
+          text = `${actorName}さんが既読をセットしました。\n「既読確認」で名前を表示できます。`;
         } else if (command.action === 'stop') {
           text = 'このグループの既読記録を停止しました。';
         } else {
