@@ -6,6 +6,7 @@
 // Add --compare-custom to place a customized status beside the default one.
 // --settings shows wardrobe home and ranking icon settings; --compare-custom
 // adds an equipped example page. --baseline reads these two builders from HEAD.
+// --announcements renders every registered native notice card for internal QA.
 // --default shows C000/BG000. --fixtures=FILE loads
 // a saved actual Flex fixture for baseline comparisons without rewriting it.
 import fs from 'node:fs'
@@ -19,13 +20,14 @@ const root = path.resolve(import.meta.dirname, '..')
 const rankingOnly = process.argv.includes('--ranking')
 const statusOnly = process.argv.includes('--status-only')
 const settingsOnly = process.argv.includes('--settings')
+const announcementsOnly = process.argv.includes('--announcements')
 const compareCustom = process.argv.includes('--compare-custom')
-if ([rankingOnly,statusOnly,settingsOnly].filter(Boolean).length > 1) throw new Error('Choose --ranking, --status-only or --settings')
+if ([rankingOnly,statusOnly,settingsOnly,announcementsOnly].filter(Boolean).length > 1) throw new Error('Choose one preview mode')
 const baseUrl = process.env.DRESSUP_PREVIEW_BASE || 'https://line-group-bbs.pages.dev'
 const output = path.resolve(process.argv.slice(2).find(arg => !arg.startsWith('--')) || path.join(root, 'samples/dressup'))
 fs.mkdirSync(output, { recursive: true })
 const bundle = await build({
-  stdin: { contents: `export { buildStatusCard } from './src/features/profile/flex.ts'; export { buildGachaConfirmation, buildWardrobeCard } from './src/features/dressup/flex.ts'; export { getRankingIconSettings } from './src/features/rankingIcon.ts'; export { buildRankingCarousel } from './src/features/rankingCards.ts'; export { appearanceSvg } from './src/features/dressup/art.ts';`, resolveDir: root },
+  stdin: { contents: `export { buildStatusCard } from './src/features/profile/flex.ts'; export { buildGachaConfirmation, buildWardrobeCard } from './src/features/dressup/flex.ts'; export { getRankingIconSettings } from './src/features/rankingIcon.ts'; export { buildRankingCarousel } from './src/features/rankingCards.ts'; export { appearanceSvg } from './src/features/dressup/art.ts'; export { ANNOUNCEMENTS, buildAnnouncementsMessage } from './src/features/announcements.ts';`, resolveDir: root },
   bundle: true, write: false, platform: 'neutral', format: 'esm',
   plugins: process.argv.includes('--baseline') ? [{ name:'settings-head-baseline', setup(builder) {
     builder.onLoad({filter:/(?:dressup[\\/]flex|rankingIcon)\.ts$/}, args => ({
@@ -93,7 +95,10 @@ if (settingsOnly) {
     )
   }
 }
-const documents = fixtureArg ? JSON.parse(fs.readFileSync(fixtureArg.slice('--fixtures='.length), 'utf8')) : settingsOnly ? settingsDocuments : statusOnly ? statusDocuments : rankingOnly ? rankingDocuments : [{label:'ステータス',message:status},{label:'ランキング（累計EXP）',message:{...ranking,contents:ranking.contents.contents[0]}},{label:'きせかえガチャ',message:gacha}]
+const noticeMessage=announcementsOnly ? api.buildAnnouncementsMessage(api.ANNOUNCEMENTS) : null
+const noticeBubbles=noticeMessage ? noticeMessage.contents.type === 'carousel' ? noticeMessage.contents.contents : [noticeMessage.contents] : []
+const noticeDocuments=noticeBubbles.map((bubble,index)=>({label:`お知らせ ${index+1}`,message:{...noticeMessage,contents:bubble}}))
+const documents = fixtureArg ? JSON.parse(fs.readFileSync(fixtureArg.slice('--fixtures='.length), 'utf8')) : announcementsOnly ? noticeDocuments : settingsOnly ? settingsDocuments : statusOnly ? statusDocuments : rankingOnly ? rankingDocuments : [{label:'ステータス',message:status},{label:'ランキング（累計EXP）',message:{...ranking,contents:ranking.contents.contents[0]}},{label:'きせかえガチャ',message:gacha}]
 // Use local asset bytes: the visual check needs no server or external requests.
 await initWasm(fs.readFileSync(path.join(root, 'node_modules/@resvg/resvg-wasm/index_bg.wasm')))
 const inlinePng = filename => `data:image/png;base64,${fs.readFileSync(filename).toString('base64')}`
@@ -204,15 +209,28 @@ function flexNode(n,ctx={}) {
     }))
   }
   if (n.type === 'text') {
+    const fullText=n.text ?? (n.contents ?? []).map(span=>span.text ?? '').join('')
     let size = fontSizes[n.size] ?? scalar(n.size) ?? 16
-    if (n.adjustMode === 'shrink-to-fit' && ctx.width > 0) size = Math.min(size,Math.max(8,ctx.width / Math.max(1,textWidth(n.text ?? '',1))))
+    if (n.adjustMode === 'shrink-to-fit' && ctx.width > 0) size = Math.min(size,Math.max(8,ctx.width / Math.max(1,textWidth(fullText,1))))
     Object.assign(style,{display:'flex',justifyContent:n.align === 'center' ? 'center' : n.align === 'end' ? 'flex-end' : 'flex-start',fontSize:size,fontWeight:n.weight === 'bold' ? 700 : 400,color:n.color ?? '#17364C',textAlign:({start:'left',end:'right'})[n.align] ?? n.align ?? 'left',lineHeight:1.25+Number(scalar(n.lineSpacing ?? 0))/size,whiteSpace:n.wrap === true ? 'pre-wrap' : 'nowrap'})
     // Yoga otherwise sizes a plain text div to its glyphs in a vertical box,
     // making center/end alignment appear left-aligned in the PNG fallback.
     if (!horizontal && style.width === undefined) style.width='100%'
     if (!n.wrap) Object.assign(style,{overflow:'hidden',textOverflow:'ellipsis'})
     if (n.maxLines) style.lineClamp=n.maxLines
-    return el('div',style,n.text ?? '')
+    if (n.contents?.length) {
+      // Yoga treats whole spans as flex columns rather than inline text.
+      // Wrappable runs preserve inline color/weight and explicit newlines in
+      // this offline approximation. The saved LINE JSON remains untouched.
+      const runs=n.contents.flatMap(span=>{
+        const runStyle={display:'flex',flexShrink:0,whiteSpace:'pre',color:span.color ?? style.color,fontWeight:span.weight === 'bold' ? 700 : span.weight === 'regular' ? 400 : style.fontWeight,...(span.size ? {fontSize:fontSizes[span.size] ?? scalar(span.size)} : {})}
+        return (span.text ?? '').match(/[A-Za-z0-9.,:/]+|\n|[^\n]/gu)?.map(token=>token === '\n'
+          ? el('span',{display:'flex',width:'100%',height:0,flexShrink:0},'')
+          : el('span',runStyle,token)) ?? []
+      })
+      return el('div',{...style,flexDirection:'row',flexWrap:n.wrap ? 'wrap' : 'nowrap',alignContent:'flex-start'},runs)
+    }
+    return el('div',style,fullText)
   }
   if (n.type === 'image') {
     const width = imageSizes[n.size] ?? scalar(n.size) ?? 80
@@ -254,8 +272,8 @@ function previewTree(selected) {
     el('div',{fontSize:10,lineHeight:1.4,marginTop:18,color:'#61778A'},'実装Flexから描画。名前・数値・LINEプロフィール画像は確認用サンプルです。LINE実機とは文字組みに差があります。'),
   ])
 }
-const mainDocs=(rankingOnly ? documents : documents.filter(doc=>!doc.label.includes('ガチャ'))).slice(0,2)
-const gachaDocs=rankingOnly || statusOnly || settingsOnly ? [] : documents.filter(doc=>doc.label.includes('ガチャ'))
+const mainDocs=announcementsOnly ? documents : (rankingOnly ? documents : documents.filter(doc=>!doc.label.includes('ガチャ'))).slice(0,2)
+const gachaDocs=rankingOnly || statusOnly || settingsOnly || announcementsOnly ? [] : documents.filter(doc=>doc.label.includes('ガチャ'))
 const pages=[{name:'preview',tree:previewTree(mainDocs)},...(gachaDocs.length ? [{name:'gacha',tree:previewTree(gachaDocs)}] : []),...(settingsOnly && documents.length>2 ? [{name:'customized',tree:previewTree(documents.slice(2,4))}] : [])]
 const fontCss='@font-face{font-family:Noto;src:url(data:font/ttf;base64,'+regular.toString('base64')+');font-weight:400}@font-face{font-family:Noto;src:url(data:font/ttf;base64,'+bold.toString('base64')+');font-weight:700}'
 for (const page of pages) {
@@ -263,6 +281,7 @@ for (const page of pages) {
   fs.writeFileSync(path.join(output,page.name+'.html'),page.html)
 }
 fs.writeFileSync(path.join(output,'flex-samples.json'),JSON.stringify(documents,null,2))
+if(noticeMessage) fs.writeFileSync(path.join(output,'announcement-message.json'),JSON.stringify(noticeMessage,null,2))
 db.close()
 console.log('Offline HTML and actual Flex fixtures written: '+output)
 if (process.argv.includes('--screenshot') || process.argv.includes('--svg')) {

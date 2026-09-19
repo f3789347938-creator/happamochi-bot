@@ -1,10 +1,9 @@
 // Reusable "announcement / notice card" system.
 //
-// Delivered on-demand via a text command (see routeCommand in index.tsx)
-// -- NOT a one-time auto-send. Every time someone sends the command, they
-// get the current announcement again (Reply API only, ordinary message ->
-// reply, exactly like every other command). Intentionally simple: no
-// queue, no dedup, no lazy check -- just render + reply.
+// The text command returns the current announcements on demand.
+// Newly registered IDs are also queued once per group by
+// checkAndQueueAnnouncements below. Both paths use Reply API only.
+// Preserve existing IDs and announcement_sends when adding new notices.
 //
 // To add a NEW announcement in the future: just append an entry to the
 // ANNOUNCEMENTS array below (new unique id, title, body, optional
@@ -55,14 +54,47 @@ export interface AnnouncementContent {
 
 // 新しいお知らせを本番の全グループに出す前に、まず1グループだけで見た目を
 // 確認したいときに targetGroupIds: [BOT_TEST_GROUP_ID] として使う。
-// 現在登録済みの3件は確認済みのため全グループ対象(targetGroupIds なし)。
+// targetGroupIds のないお知らせは全グループ対象。
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const BOT_TEST_GROUP_ID = 'C69deb597234d891abaf8b643b186476c' // "botテスト"
 
 export const ANNOUNCEMENTS: AnnouncementContent[] = [
-  // 過去のお知らせ(オセロ改善 / タグ機能 / 称号機能)は、内容が古くなったため
-  // 一覧から削除した。announcement_sends の記録も消してリセットしてあるので、
-  // 下の新しいお知らせが各グループに1回ずつ届く。
+  // 新しい項目のみ追加する。グループ情報・既存の送信履歴はリセットしない。
+  {
+    id: 'notice_2026_09_19_dressup_gacha',
+    title: '着せ替えガチャ登場！',
+    date: '2026/09/19',
+    body: [
+      '・衣装120種＋背景30種が登場',
+      '・1回3,000ポイント・重複なし',
+      '・「着せ替え」で衣装や背景を変更',
+      '・ガチャで衣装・背景を100種類集めた方に',
+      '　PayPay 1万円分プレゼント！',
+      '・期限：2027/9/19まで',
+    ].join('\n'),
+    highlightWord: 'PayPay 1万円分',
+    button: {
+      label: 'ガチャを見てみる',
+      action: { type: 'message', label: 'ガチャを見てみる', text: 'ガチャ' },
+    },
+  },
+  {
+    id: 'notice_2026_09_19_mentions_replies',
+    title: '確認コマンドを追加！',
+    date: '2026/09/19',
+    body: [
+      '・「めんかく」',
+      '　自分宛のメンションを確認',
+      '・「りぷかく」',
+      '　自分の発言への返信を確認',
+      '・グループで送るだけ！',
+      '・記録された直近の最大4件を表示',
+    ].join('\n'),
+    button: {
+      label: 'ヘルプで確認',
+      action: { type: 'message', label: 'ヘルプで確認', text: 'ヘルプ' },
+    },
+  },
   {
     id: 'notice_2026_09_16_games',
     title: '新しいゲームのお知らせ！',
