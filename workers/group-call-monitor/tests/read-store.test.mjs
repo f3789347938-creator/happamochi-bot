@@ -50,20 +50,44 @@ function getCommand(sqlite, eventId) {
   return sqlite.prepare('SELECT * FROM oa_read_commands WHERE chat_id=? AND event_id=?').get(CHAT, eventId);
 }
 
-test('sessions reset and stop only the requesting owner, expire exactly after 24 hours', async () => {
+test('another member resets the shared group session and receipts without changing other groups', async () => {
   const { store } = fixture();
   const first = await store.startSession(CHAT, OWNER, NOW - 10, NOW);
-  await store.startSession(CHAT, OTHER_OWNER, NOW - 20, NOW);
   await store.startSession(OTHER_CHAT, OWNER, NOW - 30, NOW);
+  await store.recordReceipt(CHAT, 'Ureader', NOW, NOW, NOW);
+  await store.recordReceipt(OTHER_CHAT, 'Uforeign', NOW, NOW, NOW);
   assert.equal(first.expires_at, NOW + DAY);
-  await store.startSession(CHAT, OWNER, NOW + 100, NOW + 100);
-  assert.equal((await store.getSession(CHAT, OWNER, NOW + 100)).checkpoint_at, NOW + 100);
-  assert.equal((await store.getSession(CHAT, OTHER_OWNER, NOW + 100)).checkpoint_at, NOW - 20);
-  assert.equal(await store.stopSession(CHAT, OWNER), true);
-  assert.equal(await store.getSession(CHAT, OWNER, NOW + 100), null);
-  assert.ok(await store.getSession(OTHER_CHAT, OWNER, NOW + 100));
-  assert.ok(await store.getSession(CHAT, OTHER_OWNER, NOW + DAY - 1));
-  assert.equal(await store.getSession(CHAT, OTHER_OWNER, NOW + DAY), null);
+  await store.startSession(CHAT, OTHER_OWNER, NOW + 100, NOW + 100);
+  const shared = await store.getSession(CHAT, NOW + 100);
+  assert.equal(shared.checkpoint_at, NOW + 100);
+  assert.equal(shared.set_by_user_id, OTHER_OWNER);
+  assert.deepEqual(await store.listReceipts(CHAT, NOW + 100), []);
+  assert.equal((await store.getSession(OTHER_CHAT, NOW + 100)).checkpoint_at, NOW - 30);
+  assert.deepEqual((await store.listReceipts(OTHER_CHAT, NOW + 100)).map(row => row.user_id), ['Uforeign']);
+  assert.ok(await store.getSession(CHAT, NOW + DAY + 99));
+  assert.equal(await store.getSession(CHAT, NOW + DAY + 100), null);
+});
+
+test('stopping the shared session removes only that group and its evidence', async () => {
+  const { store, sqlite } = fixture();
+  await store.startSession(CHAT, OWNER, NOW, NOW);
+  await store.startSession(OTHER_CHAT, OTHER_OWNER, NOW, NOW);
+  await store.recordReceipt(CHAT, 'Ureader', NOW, NOW, NOW);
+  await store.recordReceipt(OTHER_CHAT, 'Uforeign', NOW, NOW, NOW);
+  assert.equal(await store.stopSession(CHAT), true);
+  assert.equal(await store.getSession(CHAT, NOW), null);
+  assert.equal(await store.stopSession(CHAT), false);
+  assert.ok(await store.getSession(OTHER_CHAT, NOW));
+  assert.equal(sqlite.prepare('SELECT COUNT(*) AS count FROM oa_read_receipts WHERE chat_id=?').get(CHAT).count, 0);
+  assert.equal((await store.listReceipts(OTHER_CHAT, NOW)).length, 1);
+});
+
+test('an older direct start cannot reset the checkpoint, expiry or existing receipts', async () => {
+  const { store } = fixture();
+  const current = await store.startSession(CHAT, OTHER_OWNER, NOW + 100, NOW + 100);
+  await store.recordReceipt(CHAT, 'Ureader', NOW + 110, NOW + 110, NOW + 110);
+  assert.deepEqual(await store.startSession(CHAT, OWNER, NOW, NOW + 200), current);
+  assert.equal((await store.listReceipts(CHAT, NOW + 200)).length, 1);
 });
 
 test('receipt collection requires an active session in the same chat', async () => {
@@ -83,24 +107,25 @@ test('out-of-order receipt updates independently retain both maximum timestamps'
   await store.recordReceipt(CHAT, 'Ureader', NOW + 30, NOW + 10, NOW + 100);
   await store.recordReceipt(CHAT, 'Ureader', NOW + 20, NOW + 40, NOW + 100);
   await store.recordReceipt(CHAT, 'Ureader', NOW + 5, NOW + 5, NOW + 100);
-  assert.deepEqual(await store.listReceipts(CHAT, OWNER, NOW + 100), [
+  assert.deepEqual(await store.listReceipts(CHAT, NOW + 100), [
     { user_id: 'Ureader', watermark: NOW + 30, event_at: NOW + 40 },
   ]);
 });
 
-test('owner lists use their own inclusive checkpoint and never leak another chat or expired session', async () => {
+test('shared lists use the inclusive group checkpoint and reject late pre-reset receipts', async () => {
   const { store } = fixture();
   await store.startSession(CHAT, OWNER, NOW, NOW);
+  await store.recordReceipt(CHAT, 'Uold', NOW + 5, NOW + 5, NOW + 5);
   await store.startSession(CHAT, OTHER_OWNER, NOW + 20, NOW + 20);
   await store.startSession(OTHER_CHAT, OWNER, NOW, NOW);
-  await store.recordReceipt(CHAT, 'Uboundary', NOW, NOW, NOW + 30);
-  await store.recordReceipt(CHAT, 'Ulater', NOW + 20, NOW + 30, NOW + 30);
-  await store.recordReceipt(CHAT, 'Uearlier', NOW - 1, NOW + 30, NOW + 30);
+  await store.recordReceipt(CHAT, 'Uboundary', NOW + 20, NOW + 20, NOW + 30);
+  await store.recordReceipt(CHAT, 'Ulater', NOW + 30, NOW + 30, NOW + 30);
+  assert.equal(await store.recordReceipt(CHAT, 'Uearlier', NOW + 19, NOW + 30, NOW + 30), false);
+  assert.equal(await store.recordReceipt(CHAT, 'Uold', NOW + 5, NOW + 30, NOW + 30), false);
   await store.recordReceipt(OTHER_CHAT, 'Uforeign', NOW + 30, NOW + 30, NOW + 30);
-  assert.deepEqual((await store.listReceipts(CHAT, OWNER, NOW + 30)).map(row => row.user_id), ['Ulater', 'Uboundary']);
-  assert.deepEqual((await store.listReceipts(CHAT, OTHER_OWNER, NOW + 30)).map(row => row.user_id), ['Ulater']);
-  assert.deepEqual(await store.listReceipts(CHAT, 'Uno-session', NOW + 30), []);
-  assert.deepEqual(await store.listReceipts(CHAT, OWNER, NOW + DAY), []);
+  // No actor argument: every caller observes this same group result.
+  assert.deepEqual((await store.listReceipts(CHAT, NOW + 30)).map(row => row.user_id), ['Ulater', 'Uboundary']);
+  assert.deepEqual(await store.listReceipts(CHAT, NOW + DAY + 20), []);
 });
 
 test('racing duplicate start commands produce one claim and cannot reset a later checkpoint', async () => {
@@ -109,33 +134,86 @@ test('racing duplicate start commands produce one claim and cannot reset a later
   assert.equal(claims.filter(Boolean).length, 1);
   const row = claims.find(Boolean);
   assert.equal(row.status, 'processing');
+  assert.equal(row.applied, 1);
   assert.match(row.send_id, /^[0-9a-f-]{36}$/);
-  await store.claimCommand(command('start-2', 'start', OWNER, NOW + 50), NOW + 50);
+  await store.recordReceipt(CHAT, 'Ubefore-reset', NOW + 10, NOW + 10, NOW + 10);
+  await store.claimCommand(command('start-2', 'start', OTHER_OWNER, NOW + 50), NOW + 50);
+  assert.deepEqual(await store.listReceipts(CHAT, NOW + 50), []);
+  await store.recordReceipt(CHAT, 'Uafter-reset', NOW + 60, NOW + 60, NOW + 60);
   assert.equal(await store.claimCommand(command('start-1', 'start'), NOW + 100), null);
-  assert.equal((await store.getSession(CHAT, OWNER, NOW + 100)).checkpoint_at, NOW + 50);
+  assert.equal((await store.getSession(CHAT, NOW + 100)).checkpoint_at, NOW + 50);
+  assert.deepEqual((await store.listReceipts(CHAT, NOW + 100)).map(row => row.user_id), ['Uafter-reset']);
   assert.equal(getCommand(sqlite, 'start-1').send_id, row.send_id);
 });
 
-test('a duplicate stop cannot delete a later start or another owner session', async () => {
+test('a duplicate stop cannot delete a later shared start or another group session', async () => {
   const { store } = fixture();
   await store.startSession(CHAT, OWNER, NOW, NOW);
-  await store.startSession(CHAT, OTHER_OWNER, NOW, NOW);
-  assert.ok(await store.claimCommand(command('stop-1', 'stop'), NOW));
-  assert.equal(await store.getSession(CHAT, OWNER, NOW), null);
-  assert.ok(await store.getSession(CHAT, OTHER_OWNER, NOW));
+  await store.startSession(OTHER_CHAT, OTHER_OWNER, NOW, NOW);
+  await store.recordReceipt(CHAT, 'Ureader', NOW, NOW, NOW);
+  assert.equal((await store.claimCommand(command('stop-1', 'stop', OTHER_OWNER), NOW)).applied, 1);
+  assert.equal(await store.getSession(CHAT, NOW), null);
+  assert.ok(await store.getSession(OTHER_CHAT, NOW));
   await store.claimCommand(command('start-after-stop', 'start', OWNER, NOW + 10), NOW + 10);
+  await store.recordReceipt(CHAT, 'Uafter-restart', NOW + 10, NOW + 10, NOW + 10);
   assert.equal(await store.claimCommand(command('stop-1', 'stop'), NOW + 20), null);
-  assert.ok(await store.getSession(CHAT, OWNER, NOW + 20));
+  assert.ok(await store.getSession(CHAT, NOW + 20));
+  assert.equal((await store.listReceipts(CHAT, NOW + 20)).length, 1);
 });
 
-test('session failure rolls back the command claim so retry can apply both atomically', async () => {
+test('unseen delayed start or stop cannot reverse newer group operations', async () => {
+  const { store } = fixture();
+  await store.claimCommand(command('latest-start', 'start', OTHER_OWNER, NOW + 100), NOW + 100);
+  await store.recordReceipt(CHAT, 'Ureader', NOW + 100, NOW + 100, NOW + 100);
+  for (const action of ['start', 'stop']) {
+    const old = await store.claimCommand(command(`old-${action}`, action, OWNER, NOW), NOW + 200);
+    assert.equal(old.applied, 0);
+    assert.equal((await store.getSession(CHAT, NOW + 200)).checkpoint_at, NOW + 100);
+    assert.equal((await store.listReceipts(CHAT, NOW + 200)).length, 1);
+  }
+  await store.claimCommand(command('latest-stop', 'stop', OTHER_OWNER, NOW + 300), NOW + 300);
+  assert.equal(await store.getSession(CHAT, NOW + 300), null);
+  assert.equal((await store.claimCommand(command('late-start-after-stop', 'start', OWNER, NOW + 250), NOW + 400)).applied, 0);
+  assert.equal(await store.getSession(CHAT, NOW + 400), null);
+  assert.equal((await store.claimCommand(command('next-start', 'start', OWNER, NOW + 500), NOW + 500)).applied, 1);
+  assert.equal((await store.getSession(CHAT, NOW + 500)).checkpoint_at, NOW + 500);
+});
+
+test('a migrated checkpoint also prevents an older claimed start or stop', async () => {
+  const { store } = fixture();
+  await store.startSession(CHAT, OTHER_OWNER, NOW + 100, NOW + 100);
+  await store.recordReceipt(CHAT, 'Ureader', NOW + 100, NOW + 100, NOW + 100);
+  for (const action of ['start', 'stop']) {
+    assert.equal((await store.claimCommand(command(`pre-migration-${action}`, action, OWNER, NOW), NOW + 200)).applied, 0);
+  }
+  assert.equal((await store.getSession(CHAT, NOW + 200)).checkpoint_at, NOW + 100);
+  assert.equal((await store.listReceipts(CHAT, NOW + 200)).length, 1);
+});
+
+test('session failure rolls back the command claim and deleted receipts before retry', async () => {
   const { store, sqlite } = fixture();
-  sqlite.exec("CREATE TRIGGER fail_session BEFORE INSERT ON oa_read_sessions BEGIN SELECT RAISE(ABORT,'injected failure'); END");
+  await store.startSession(CHAT, OTHER_OWNER, NOW - 10, NOW - 10);
+  await store.recordReceipt(CHAT, 'Ureader', NOW - 5, NOW - 5, NOW);
+  sqlite.exec("CREATE TRIGGER fail_session BEFORE INSERT ON oa_read_group_sessions BEGIN SELECT RAISE(ABORT,'injected failure'); END");
   await assert.rejects(store.claimCommand(command('atomic-start', 'start'), NOW), /injected failure/);
   assert.equal(getCommand(sqlite, 'atomic-start'), undefined);
+  assert.equal((await store.getSession(CHAT, NOW)).checkpoint_at, NOW - 10);
+  assert.equal((await store.listReceipts(CHAT, NOW)).length, 1);
   sqlite.exec('DROP TRIGGER fail_session');
   assert.ok(await store.claimCommand(command('atomic-start', 'start'), NOW));
-  assert.ok(await store.getSession(CHAT, OWNER, NOW));
+  assert.equal((await store.getSession(CHAT, NOW)).checkpoint_at, NOW);
+  assert.deepEqual(await store.listReceipts(CHAT, NOW), []);
+});
+
+test('a failing group stop restores both the claimed command and removed receipts', async () => {
+  const { store, sqlite } = fixture();
+  await store.startSession(CHAT, OWNER, NOW, NOW);
+  await store.recordReceipt(CHAT, 'Ureader', NOW, NOW, NOW);
+  sqlite.exec("CREATE TRIGGER fail_stop BEFORE DELETE ON oa_read_group_sessions BEGIN SELECT RAISE(ABORT,'injected stop failure'); END");
+  await assert.rejects(store.claimCommand(command('atomic-stop', 'stop', OTHER_OWNER, NOW + 10), NOW + 10), /injected stop failure/);
+  assert.equal(getCommand(sqlite, 'atomic-stop'), undefined);
+  assert.ok(await store.getSession(CHAT, NOW + 10));
+  assert.equal((await store.listReceipts(CHAT, NOW + 10)).length, 1);
 });
 
 test('sending is an atomic one-time claim and timeout cannot be blindly retried', async () => {
@@ -180,19 +258,55 @@ test('interrupted processing and sending are quarantined while new work and sent
   assert.equal(getCommand(sqlite, 'sent').status, 'sent');
 });
 
-test('cleanup protects receipts needed by either owner and removes them after the last eligible session ends', async () => {
+test('cleanup protects active group receipts and ignores untouched legacy owner sessions', async () => {
   const { store, sqlite } = fixture();
-  await store.startSession(CHAT, OWNER, NOW - 100, NOW);
-  await store.startSession(CHAT, OTHER_OWNER, NOW + 10, NOW + 10);
-  await store.recordReceipt(CHAT, 'Uold-needed', NOW, NOW, NOW + 30);
-  await store.recordReceipt(CHAT, 'Uboth-needed', NOW + 20, NOW + 20, NOW + 30);
-  await store.recordReceipt(CHAT, 'Uunneeded', NOW - 101, NOW + 20, NOW + 30);
-  assert.equal((await store.cleanup(NOW + 30)).receiptsDeleted, 1);
-  await store.stopSession(CHAT, OWNER);
-  assert.equal((await store.cleanup(NOW + 40)).receiptsDeleted, 1);
-  assert.deepEqual((await store.listReceipts(CHAT, OTHER_OWNER, NOW + 40)).map(row => row.user_id), ['Uboth-needed']);
-  assert.deepEqual(await store.cleanup(NOW + DAY + 10), { sessionsDeleted: 1, receiptsDeleted: 1, commandsDeleted: 0 });
+  await store.startSession(CHAT, OWNER, NOW, NOW);
+  await store.recordReceipt(CHAT, 'Uneeded', NOW, NOW, NOW);
+  sqlite.prepare('INSERT INTO oa_read_sessions VALUES (?,?,?,?,?)').run(OTHER_CHAT, OWNER, NOW - 100, NOW, NOW + 2 * DAY);
+  sqlite.prepare('INSERT INTO oa_read_receipts VALUES (?,?,?,?)').run(CHAT, 'Upre-checkpoint', NOW - 1, NOW);
+  sqlite.prepare('INSERT INTO oa_read_receipts VALUES (?,?,?,?)').run(OTHER_CHAT, 'Ulegacy-only', NOW, NOW);
+  assert.deepEqual(await store.cleanup(NOW + 30), { sessionsDeleted: 0, receiptsDeleted: 2, commandsDeleted: 0 });
+  assert.deepEqual((await store.listReceipts(CHAT, NOW + 40)).map(row => row.user_id), ['Uneeded']);
+  assert.deepEqual(await store.cleanup(NOW + DAY), { sessionsDeleted: 1, receiptsDeleted: 1, commandsDeleted: 0 });
   assert.equal(sqlite.prepare('SELECT COUNT(*) AS count FROM oa_read_receipts').get().count, 0);
+  assert.equal(sqlite.prepare('SELECT COUNT(*) AS count FROM oa_read_sessions').get().count, 1);
+});
+
+test('migration selects the latest legacy group checkpoint without overwriting a shared session', async () => {
+  const { store, sqlite } = fixture();
+  const old = sqlite.prepare('INSERT INTO oa_read_sessions VALUES (?,?,?,?,?)');
+  old.run(CHAT, OWNER, NOW - 20, NOW + 10, NOW + DAY);
+  old.run(CHAT, OTHER_OWNER, NOW - 10, NOW, NOW + DAY);
+  old.run(OTHER_CHAT, OWNER, NOW + 100, NOW + 100, NOW + DAY + 100);
+  await store.startSession(OTHER_CHAT, OTHER_OWNER, NOW + 200, NOW + 200);
+  await store.recordReceipt(OTHER_CHAT, 'Ukeep', NOW + 200, NOW + 200, NOW + 200);
+  sqlite.exec(readFileSync(new URL('../read-group-migration.sql', import.meta.url), 'utf8'));
+  const migrated = await store.getSession(CHAT, NOW + 200);
+  assert.equal(migrated.set_by_user_id, OTHER_OWNER);
+  assert.equal(migrated.checkpoint_at, NOW - 10);
+  assert.equal(migrated.started_at, NOW);
+  assert.equal(migrated.expires_at, NOW + DAY);
+  assert.equal((await store.getSession(OTHER_CHAT, NOW + 200)).checkpoint_at, NOW + 200);
+  assert.equal((await store.listReceipts(OTHER_CHAT, NOW + 200)).length, 1);
+  assert.equal(sqlite.prepare('SELECT COUNT(*) AS count FROM oa_read_sessions').get().count, 3);
+});
+
+test('completed migration reruns neither reset a new checkpoint nor revive a stopped group', async () => {
+  const { store, sqlite } = fixture();
+  const old = sqlite.prepare('INSERT INTO oa_read_sessions VALUES (?,?,?,?,?)');
+  old.run(CHAT, OWNER, NOW, NOW, NOW + DAY);
+  old.run(OTHER_CHAT, OWNER, NOW, NOW, NOW + DAY);
+  const migration = readFileSync(new URL('../read-group-migration.sql', import.meta.url), 'utf8');
+  sqlite.exec(migration);
+  await store.stopSession(CHAT);
+  await store.startSession(OTHER_CHAT, OTHER_OWNER, NOW + 10, NOW + 10);
+  await store.recordReceipt(OTHER_CHAT, 'Ureader', NOW + 10, NOW + 10, NOW + 10);
+  sqlite.exec(migration);
+  sqlite.exec(migration);
+  assert.equal(await store.getSession(CHAT, NOW + 20), null);
+  assert.equal((await store.getSession(OTHER_CHAT, NOW + 20)).checkpoint_at, NOW + 10);
+  assert.equal((await store.listReceipts(OTHER_CHAT, NOW + 20)).length, 1);
+  assert.equal(sqlite.prepare('SELECT COUNT(*) AS count FROM oa_read_migrations').get().count, 1);
 });
 
 test('seven-day command cleanup cannot make an old SSE event executable again', async () => {

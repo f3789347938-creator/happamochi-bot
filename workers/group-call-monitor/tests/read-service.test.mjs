@@ -36,12 +36,12 @@ function fixture({ store: overrides = {}, client: clientOverrides = {}, config =
       return { chat_id: command.chatId, user_id: command.userId, event_id: command.eventId,
         action: command.action, send_id: `send-${command.eventId}` };
     },
-    async getSession(chatId, userId, now) {
-      calls.sessions.push({ chatId, userId, now });
+    async getSession(chatId, now) {
+      calls.sessions.push({ chatId, now });
       return { checkpoint_at: NOW - 1000 };
     },
-    async listReceipts(chatId, userId, now) {
-      calls.receipts.push({ chatId, userId, now });
+    async listReceipts(chatId, now) {
+      calls.receipts.push({ chatId, now });
       return [{ user_id: BOB }];
     },
     async recordReceipt(...args) { calls.recorded.push(args); },
@@ -61,7 +61,7 @@ function fixture({ store: overrides = {}, client: clientOverrides = {}, config =
 }
 
 test('recognizes only the three exact commands from current human text messages', () => {
-  for (const [text, action] of [['既読開始', 'start'], ['既読確認', 'list'], ['既読終了', 'stop']]) {
+  for (const [text, action] of [['既読セット', 'start'], ['既読確認', 'list'], ['既読終了', 'stop']]) {
     for (const type of ['text', 'textV2']) {
       const event = message(` ${text}\n`);
       event.payload.message.type = type;
@@ -70,14 +70,14 @@ test('recognizes only the three exact commands from current human text messages'
       });
     }
   }
-  for (const text of ['既読', '既読開始してください', '既読確認\n既読終了', 'hello', '']) {
+  for (const text of ['既読', '既読開始', '既読セットしてください', '既読確認\n既読終了', 'hello', '']) {
     assert.equal(parseReadCommand(message(text), 'evt-1', options), null);
   }
 });
 
 test('rejects own bot and OA send acknowledgements, even when text is a command', () => {
   for (const user of [BOT, BOT.toUpperCase(), BOT.toLowerCase()]) {
-    assert.equal(parseReadCommand(message('既読開始', user), 'evt-1', options), null);
+    assert.equal(parseReadCommand(message('既読セット', user), 'evt-1', options), null);
   }
   for (const field of ['sendId', 'bizId']) {
     const event = message();
@@ -102,12 +102,12 @@ test('rejects mismatched bot/chat identity and non-group sources', () => {
 });
 
 test('command replay cutoff and freshness are independent and bound future timestamps', () => {
-  assert.ok(parseReadCommand(message('既読開始', ALICE, NOW - 60_000), 'evt', options));
-  assert.equal(parseReadCommand(message('既読開始', ALICE, NOW - 60_001), 'evt', options), null);
-  assert.ok(parseReadCommand(message('既読開始', ALICE, NOW - 900_000), 'evt', { ...options, cutoff: 0 }));
-  assert.equal(parseReadCommand(message('既読開始', ALICE, NOW - 900_001), 'evt', { ...options, cutoff: 0 }), null);
-  assert.ok(parseReadCommand(message('既読開始', ALICE, NOW + 300_000), 'evt', options));
-  assert.equal(parseReadCommand(message('既読開始', ALICE, NOW + 300_001), 'evt', options), null);
+  assert.ok(parseReadCommand(message('既読セット', ALICE, NOW - 60_000), 'evt', options));
+  assert.equal(parseReadCommand(message('既読セット', ALICE, NOW - 60_001), 'evt', options), null);
+  assert.ok(parseReadCommand(message('既読セット', ALICE, NOW - 900_000), 'evt', { ...options, cutoff: 0 }));
+  assert.equal(parseReadCommand(message('既読セット', ALICE, NOW - 900_001), 'evt', { ...options, cutoff: 0 }), null);
+  assert.ok(parseReadCommand(message('既読セット', ALICE, NOW + 300_000), 'evt', options));
+  assert.equal(parseReadCommand(message('既読セット', ALICE, NOW + 300_001), 'evt', options), null);
 });
 
 test('rejects malformed messages, event IDs and timestamps without throwing', () => {
@@ -143,7 +143,7 @@ test('service tolerates malformed event objects without any side effects', async
 test('disabled features and out-of-scope groups never claim commands, store receipts or send', async () => {
   for (const config of [{ enabled: false }, { scope: OTHER_CHAT }, { scope: '' }, { scope: undefined }]) {
     const f = fixture({ config });
-    await f.service.receive(message('既読開始'), 'evt', options.cutoff, NOW);
+    await f.service.receive(message('既読セット'), 'evt', options.cutoff, NOW);
     await f.service.receive(receipt(), 'read', options.cutoff, NOW);
     assert.equal(f.calls.claimed.length + f.calls.recorded.length + f.calls.members.length + f.calls.sent.length, 0);
   }
@@ -172,52 +172,65 @@ test('manager read state, bot receipt and wrong-envelope receipt do not record r
   assert.equal(f.calls.recorded.length + f.calls.claimed.length + f.calls.sent.length, 0);
 });
 
-test('start claims the actor session before acknowledgement and includes the usable commands', async () => {
+test('set claims a group reset with the actor identity and a concise acknowledgement', async () => {
   const f = fixture();
-  await f.service.receive(message('既読開始'), 'start-1', options.cutoff, NOW);
+  await f.service.receive(message('既読セット'), 'start-1', options.cutoff, NOW);
   assert.equal(f.calls.claimed[0].command.action, 'start');
   assert.equal(f.calls.claimed[0].command.userId, ALICE);
   assert.equal(f.calls.sent[0].sendId, 'send-start-1');
-  assert.match(f.calls.sent[0].text, /^もちさんの既読確認を開始しました。/);
-  for (const command of ['既読開始', '既読確認', '既読終了']) assert.ok(f.calls.sent[0].text.includes(command));
+  assert.equal(f.calls.sent[0].text, 'もちさんが既読をセットしました。\nこのグループの既読記録をリセットしました。\n「既読確認」で名前を表示できます。');
   assert.equal(f.calls.sessions.length + f.calls.receipts.length, 0);
   assert.equal(f.calls.finished[0].status, 'sent');
 });
 
-test('list requests only the session and receipts belonging to the command sender', async () => {
+test('different senders request the same group session and receive the same reader list', async () => {
   const f = fixture();
   await f.service.receive(message('既読確認', ALICE), 'alice-list', options.cutoff, NOW);
   await f.service.receive(message('既読確認', BOB), 'bob-list', options.cutoff, NOW);
-  assert.deepEqual(f.calls.sessions.map(x => [x.chatId, x.userId]), [[CHAT, ALICE], [CHAT, BOB]]);
-  assert.deepEqual(f.calls.receipts.map(x => [x.chatId, x.userId]), [[CHAT, ALICE], [CHAT, BOB]]);
-  assert.match(f.calls.sent[0].text, /^もちさんの既読確認/);
-  assert.match(f.calls.sent[1].text, /^はっぱさんの既読確認/);
+  assert.deepEqual(f.calls.sessions, [{ chatId: CHAT, now: NOW }, { chatId: CHAT, now: NOW }]);
+  assert.deepEqual(f.calls.receipts, [{ chatId: CHAT, now: NOW }, { chatId: CHAT, now: NOW }]);
+  assert.match(f.calls.sent[0].text, /^このグループの既読確認\nセット：/);
+  assert.equal(f.calls.sent[0].text, f.calls.sent[1].text);
 });
 
-test('inactive session provides help and never lists another person’s receipts', async () => {
+test('unset group provides the set instruction without listing receipts', async () => {
   const f = fixture({ store: { async getSession() { return null; } } });
   await f.service.receive(message(), 'inactive', options.cutoff, NOW);
-  assert.match(f.calls.sent[0].text, /もちさんの既読確認は開始されていません。/);
-  assert.ok(f.calls.sent[0].text.includes('「既読開始」'));
+  assert.equal(f.calls.sent[0].text, 'このグループには既読がセットされていません。\n「既読セット」と送ってください。');
   assert.equal(f.calls.receipts.length, 0);
 });
 
-test('stop remains scoped to the sender and gives a restart instruction', async () => {
+test('stop retains the actor identity in its claim and acknowledges the group stop', async () => {
   const f = fixture();
   await f.service.receive(message('既読終了', BOB), 'stop-1', options.cutoff, NOW);
   assert.deepEqual([f.calls.claimed[0].command.userId, f.calls.claimed[0].command.action], [BOB, 'stop']);
-  assert.match(f.calls.sent[0].text, /^はっぱさんの既読確認を終了しました。/);
-  assert.ok(f.calls.sent[0].text.includes('「既読開始」'));
+  assert.equal(f.calls.sent[0].text, 'このグループの既読記録を停止しました。');
 });
 
 test('replayed command is neither formatted again nor sent twice', async () => {
   const f = fixture();
-  await f.service.receive(message('既読開始'), 'same', options.cutoff, NOW);
-  await f.service.receive(message('既読開始'), 'same', options.cutoff, NOW);
+  await f.service.receive(message('既読セット'), 'same', options.cutoff, NOW);
+  await f.service.receive(message('既読セット'), 'same', options.cutoff, NOW);
   assert.equal(f.calls.claimed.length, 2);
   assert.equal(f.calls.members.length, 1);
   assert.equal(f.calls.sent.length, 1);
   assert.equal(f.calls.finished.length, 1);
+});
+
+test('stale set and stop acknowledge that no change was applied without claiming success', async () => {
+  for (const text of ['既読セット', '既読終了']) {
+    const f = fixture({ store: { async claimCommand(command) {
+      return { chat_id: command.chatId, user_id: command.userId, event_id: command.eventId,
+        action: command.action, send_id: 'send-stale', applied: 0 };
+    } } });
+    await f.service.receive(message(text), 'stale', options.cutoff, NOW);
+    assert.equal(f.calls.sent.length, 1);
+    assert.equal(f.calls.sent[0].text, '新しい既読設定があるため、この操作では変更しませんでした。');
+    assert.equal(f.calls.members.length + f.calls.sessions.length + f.calls.receipts.length, 0);
+    assert.equal(f.calls.sending[0].row.applied, 0);
+    assert.equal(f.calls.finished[0].status, 'sent');
+    assert.equal(f.calls.finished[0].error, null);
+  }
 });
 
 test('losing the atomic send claim causes no network send or finish transition', async () => {
@@ -281,17 +294,21 @@ test('member API failures return useful recovery text without leaking exception 
   assert.equal(f.calls.finished[0].status, 'sent');
 });
 
-test('owner and reader names are single line, bounded, and cannot inject extra result lines', async () => {
+test('actor and reader names are single line, bounded, and cannot inject extra result lines', async () => {
   const f = fixture({ client: { async members() { return { list: [
     { userId: ALICE, name: '\u202eOWNER\u2028FORGED\n' + '🌿'.repeat(100) },
     { userId: BOB, name: 'reader\r\nFAKE\u2029LINE' },
   ] }; } } });
   await f.service.receive(message(), 'unsafe-names', options.cutoff, NOW);
+  await f.service.receive(message('既読セット'), 'unsafe-actor', options.cutoff, NOW);
   const text = f.calls.sent[0].text;
-  assert.equal(/[\u2028\u2029\u202e]/u.test(text), false);
   assert.ok(text.includes('・reader FAKE LINE'));
-  assert.ok(text.length < 1000);
-  assert.equal(text.isWellFormed(), true);
+  assert.match(f.calls.sent[1].text, /^OWNER FORGED /);
+  for (const { text: reply } of f.calls.sent) {
+    assert.equal(/[\u2028\u2029\u202e]/u.test(reply), false);
+    assert.ok(reply.length < 1000);
+    assert.equal(reply.isWellFormed(), true);
+  }
 });
 
 test('large reader groups stay under LINE text limits while reporting omitted count', async () => {

@@ -8,6 +8,21 @@ CREATE TABLE IF NOT EXISTS oa_read_sessions (
 );
 CREATE INDEX IF NOT EXISTS oa_read_sessions_expiry ON oa_read_sessions(expires_at);
 
+-- Retain the legacy per-owner table above for a non-destructive rollout.
+CREATE TABLE IF NOT EXISTS oa_read_group_sessions (
+  chat_id TEXT NOT NULL PRIMARY KEY,
+  set_by_user_id TEXT NOT NULL,
+  checkpoint_at INTEGER NOT NULL,
+  started_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS oa_read_group_sessions_expiry ON oa_read_group_sessions(expires_at);
+
+CREATE TABLE IF NOT EXISTS oa_read_migrations (
+  migration_id TEXT NOT NULL PRIMARY KEY,
+  applied_at INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS oa_read_receipts (
   chat_id TEXT NOT NULL,
   user_id TEXT NOT NULL,
@@ -36,3 +51,4 @@ CREATE TABLE IF NOT EXISTS oa_read_commands (
 CREATE UNIQUE INDEX IF NOT EXISTS oa_read_commands_send_id ON oa_read_commands(chat_id, send_id);
 CREATE INDEX IF NOT EXISTS oa_read_commands_expiry ON oa_read_commands(created_at);
 CREATE INDEX IF NOT EXISTS oa_read_commands_interrupted ON oa_read_commands(status, updated_at);
+CREATE INDEX IF NOT EXISTS oa_read_commands_group_event ON oa_read_commands(chat_id, event_at);

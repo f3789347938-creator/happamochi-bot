@@ -43,39 +43,51 @@ export class ReadStore {
 
   async startSession(chatId, userId, checkpointAt, now = Date.now()) {
     id(chatId); id(userId); clock(now); observedTime(checkpointAt, now);
-    return this.db.prepare(`INSERT INTO oa_read_sessions(chat_id,owner_user_id,checkpoint_at,started_at,expires_at)
-      VALUES (?,?,?,?,?) ON CONFLICT(chat_id,owner_user_id) DO UPDATE SET
-      checkpoint_at=excluded.checkpoint_at, started_at=excluded.started_at, expires_at=excluded.expires_at
-      RETURNING *`).bind(chatId, userId, checkpointAt, now, now + DAY_MS).first();
+    const results = await this.db.batch([
+      this.db.prepare(`DELETE FROM oa_read_receipts WHERE chat_id=? AND NOT EXISTS
+        (SELECT 1 FROM oa_read_group_sessions WHERE chat_id=? AND checkpoint_at>?)`).bind(chatId, chatId, checkpointAt),
+      this.db.prepare(`INSERT INTO oa_read_group_sessions(chat_id,set_by_user_id,checkpoint_at,started_at,expires_at)
+        VALUES (?,?,?,?,?) ON CONFLICT(chat_id) DO UPDATE SET set_by_user_id=excluded.set_by_user_id,
+        checkpoint_at=excluded.checkpoint_at,started_at=excluded.started_at,expires_at=excluded.expires_at
+        WHERE excluded.checkpoint_at>=oa_read_group_sessions.checkpoint_at`)
+        .bind(chatId, userId, checkpointAt, now, now + DAY_MS),
+      this.db.prepare('SELECT * FROM oa_read_group_sessions WHERE chat_id=?').bind(chatId),
+    ]);
+    return results.at(-1).results[0] ?? null;
   }
 
-  async stopSession(chatId, userId) {
-    id(chatId); id(userId);
-    return changes(await this.db.prepare('DELETE FROM oa_read_sessions WHERE chat_id=? AND owner_user_id=?').bind(chatId, userId).run()) > 0;
+  async stopSession(chatId) {
+    id(chatId);
+    const results = await this.db.batch([
+      this.db.prepare('DELETE FROM oa_read_receipts WHERE chat_id=?').bind(chatId),
+      this.db.prepare('DELETE FROM oa_read_group_sessions WHERE chat_id=?').bind(chatId),
+    ]);
+    return changes(results[1]) > 0;
   }
 
-  async getSession(chatId, userId, now = Date.now()) {
-    id(chatId); id(userId); clock(now);
-    return this.db.prepare('SELECT * FROM oa_read_sessions WHERE chat_id=? AND owner_user_id=? AND expires_at>?')
-      .bind(chatId, userId, now).first();
+  async getSession(chatId, now = Date.now()) {
+    id(chatId); clock(now);
+    return this.db.prepare('SELECT * FROM oa_read_group_sessions WHERE chat_id=? AND expires_at>?')
+      .bind(chatId, now).first();
   }
 
   async recordReceipt(chatId, userId, watermark, eventAt, now = Date.now()) {
     id(chatId); id(userId); clock(now); observedTime(watermark, now); observedTime(eventAt, now);
     return Boolean(await this.db.prepare(`INSERT INTO oa_read_receipts(chat_id,user_id,watermark,event_at)
-      SELECT ?,?,?,? WHERE EXISTS (SELECT 1 FROM oa_read_sessions WHERE chat_id=? AND expires_at>?)
+      SELECT ?,?,?,? WHERE EXISTS
+      (SELECT 1 FROM oa_read_group_sessions WHERE chat_id=? AND expires_at>? AND checkpoint_at<=?)
       ON CONFLICT(chat_id,user_id) DO UPDATE SET
       watermark=max(oa_read_receipts.watermark,excluded.watermark),
       event_at=max(oa_read_receipts.event_at,excluded.event_at)
-      RETURNING user_id`).bind(chatId, userId, watermark, eventAt, chatId, now).first());
+      RETURNING user_id`).bind(chatId, userId, watermark, eventAt, chatId, now, watermark).first());
   }
 
-  async listReceipts(chatId, ownerUserId, now = Date.now()) {
-    id(chatId); id(ownerUserId); clock(now);
+  async listReceipts(chatId, now = Date.now()) {
+    id(chatId); clock(now);
     const result = await this.db.prepare(`SELECT r.user_id,r.watermark,r.event_at FROM oa_read_receipts AS r
-      JOIN oa_read_sessions AS s ON s.chat_id=r.chat_id
-      WHERE s.chat_id=? AND s.owner_user_id=? AND s.expires_at>? AND r.watermark>=s.checkpoint_at
-      ORDER BY r.watermark DESC,r.user_id`).bind(chatId, ownerUserId, now).all();
+      JOIN oa_read_group_sessions AS s ON s.chat_id=r.chat_id
+      WHERE s.chat_id=? AND s.expires_at>? AND r.watermark>=s.checkpoint_at
+      ORDER BY r.watermark DESC,r.user_id`).bind(chatId, now).all();
     return result.results;
   }
 
@@ -90,22 +102,33 @@ export class ReadStore {
     const statements = [this.db.prepare(`INSERT OR IGNORE INTO oa_read_commands
       (chat_id,event_id,owner_user_id,action,event_at,send_id,status,created_at,updated_at)
       VALUES (?,?,?,?,?,?,'processing',?,?)`).bind(chatId, eventId, userId, action, eventAt, sendId, now, now)];
+    // Inspect eligibility inside the same transaction, before a stop removes its session.
+    // A claimed old command remains deduplicated, but must not reverse a newer set/stop.
+    const eligible = action === 'list' ? '1' : `NOT EXISTS
+      (SELECT 1 FROM oa_read_commands AS newer WHERE newer.chat_id=?
+       AND newer.action IN ('start','stop') AND newer.event_at>?) AND NOT EXISTS
+      (SELECT 1 FROM oa_read_group_sessions WHERE chat_id=? AND checkpoint_at>?)`;
+    const eligibleArgs = action === 'list' ? [] : [chatId, eventAt, chatId, action === 'start' ? checkpointAt ?? eventAt : eventAt];
+    statements.push(this.db.prepare(`SELECT *,(${eligible}) AS applied FROM oa_read_commands
+      WHERE chat_id=? AND event_id=? AND send_id=?`).bind(...eligibleArgs, chatId, eventId, sendId));
+    const freshAndEligible = `EXISTS (SELECT 1 FROM oa_read_commands WHERE chat_id=? AND event_id=? AND send_id=?) AND (${eligible})`;
+    const guardArgs = [chatId, eventId, sendId, ...eligibleArgs];
     if (action === 'start') {
-      statements.push(this.db.prepare(`INSERT INTO oa_read_sessions(chat_id,owner_user_id,checkpoint_at,started_at,expires_at)
-        SELECT ?,?,?,?,? WHERE EXISTS
-        (SELECT 1 FROM oa_read_commands WHERE chat_id=? AND event_id=? AND send_id=?)
-        ON CONFLICT(chat_id,owner_user_id) DO UPDATE SET checkpoint_at=excluded.checkpoint_at,
+      statements.push(this.db.prepare(`DELETE FROM oa_read_receipts WHERE chat_id=? AND ${freshAndEligible}`)
+        .bind(chatId, ...guardArgs));
+      statements.push(this.db.prepare(`INSERT INTO oa_read_group_sessions(chat_id,set_by_user_id,checkpoint_at,started_at,expires_at)
+        SELECT ?,?,?,?,? WHERE ${freshAndEligible}
+        ON CONFLICT(chat_id) DO UPDATE SET set_by_user_id=excluded.set_by_user_id,checkpoint_at=excluded.checkpoint_at,
         started_at=excluded.started_at,expires_at=excluded.expires_at`)
-        .bind(chatId, userId, checkpointAt ?? eventAt, now, now + DAY_MS, chatId, eventId, sendId));
+        .bind(chatId, userId, checkpointAt ?? eventAt, now, now + DAY_MS, ...guardArgs));
     } else if (action === 'stop') {
-      statements.push(this.db.prepare(`DELETE FROM oa_read_sessions WHERE chat_id=? AND owner_user_id=? AND EXISTS
-        (SELECT 1 FROM oa_read_commands WHERE chat_id=? AND event_id=? AND send_id=?)`)
-        .bind(chatId, userId, chatId, eventId, sendId));
+      statements.push(this.db.prepare(`DELETE FROM oa_read_receipts WHERE chat_id=? AND ${freshAndEligible}`)
+        .bind(chatId, ...guardArgs));
+      statements.push(this.db.prepare(`DELETE FROM oa_read_group_sessions WHERE chat_id=? AND ${freshAndEligible}`)
+        .bind(chatId, ...guardArgs));
     }
-    statements.push(this.db.prepare('SELECT * FROM oa_read_commands WHERE chat_id=? AND event_id=? AND send_id=?')
-      .bind(chatId, eventId, sendId));
     const results = await this.db.batch(statements);
-    return results.at(-1).results[0] ?? null;
+    return results[1].results[0] ?? null;
   }
 
   async markSending(row, text, now = Date.now()) {
@@ -141,10 +164,10 @@ export class ReadStore {
 
   async cleanup(now = Date.now()) {
     clock(now);
-    // A receipt survives while ANY active owner still needs its watermark.
+    // Preserve only evidence relevant to the group's current active checkpoint.
     const results = await this.db.batch([
-      this.db.prepare('DELETE FROM oa_read_sessions WHERE expires_at<=?').bind(now),
-      this.db.prepare(`DELETE FROM oa_read_receipts WHERE NOT EXISTS (SELECT 1 FROM oa_read_sessions AS s
+      this.db.prepare('DELETE FROM oa_read_group_sessions WHERE expires_at<=?').bind(now),
+      this.db.prepare(`DELETE FROM oa_read_receipts WHERE NOT EXISTS (SELECT 1 FROM oa_read_group_sessions AS s
         WHERE s.chat_id=oa_read_receipts.chat_id AND s.expires_at>? AND s.checkpoint_at<=oa_read_receipts.watermark)`).bind(now),
       this.db.prepare('DELETE FROM oa_read_commands WHERE created_at<=?').bind(now - DEDUPE_MS),
     ]);

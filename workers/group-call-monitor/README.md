@@ -14,6 +14,7 @@ Cloudflare WranglerにWorkers ScriptsとD1の書き込み権限でログイン�
 ```sh
 wrangler d1 execute line-group-bbs-db --remote --file workers/group-call-monitor/schema.sql --config workers/group-call-monitor/wrangler.jsonc
 wrangler d1 execute line-group-bbs-db --remote --file workers/group-call-monitor/read-schema.sql --config workers/group-call-monitor/wrangler.jsonc
+wrangler d1 execute line-group-bbs-db --remote --file workers/group-call-monitor/read-group-migration.sql --config workers/group-call-monitor/wrangler.jsonc
 wrangler deploy --config workers/group-call-monitor/wrangler.jsonc
 wrangler secret put OA_COOKIE --config workers/group-call-monitor/wrangler.jsonc
 wrangler secret put ADMIN_TOKEN --config workers/group-call-monitor/wrangler.jsonc
@@ -43,16 +44,20 @@ wrangler secret put ADMIN_TOKEN --config workers/group-call-monitor/wrangler.jso
 
 | コマンド | 動作 |
 | --- | --- |
-| 既読開始 | 自分の確認を開始・やり直す。開始投稿以降の既読イベントを記録する。 |
-| 既読確認 | 自分の開始位置から既読を確認できた、現在のグループメンバーの名前を表示する。 |
-| 既読終了 | 自分の確認を終了する。他の人の確認は継続する。 |
+| 既読セット | グループ共通の確認を開始・やり直す。前の既読記録をリセットし、この投稿以降の既読イベントを記録する。 |
+| 既読確認 | 最後にセットした位置から既読を確認できた、現在のグループメンバーの名前を表示する。誰でも同じ結果を参照できる。 |
 
-- 確認は利用者ごとに独立し、開始から24時間で自動終了する。最初から全グループの個人別既読履歴を保存する方式ではなく、確認中のグループだけを記録する。
+- 確認はグループごとに1つ。誰かが「既読セット」を送ると、そのグループ全員の確認基準が切り替わり、以前の既読記録はリセットされる。確認中のグループだけを記録する。
 - SSE の `chatRead` にある `source.userId` と `read.watermark` を使う。OA管理者側の `read` イベントや、発言した事実から既読を推測しない。
-- 履歴APIの既読イベントには読者IDが欠けるため、開始前やイベントを取り逃した期間の既読者を復元しない。未受信を「未読」とは表示しない。
+- 履歴APIの既読イベントには読者IDが欠けるため、セット前やイベントを取り逃した期間の既読者を復元しない。未受信を「未読」とは表示しない。
 - 現在のメンバー一覧で名前を照合し、最大40人を表示する。以降は残人数を明示する。IDをグループへ表示しない。
-- 同じコマンドの再配信はグループ＋SSEイベントIDで重複排除。開始・終了の状態変更とコマンド取得をD1 batchで一体化する。送信結果不明時は自動再送しない。
-- 期限切れの確認と不要な既読記録を削除し、コマンド重複防止情報は7日保持する。既存のポイントやグループ設定は変更しない。
+- 同じコマンドの再配信はグループ＋SSEイベントIDで重複排除。セット時の基準更新・旧既読記録の削除・コマンド取得をD1 batchで一体化する。送信結果不明時は自動再送しない。
+
+### 保存と移行
+
+共有セッションは `oa_read_group_sessions` にグループごとに保存する。`read-schema.sql` の後に `read-group-migration.sql` を適用し、その後Workerを配備する。既存の利用者別セッションからは、各グループの最新の確認基準を移行する。移行済みマーカーにより再実行可能で、移行済みの共有セッションや、その後にセットした基準を上書きしない。旧利用者別テーブルは残す。
+
+保存上限としてセッションのTTLは24時間とし、期限切れの確認と不要な既読記録を削除する。コマンド重複防止情報は7日保持する。利用者向けのコマンド案内には期限や終了コマンドを表示しない。既存のポイントやグループ設定は変更しない。
 
 実機の根拠と制限は [READ-RECEIPT-EVIDENCE.md](./READ-RECEIPT-EVIDENCE.md) を参照。
 

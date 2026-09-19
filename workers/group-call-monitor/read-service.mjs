@@ -1,8 +1,7 @@
 import { parseGroupReadReceipt, formatReadReceipts } from './read-receipts.mjs';
 
-const COMMANDS = new Map([['既読開始', 'start'], ['既読確認', 'list'], ['既読終了', 'stop']]);
+const COMMANDS = new Map([['既読セット', 'start'], ['既読確認', 'list'], ['既読終了', 'stop']]);
 const MAX_COMMAND_AGE = 15 * 60 * 1000;
-const HELP = '「既読開始」で確認を開始\n「既読確認」で名前を表示\n「既読終了」で確認を終了';
 const validUser = value => typeof value === 'string' && /^U[0-9a-f]{32}$/i.test(value);
 const safeName = name => Array.from(String(name || '名前未取得').replace(/[\u0000-\u001f\u007f\u2028\u2029\u202a-\u202e\u2066-\u2069]/g, ' ').trim()).slice(0, 40).join('') || '名前未取得';
 
@@ -20,7 +19,7 @@ export function parseReadCommand(event, eventId, { botId, now = Date.now(), cuto
     checkpointAt: p.timestamp, eventAt: p.timestamp } : null;
 }
 
-/** Records only active, user-started checks. History has no reader ID and is never inferred. */
+/** Each group shares one check, replaced whenever a member sets it again. */
 export class ReadReceiptService {
   constructor(store, client, config) { this.store = store; this.client = client; this.config = config; }
 
@@ -53,21 +52,25 @@ export class ReadReceiptService {
     if (!row) return;
     let text;
     try {
-      const names = await this.memberNames(command.chatId);
-      const ownerName = names.get(command.userId) || 'あなた';
-      if (command.action === 'start') {
-        text = `${ownerName}さんの既読確認を開始しました。\n「既読開始」を送った時点から、既読が確認できた人を記録します。\n\n${HELP}`;
-      } else if (command.action === 'stop') {
-        text = `${ownerName}さんの既読確認を終了しました。\nもう一度始めるときは「既読開始」と送ってください。`;
+      if (row.applied === 0) {
+        text = '新しい既読設定があるため、この操作では変更しませんでした。';
       } else {
-        const session = await this.store.getSession(command.chatId, command.userId, now);
-        if (!session) text = `${ownerName}さんの既読確認は開始されていません。\n\n${HELP}`;
-        else {
-          const receipts = await this.store.listReceipts(command.chatId, command.userId, now);
-          // Only display members whose current group profile can be verified.
-          const readers = receipts.filter(r => names.has(r.user_id)).map(r => ({userId: r.user_id, displayName: names.get(r.user_id)}));
-          const started = new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false }).format(new Date(session.checkpoint_at));
-          text = `${ownerName}さんの既読確認\n開始：${started}\n\n${formatReadReceipts(readers)}`;
+        const names = await this.memberNames(command.chatId);
+        const actorName = names.get(command.userId) || 'メンバー';
+        if (command.action === 'start') {
+          text = `${actorName}さんが既読をセットしました。\nこのグループの既読記録をリセットしました。\n「既読確認」で名前を表示できます。`;
+        } else if (command.action === 'stop') {
+          text = 'このグループの既読記録を停止しました。';
+        } else {
+          const session = await this.store.getSession(command.chatId, now);
+          if (!session) text = 'このグループには既読がセットされていません。\n「既読セット」と送ってください。';
+          else {
+            const receipts = await this.store.listReceipts(command.chatId, now);
+            // Only display members whose current group profile can be verified.
+            const readers = receipts.filter(r => names.has(r.user_id)).map(r => ({userId: r.user_id, displayName: names.get(r.user_id)}));
+            const started = new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false }).format(new Date(session.checkpoint_at));
+            text = `このグループの既読確認\nセット：${started}\n\n${formatReadReceipts(readers)}`;
+          }
         }
       }
     } catch {

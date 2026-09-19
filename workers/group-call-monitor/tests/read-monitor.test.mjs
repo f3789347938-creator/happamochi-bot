@@ -43,14 +43,14 @@ function readEvent(now = Date.now()) {
 function commandEvent(now = Date.now()) {
   return event('message', {
     type: 'message', timestamp: now, source: { chatId: CHAT, userId: READER },
-    message: { id: 'command-message', type: 'text', text: '既読開始' },
+    message: { id: 'command-message', type: 'text', text: '既読セット' },
   });
 }
 
 function ackEvent(now = Date.now()) {
   return event('messageSent', {
     type: 'messageSent', timestamp: now, source: { chatId: CHAT, userId: BOT }, sendId: 'read-command-send-id',
-    message: { id: 'confirmation-message', type: 'text', text: '既読確認を開始しました。' },
+    message: { id: 'confirmation-message', type: 'text', text: '既読をセットしました。' },
   });
 }
 
