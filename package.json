@@ -2,6 +2,8 @@
   "name": "happamochi-bot",
   "type": "module",
   "scripts": {
+    "call-monitor:test": "node --test workers/group-call-monitor/tests/*.test.mjs",
+    "call-monitor:deploy": "wrangler deploy --config workers/group-call-monitor/wrangler.jsonc",
     "dev": "vite",
     "build:help": "node --experimental-strip-types scripts/render-help-assets.mjs",
     "build": "npm run build:help && vite build",
