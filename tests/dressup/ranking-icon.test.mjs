@@ -185,7 +185,7 @@ test('real text/settings/list/select/reset routes use actor ownership and valid 
   for (const command of ['ランキングアイコン', 'アイコン設定', 'ランキングアイコン設定']) {
     const messages = await app.handleProfileText(f.env, f.ctx(), command)
     validate(messages)
-    assert.match(texts(messages), /LINEプロフィール画像（デフォルト）/)
+    assert.match(texts(messages), /使用中・デフォルト\s+LINEプロフィール画像/)
     assert.equal(images(messages)[0].url, before.picture_url)
     assert.ok(actions(messages).some(action => action.data === 'pf|rankicon|list|1'))
   }
@@ -223,7 +223,7 @@ test('settings menu button opens the same ranking icon settings without spending
     assert.equal(transition.runExisting, 'ランキングアイコン')
     const setting = await app.handleProfileText(f.env, f.ctx(), transition.runExisting)
     validate(setting)
-    assert.match(texts(setting), /LINEプロフィール画像（デフォルト）/)
+    assert.match(texts(setting), /使用中・デフォルト\s+LINEプロフィール画像/)
   }
   assert.equal(f.db.prepare('SELECT points FROM user_profiles WHERE user_id = ?').get(A).points, before)
   assert.equal(f.db.prepare('SELECT count(*) n FROM ranking_icons').get().n, 0)

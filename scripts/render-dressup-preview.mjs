@@ -4,25 +4,34 @@
 // directly uses the fallback. --ranking compares LINE default and gacha icons.
 // --status-only uses the default status reference fixture (mock LINE avatar).
 // Add --compare-custom to place a customized status beside the default one.
+// --settings shows wardrobe home and ranking icon settings; --compare-custom
+// adds an equipped example page. --baseline reads these two builders from HEAD.
 // --default shows C000/BG000. --fixtures=FILE loads
 // a saved actual Flex fixture for baseline comparisons without rewriting it.
 import fs from 'node:fs'
 import path from 'node:path'
 import { build } from 'esbuild'
 import { createRequire } from 'node:module'
+import { execFileSync } from 'node:child_process'
 import { Resvg, initWasm } from '@resvg/resvg-wasm'
 
 const root = path.resolve(import.meta.dirname, '..')
 const rankingOnly = process.argv.includes('--ranking')
 const statusOnly = process.argv.includes('--status-only')
+const settingsOnly = process.argv.includes('--settings')
 const compareCustom = process.argv.includes('--compare-custom')
-if (rankingOnly && statusOnly) throw new Error('Choose --ranking or --status-only')
+if ([rankingOnly,statusOnly,settingsOnly].filter(Boolean).length > 1) throw new Error('Choose --ranking, --status-only or --settings')
 const baseUrl = process.env.DRESSUP_PREVIEW_BASE || 'https://line-group-bbs.pages.dev'
 const output = path.resolve(process.argv.slice(2).find(arg => !arg.startsWith('--')) || path.join(root, 'samples/dressup'))
 fs.mkdirSync(output, { recursive: true })
 const bundle = await build({
-  stdin: { contents: `export { buildStatusCard } from './src/features/profile/flex.ts'; export { buildGachaConfirmation } from './src/features/dressup/flex.ts'; export { buildRankingCarousel } from './src/features/rankingCards.ts'; export { appearanceSvg } from './src/features/dressup/art.ts';`, resolveDir: root },
+  stdin: { contents: `export { buildStatusCard } from './src/features/profile/flex.ts'; export { buildGachaConfirmation, buildWardrobeCard } from './src/features/dressup/flex.ts'; export { getRankingIconSettings } from './src/features/rankingIcon.ts'; export { buildRankingCarousel } from './src/features/rankingCards.ts'; export { appearanceSvg } from './src/features/dressup/art.ts';`, resolveDir: root },
   bundle: true, write: false, platform: 'neutral', format: 'esm',
+  plugins: process.argv.includes('--baseline') ? [{ name:'settings-head-baseline', setup(builder) {
+    builder.onLoad({filter:/(?:dressup[\\/]flex|rankingIcon)\.ts$/}, args => ({
+      contents:execFileSync('git',['-c',`safe.directory=${root.replaceAll('\\','/')}`,'show',`HEAD:${path.relative(root,args.path).replaceAll('\\','/')}`],{cwd:root,encoding:'utf8'}),loader:'ts',
+    }))
+  } }] : [],
 })
 const api = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`)
 const { DatabaseSync } = await import('node:sqlite')
@@ -39,6 +48,7 @@ const env = { DB: { prepare(sql) { let args = []; return {
   bind(...v) { args = v; return this },
   async first(col) { const row = db.prepare(sql).get(...args); return row ? col ? row[col] : row : null },
   async all() { return { results: db.prepare(sql).all(...args) } },
+  async run() { const result = db.prepare(sql).run(...args); return { success:true,meta:{changes:Number(result.changes),last_row_id:Number(result.lastInsertRowid)} } },
 } } } }
 const theme = {id:'aqua',name:'水色',price:0,header_bg:'#009FDE',body_bg:'#E4F7FF',text_color:'#17364C',accent:'#16BCEC',header_text:'#FFFFFF',display_order:1}
 const status = api.buildStatusCard({
@@ -67,7 +77,23 @@ if (rankingOnly) {
   const selected = await api.buildRankingCarousel(env, baseUrl, 'preview-1')
   rankingDocuments.push({label:'設定変更後 · 2位のガチャ衣装アイコン',message:{...selected,contents:selected.contents.contents[0]}})
 }
-const documents = fixtureArg ? JSON.parse(fs.readFileSync(fixtureArg.slice('--fixtures='.length), 'utf8')) : statusOnly ? statusDocuments : rankingOnly ? rankingDocuments : [{label:'ステータス',message:status},{label:'ランキング（累計EXP）',message:{...ranking,contents:ranking.contents.contents[0]}},{label:'きせかえガチャ',message:gacha}]
+const settingsDocuments=[]
+if (settingsOnly) {
+  const ctx={userId:'preview-1',displayName:'なの',pictureUrl:'https://profile-preview.example/1.png',baseUrl}
+  settingsDocuments.push(
+    {label:'着せ替えホーム · 初期の衣装と背景',message:api.buildWardrobeCard({baseUrl,appearance:{costumeId:'C000',backgroundId:'BG000'},ownedIds:new Set(['C000','BG000']),points:12500})},
+    {label:'アイコン設定 · 初期LINEプロフィール',message:await api.getRankingIconSettings(env,ctx)},
+  )
+  if (compareCustom) {
+    for (const id of ['C001','BG001']) db.prepare('INSERT INTO dressup_inventory(user_id,item_id) VALUES(?,?)').run('preview-1',id)
+    db.prepare('INSERT INTO ranking_icons(user_id,costume_id) VALUES(?,?)').run('preview-1','C001')
+    settingsDocuments.push(
+      {label:'着せ替えホーム · 装備後の衣装と背景',message:api.buildWardrobeCard({baseUrl,appearance:{costumeId:'C001',backgroundId:'BG001'},ownedIds:new Set(['C000','BG000','C001','BG001']),points:9500})},
+      {label:'アイコン設定 · 入手済みの衣装を使用',message:await api.getRankingIconSettings(env,ctx)},
+    )
+  }
+}
+const documents = fixtureArg ? JSON.parse(fs.readFileSync(fixtureArg.slice('--fixtures='.length), 'utf8')) : settingsOnly ? settingsDocuments : statusOnly ? statusDocuments : rankingOnly ? rankingDocuments : [{label:'ステータス',message:status},{label:'ランキング（累計EXP）',message:{...ranking,contents:ranking.contents.contents[0]}},{label:'きせかえガチャ',message:gacha}]
 // Use local asset bytes: the visual check needs no server or external requests.
 await initWasm(fs.readFileSync(path.join(root, 'node_modules/@resvg/resvg-wasm/index_bg.wasm')))
 const inlinePng = filename => `data:image/png;base64,${fs.readFileSync(filename).toString('base64')}`
@@ -229,8 +255,8 @@ function previewTree(selected) {
   ])
 }
 const mainDocs=(rankingOnly ? documents : documents.filter(doc=>!doc.label.includes('ガチャ'))).slice(0,2)
-const gachaDocs=rankingOnly || statusOnly ? [] : documents.filter(doc=>doc.label.includes('ガチャ'))
-const pages=[{name:'preview',tree:previewTree(mainDocs)},...(gachaDocs.length ? [{name:'gacha',tree:previewTree(gachaDocs)}] : [])]
+const gachaDocs=rankingOnly || statusOnly || settingsOnly ? [] : documents.filter(doc=>doc.label.includes('ガチャ'))
+const pages=[{name:'preview',tree:previewTree(mainDocs)},...(gachaDocs.length ? [{name:'gacha',tree:previewTree(gachaDocs)}] : []),...(settingsOnly && documents.length>2 ? [{name:'customized',tree:previewTree(documents.slice(2,4))}] : [])]
 const fontCss='@font-face{font-family:Noto;src:url(data:font/ttf;base64,'+regular.toString('base64')+');font-weight:400}@font-face{font-family:Noto;src:url(data:font/ttf;base64,'+bold.toString('base64')+');font-weight:700}'
 for (const page of pages) {
   page.html='<!doctype html><meta charset="utf-8"><style>'+fontCss+'*{box-sizing:border-box}body{margin:0;font-family:Noto,sans-serif}img{display:block}</style>'+serialize(page.tree)

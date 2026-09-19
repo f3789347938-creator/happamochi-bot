@@ -76,22 +76,65 @@ export function buildWardrobeCard(input: {
 }): LineMessage {
   const costume = getCosmetic(input.appearance.costumeId)
   const background = getCosmetic(input.appearance.backgroundId)
-  return flex('着せ替え：衣装・背景の変更ときせかえガチャ', bubble('もちの着せ替え', [
-    panel([
-      artwork(input.baseUrl, input.appearance),
-      text(`衣装：${costume?.name ?? 'いつものもち'}`, { weight: 'bold' }),
-      text(`背景：${background?.name ?? 'いつもの背景'}`),
-      text(`保有ポイント：${number(input.points)} P`, { color: MUTED }),
-    ]),
-    row([
-      action(`衣装 ${ownedCount(input.ownedIds, 'costume')}/120`, 'pf|dress|list|costume|owned|1'),
-      action(`背景 ${ownedCount(input.ownedIds, 'background')}/30`, 'pf|dress|list|background|owned|1'),
-    ]),
-    action(`きせかえガチャ ${number(GACHA_COST)} P`, 'pf|dress|gacha', true),
-    text('衣装120種＋背景30種。未所持の中から1点、重複なしで入手できます。初期衣装・背景はいつでも無料で使えます。', { size: 'xxs', color: MUTED }),
-    action('ランキングアイコン設定', 'pf|rankicon|home'),
-    row([action('カードテーマ', 'pf|themes'), action('ステータス', 'pf|status')]),
-  ]))
+  const line = (value: string, options: Record<string, any> = {}) => text(value, {
+    size: '13px', wrap: false, maxLines: 1, adjustMode: 'shrink-to-fit', ...options,
+  })
+  const compactAction = (label: string, data: string, primary = false) => ({
+    type: 'box', layout: 'vertical', height: '32px', flex: 1,
+    justifyContent: 'center', cornerRadius: '6px', paddingStart: '4px', paddingEnd: '4px',
+    backgroundColor: primary ? BLUE : '#FFFFFF', borderColor: '#A8DFF2', borderWidth: '1px',
+    action: { type: 'postback', data },
+    contents: [line(label, { align: 'center', color: primary ? '#FFFFFF' : INK, weight: primary ? 'bold' : 'regular' })],
+  })
+  const controls = (contents: Record<string, any>[]) => ({
+    type: 'box', layout: 'horizontal', height: '32px', flex: 0, margin: '6px', spacing: '6px', contents,
+  })
+  return flex('着せ替え：衣装・背景の変更ときせかえガチャ', {
+    type: 'bubble', size: 'kilo',
+    header: {
+      type: 'box', layout: 'vertical', height: '36px', paddingAll: '6px',
+      backgroundColor: BLUE, justifyContent: 'center',
+      contents: [line('もちの着せ替え', { size: '17px', weight: 'bold', color: '#FFFFFF', align: 'center' })],
+    },
+    body: {
+      type: 'box', layout: 'vertical', height: '270px', paddingAll: '8px', backgroundColor: PALE,
+      contents: [
+        {
+          type: 'box', layout: 'horizontal', height: '84px', flex: 0, paddingAll: '8px', spacing: '8px',
+          alignItems: 'center', backgroundColor: '#FFFFFF', borderColor: '#A8DFF2', borderWidth: '1px', cornerRadius: '6px',
+          contents: [
+            {
+              type: 'box', layout: 'vertical', width: '90px', height: '60px', flex: 0, cornerRadius: '4px',
+              contents: [artwork(input.baseUrl, input.appearance)],
+            },
+            {
+              type: 'box', layout: 'vertical', flex: 1, spacing: '5px', justifyContent: 'center',
+              contents: [
+                line(`衣装：${costume?.name ?? 'いつものもち'}`, { weight: 'bold' }),
+                line(`背景：${background?.name ?? 'いつもの背景'}`, { size: '12px' }),
+                line(`${number(input.points)} P`, { color: MUTED, size: '13px' }),
+              ],
+            },
+          ],
+        },
+        controls([
+          compactAction(`衣装 ${ownedCount(input.ownedIds, 'costume')}/120`, 'pf|dress|list|costume|owned|1'),
+          compactAction(`背景 ${ownedCount(input.ownedIds, 'background')}/30`, 'pf|dress|list|background|owned|1'),
+        ]),
+        controls([compactAction(`きせかえガチャ ${number(GACHA_COST)} P`, 'pf|dress|gacha', true)]),
+        {
+          type: 'box', layout: 'vertical', height: '14px', flex: 0, margin: '4px', justifyContent: 'center',
+          contents: [line('未所持から1点・重複なし', { size: '11px', color: MUTED, align: 'center' })],
+        },
+        controls([compactAction('ランキングアイコン設定', 'pf|rankicon|home')]),
+        controls([compactAction('カードテーマ', 'pf|themes'), compactAction('ステータス', 'pf|status')]),
+      ],
+    },
+    footer: {
+      type: 'box', layout: 'vertical', height: '20px', paddingAll: '0px', backgroundColor: BLUE, justifyContent: 'center',
+      contents: [line(FOOTER, { size: '10px', color: '#FFFFFF', align: 'center' })],
+    },
+  })
 }
 
 export function buildGachaConfirmation(input: {

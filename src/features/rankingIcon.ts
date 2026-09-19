@@ -110,21 +110,75 @@ function bubble(title: string, contents: Record<string, unknown>[]) {
   }
 }
 
+/** Settings home stays compact; collection item cards keep their larger preview. */
+function settingsCard(baseUrl: string, icon: RankingIcon, pictureUrl: string | null, count: number): LineMessage {
+  const blue = '#009FDE'
+  const pale = '#E4F7FF'
+  const text = (value: string, size: string, options: Record<string, unknown> = {}) => ({
+    type: 'text', text: value, size, color: '#17364C',
+    wrap: false, maxLines: 1, adjustMode: 'shrink-to-fit', ...options,
+  })
+  const action = (label: string, data: string, primary = false, margin = '4px') => ({
+    type: 'box', layout: 'vertical', height: '32px', flex: 0, margin,
+    cornerRadius: '7px', borderWidth: '1px', borderColor: blue,
+    backgroundColor: primary ? blue : '#FFFFFF', justifyContent: 'center',
+    paddingStart: '6px', paddingEnd: '6px', action: { type: 'postback', data },
+    contents: [text(label, '13px', { align: 'center', color: primary ? '#FFFFFF' : '#17364C', weight: primary ? 'bold' : 'regular' })],
+  })
+  const currentName = icon.costumeId ? getCosmetic(icon.costumeId)!.name : 'LINEプロフィール画像'
+  return {
+    type: 'flex', altText: `ランキングアイコン設定：${currentName}`,
+    contents: {
+      type: 'bubble', size: 'kilo',
+      header: {
+        type: 'box', layout: 'vertical', height: '36px', paddingAll: '0px',
+        paddingStart: '8px', paddingEnd: '8px', backgroundColor: blue, justifyContent: 'center',
+        contents: [text('ランキングアイコン設定', '16px', { weight: 'bold', color: '#FFFFFF', align: 'center' })],
+      },
+      body: {
+        type: 'box', layout: 'vertical', height: '210px', paddingAll: '10px', backgroundColor: pale,
+        contents: [
+          {
+            type: 'box', layout: 'horizontal', height: '56px', flex: 0, spacing: '8px', alignItems: 'center',
+            contents: [
+              {
+                type: 'box', layout: 'vertical', width: '56px', height: '56px', flex: 0,
+                cornerRadius: '7px', backgroundColor: '#FFFFFF',
+                contents: [{ ...iconImage(baseUrl, icon, pictureUrl), size: 'full' }],
+              },
+              {
+                type: 'box', layout: 'vertical', flex: 1, justifyContent: 'center',
+                contents: [
+                  text(icon.costumeId ? '使用中' : '使用中・デフォルト', '10px', { color: '#55788A' }),
+                  text(currentName, '13px', { weight: 'bold', margin: '3px' }),
+                  text('変更無料・衣装とは別設定', '10px', { color: '#55788A', margin: '3px' }),
+                ],
+              },
+            ],
+          },
+          {
+            type: 'box', layout: 'vertical', height: '16px', flex: 0, margin: '6px', justifyContent: 'center',
+            contents: [text('ガチャで入手した衣装もアイコンに。', '10px', { color: '#55788A', align: 'center' })],
+          },
+          action(`所持アイコンを選ぶ (${count}/120)`, 'pf|rankicon|list|1', true, '8px'),
+          action('LINEプロフィール画像に戻す', 'pf|rankicon|line'),
+          action('ガチャでアイコンを増やす', 'pf|dress|gacha'),
+        ],
+      },
+      footer: {
+        type: 'box', layout: 'vertical', height: '20px', paddingAll: '0px', backgroundColor: blue, justifyContent: 'center',
+        contents: [text('© 2026 HappaMochi Bot', '10px', { color: '#FFFFFF', align: 'center' })],
+      },
+    },
+  }
+}
+
 export async function getRankingIconSettings(env: LineEnv, ctx: ProfileCtx): Promise<LineMessage> {
   if (!ctx.userId) return textMessage('LINEのユーザー情報を確認できませんでした。')
   const profile = await ensureProfile(env, ctx.userId, ctx.displayName, ctx.pictureUrl)
   const [icon, ownedIds] = await Promise.all([getRankingIcon(env, ctx.userId), listOwnedCosmeticIds(env, ctx.userId)])
   const count = COSMETICS.filter(item => item.kind === 'costume' && ownedIds.includes(item.id)).length
-  const currentName = icon.costumeId ? getCosmetic(icon.costumeId)!.name : 'LINEプロフィール画像（デフォルト）'
-  return { type: 'flex', altText: 'ランキングアイコン設定', contents: bubble('ランキングアイコン設定', [
-    iconImage(ctx.baseUrl, icon, profile.picture_url),
-    label(`使用中：${currentName}`, { weight: 'bold', align: 'center' }),
-    label('最初はLINEのプロフィール画像を使います。ガチャで入手した衣装を、ランキングのアイコンに設定できます。', { size: 'xs' }),
-    button(`所持アイコンを選ぶ (${count}/120)`, 'pf|rankicon|list|1', true),
-    button('LINEプロフィール画像に戻す', 'pf|rankicon|line'),
-    button('ガチャでアイコンを増やす', 'pf|dress|gacha'),
-    label('アイコンの変更は無料です。ステータスの衣装とは別々に設定できます。', { size: 'xxs', color: '#55788A' }),
-  ]) }
+  return settingsCard(ctx.baseUrl, icon, profile.picture_url, count)
 }
 
 async function iconList(env: LineEnv, ctx: ProfileCtx, requestedPage: number): Promise<LineMessage> {

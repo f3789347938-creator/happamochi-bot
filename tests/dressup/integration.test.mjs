@@ -202,7 +202,7 @@ test('default status uses the reference LINE-photo card while wardrobe and theme
   assert.match(texts(status), /15,225/)
   assert.ok(actions(status).some((action) => action.data === 'pf|dress|home'))
   const wardrobe = await f.text('着せ替え')
-  assert.match(texts(wardrobe), /衣装120種＋背景30種/)
+  assert.match(texts(wardrobe), /衣装 0\/120[\s\S]*背景 0\/30/)
   assert.ok(actions(wardrobe).some((action) => action.data === 'pf|themes'))
   assert.ok(actions(wardrobe).some((action) => action.data === 'pf|dress|gacha'))
   assert.match(texts(await f.text('カードテーマ')), /水色/)
