@@ -1,4 +1,5 @@
 import type { LineEnv, LineMessage } from '../../lib/line'
+import { getProfile } from '../../lib/line'
 import type { ProfileCtx } from '../profile'
 import { ensureProfile } from '../profile/core'
 import { handleRankingIconPostback, handleRankingIconText } from '../rankingIcon'
@@ -29,6 +30,23 @@ const FAILURE_MESSAGES: Record<string, string> = {
 
 function failure(reason?: string): LineMessage {
   return text(FAILURE_MESSAGES[reason ?? ''] ?? '処理を完了できませんでした。着せ替え画面から状態をご確認ください。')
+}
+
+async function confirmationFailure(env: LineEnv, ctx: ProfileCtx, reason?: string): Promise<LineMessage> {
+  if (reason !== 'not_owner' || !ctx.userId) return failure(reason)
+  // The actor comes from the webhook source, never from the confirmation owner.
+  let name = ctx.displayName?.trim()
+  if (!name) {
+    const profile = await getProfile(env, ctx.userId, ctx.groupId).catch(() => null)
+    name = profile?.displayName?.trim()
+  }
+  if (!name) {
+    const saved = await env.DB.prepare('SELECT display_name FROM user_profiles WHERE user_id = ?')
+      .bind(ctx.userId).first<{ display_name: string | null }>().catch(() => null)
+    name = saved?.display_name?.trim()
+  }
+  const addressee = name ? `${name.replace(/\s+/gu, ' ')}さんへ` : 'ボタンを押した方へ'
+  return text(`${addressee}\n${FAILURE_MESSAGES.not_owner}`)
 }
 
 async function wardrobe(env: LineEnv, ctx: ProfileCtx): Promise<LineMessage> {
@@ -123,12 +141,12 @@ export async function handleDressupPostback(
   if (op === 'equip') return equip(env, ctx, parts[3] ?? '')
   if (op === 'cancel') {
     const result = await cancelGacha(env, ctx.userId, parts[3] ?? '')
-    if (!result.ok) return [failure(result.reason)]
+    if (!result.ok) return [await confirmationFailure(env, ctx, result.reason)]
     return [text('ガチャをキャンセルしました。ポイントは消費していません。'), await wardrobe(env, ctx)]
   }
   if (op === 'draw') {
     const result = await drawGacha(env, ctx.userId, parts[3] ?? '')
-    if (!result.ok) return [failure(result.reason)]
+    if (!result.ok) return [await confirmationFailure(env, ctx, result.reason)]
     const item = getCosmetic(result.itemId)
     if (!item) return [text('アイテムを入手しました。「着せ替え」でコレクションをご確認ください。')]
     return [buildGachaResult({ baseUrl: ctx.baseUrl, item, balance: result.balance, spent: result.spent })]

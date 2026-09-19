@@ -1580,6 +1580,7 @@ async function handlePostback(env: Bindings, event: any, baseUrl: string) {
         env,
         {
           userId,
+          groupId: source.type === 'group' ? source.groupId : undefined,
           displayName: null,
           pictureUrl: null,
           baseUrl,

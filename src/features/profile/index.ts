@@ -44,6 +44,7 @@ import {
 
 export interface ProfileCtx {
   userId: string | null
+  groupId?: string
   displayName: string | null
   pictureUrl: string | null
   baseUrl: string
