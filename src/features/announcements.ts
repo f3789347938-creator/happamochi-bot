@@ -65,10 +65,10 @@ export const ANNOUNCEMENTS: AnnouncementContent[] = [
     title: '着せ替えガチャ登場！',
     date: '2026/09/19',
     body: [
-      '・衣装120種＋背景30種が登場',
-      '・1回3,000ポイント・重複なし',
-      '・「着せ替え」で衣装や背景を変更',
-      '・ガチャで衣装・背景を100種類集めた方に',
+      '・衣装120種＋背景30種',
+      '・1回3,000P・重複なし',
+      '・衣装・背景は「着せ替え」で設定',
+      '・ガチャで100種類集めると',
       '　PayPay 1万円分プレゼント！',
       '・期限：2027/9/19まで',
     ].join('\n'),
@@ -138,19 +138,9 @@ const BUTTON_TEXT = '#15384D'      // ボタン文字(ネイビー)
 const FOOTER_BG = '#D6EEFA'        // フッター(ヘッダーより淡い水色)
 const FOOTER_TEXT = '#15384D'      // フッター文字(ネイビー)
 const HIGHLIGHT_COLOR = '#0E7FA8'  // 強調(白地で 4.55:1、水色寄りのアクセント)
-// When an announcement is split into a multi-card Carousel, every card
-// must render at the SAME size, or the bubbles end up visibly different
-// heights depending on how much text landed on each page. Two things make
-// that possible (applied ONLY in the Carousel case — a lone card is left
-// to size naturally to its content instead):
-//   1. The white card box gets a fixed pixel height (CARD_HEIGHT_PX).
-//   2. A filler sits between the body text and the date, so the date is
-//      always pinned to the bottom of that fixed height no matter how
-//      much (or little) text is above it.
-// Splitting is done by LINE COUNT (not character count) and evenly
-// balanced across pages (e.g. 10 lines -> 5+5, never 6+4), so multi-card
-// announcements don't have one near-empty trailing card either.
-const CARD_HEIGHT_PX = 300
+// LINE stretches carousel bodies to match the tallest bubble. Keep the
+// inner card and text at their natural height so device-specific wrapping
+// cannot clip important content such as rewards or deadlines.
 const MAX_LINES_PER_CARD = 6
 
 function todayJst(): string {
@@ -165,10 +155,8 @@ function jstYear(): number {
   return new Date(Date.now() + 9 * 60 * 60 * 1000).getUTCFullYear()
 }
 
-// Splits `body` into an even number of lines per page (never a short
-// trailing page) so every card in a Carousel has a similar amount of
-// content — combined with the fixed CARD_HEIGHT_PX + bottom-pinned date,
-// this guarantees all cards render at identical size.
+// Balance logical lines across pages. A line may wrap again on the device;
+// natural card height accommodates those extra visual lines.
 function splitBody(body: string): string[] {
   const lines = body.split('\n')
   if (lines.length <= MAX_LINES_PER_CARD) return [body]
@@ -185,7 +173,7 @@ function splitBody(body: string): string[] {
 // Renders the body text as a single `text` component, splitting out
 // `highlightWord` (if present) into its own colored `span` for emphasis.
 function renderBodyText(bodyPage: string, highlightWord?: string): Record<string, any> {
-  const base = { wrap: true, size: 'xs', margin: 'md' }
+  const base = { wrap: true, size: '13px', margin: '12px', flex: 1 }
   if (!highlightWord) {
     return { type: 'text', text: bodyPage, color: BODY_COLOR, ...base }
   }
@@ -196,9 +184,10 @@ function renderBodyText(bodyPage: string, highlightWord?: string): Record<string
   const before = bodyPage.slice(0, idx)
   const after = bodyPage.slice(idx + highlightWord.length)
   const spans: Record<string, any>[] = []
-  if (before) spans.push({ type: 'span', text: before, color: BODY_COLOR })
-  spans.push({ type: 'span', text: highlightWord, color: HIGHLIGHT_COLOR, weight: 'bold' })
-  if (after) spans.push({ type: 'span', text: after, color: BODY_COLOR })
+  // Explicit span sizes avoid depending on inheritance from the text node.
+  if (before) spans.push({ type: 'span', text: before, color: BODY_COLOR, size: base.size })
+  spans.push({ type: 'span', text: highlightWord, color: HIGHLIGHT_COLOR, weight: 'bold', size: base.size })
+  if (after) spans.push({ type: 'span', text: after, color: BODY_COLOR, size: base.size })
   return { type: 'text', contents: spans, ...base }
 }
 
@@ -206,8 +195,7 @@ function buildBubble(
   content: AnnouncementContent,
   bodyPage: string,
   pageIndex: number,
-  pageCount: number,
-  forceCardStyle: boolean = false
+  pageCount: number
 ): Record<string, any> {
   // The "(1/2)" style page suffix only makes sense when THIS announcement's
   // own body was split into multiple pages -- it's unrelated to whether this
@@ -220,37 +208,21 @@ function buildBubble(
     action: { type: 'message' as const, label: 'ヘルプを見る', text: 'ヘルプ' },
   }
 
-  // Fixed height (+ bottom-pinned date via filler) is needed whenever this
-  // bubble ends up riding in a multi-card Carousel -- whether that's because
-  // ONE long announcement got auto-split into multiple pages (pageCount > 1),
-  // or because MULTIPLE separate announcements are being bundled together
-  // into one Carousel (forceCardStyle, passed in by the caller in that case).
-  // Either way, every card in the same Carousel must match heights, or the
-  // bubbles end up visibly different sizes. For a lone card (the common
-  // case), leave it to size naturally to its content instead; forcing a
-  // fixed height there just stretches it out with empty space.
-  const isCarousel = pageCount > 1 || forceCardStyle
-
   const card: Record<string, any> = {
     type: 'box',
     layout: 'vertical',
+    flex: 1,
     backgroundColor: CARD_BG,
     cornerRadius: 'md',
     borderColor: CARD_BORDER,
     borderWidth: '1px',
-    paddingAll: 'lg',
+    paddingAll: '12px',
     contents: [
-      { type: 'text', text: titleText, weight: 'bold', size: 'md', align: 'center', color: TITLE_COLOR, wrap: true },
-      { type: 'separator', margin: 'md', color: CARD_BORDER },
+      { type: 'text', text: titleText, weight: 'bold', size: '16px', align: 'center', color: TITLE_COLOR, wrap: true },
+      { type: 'separator', margin: '12px', color: CARD_BORDER },
       renderBodyText(bodyPage, content.highlightWord),
-      ...(isCarousel ? [{ type: 'filler' }] : []),
-      { type: 'text', text: dateText, size: 'xs', color: DATE_COLOR, align: 'end', margin: isCarousel ? undefined : 'md' },
+      { type: 'text', text: dateText, size: '11px', color: DATE_COLOR, align: 'end', margin: '12px', wrap: true },
     ],
-  }
-  if (isCarousel) {
-    // Only fix the height (and rely on the filler above) when there are
-    // multiple cards that need to visually match.
-    card.height = `${CARD_HEIGHT_PX}px`
   }
 
   // LINEのFlex `button` は style:'primary' だと文字色が白で固定され、
@@ -263,7 +235,8 @@ function buildBubble(
     layout: 'vertical',
     backgroundColor: BUTTON_BG,
     cornerRadius: 'md',
-    paddingAll: 'md',
+    paddingAll: '10px',
+    flex: 0,
     action: { type: button.action.type, label: button.label, ...omitLabelAndType(button.action) },
     contents: [
       {
@@ -271,8 +244,9 @@ function buildBubble(
         text: button.label,
         color: BUTTON_TEXT,
         weight: 'bold',
-        size: 'sm',
+        size: '14px',
         align: 'center',
+        wrap: true,
       },
     ],
   }
@@ -301,24 +275,24 @@ function buildBubble(
       type: 'box',
       layout: 'vertical',
       backgroundColor: HEADER_BG,
-      paddingAll: 'lg',
-      contents: [{ type: 'text', text: 'お知らせ', color: HEADER_TEXT, weight: 'bold', size: 'md', align: 'center' }],
+      paddingAll: '12px',
+      contents: [{ type: 'text', text: 'お知らせ', color: HEADER_TEXT, weight: 'bold', size: '16px', align: 'center', wrap: true }],
     },
     body: {
       type: 'box',
       layout: 'vertical',
       backgroundColor: CARD_BG_OUTER,
-      paddingAll: 'lg',
-      spacing: 'lg',
+      paddingAll: '12px',
+      spacing: '12px',
       contents: [card, buttonBox],
     },
     footer: {
       type: 'box',
       layout: 'vertical',
       backgroundColor: FOOTER_BG,
-      paddingAll: 'md',
+      paddingAll: '10px',
       contents: [
-        { type: 'text', text: `© ${jstYear()} 葉っぱもち nano-bot`, color: FOOTER_TEXT, size: 'xs', align: 'center' },
+        { type: 'text', text: `© ${jstYear()} 葉っぱもち nano-bot`, color: FOOTER_TEXT, size: '11px', align: 'center', wrap: true },
       ],
     },
   }
@@ -354,12 +328,9 @@ export function buildAnnouncementsMessage(contents: AnnouncementContent[]): Line
     return pages.map((page, idx) => ({ content, page, idx, pageCount: pages.length }))
   })
   const flat = perAnnouncementBubbles.flat()
-  // Once there's more than one bubble in the final Carousel -- whether from
-  // multiple announcements, one split announcement, or a mix of both --
-  // every bubble needs the fixed-height "card style" so they all match.
-  const forceCardStyle = flat.length > 1
+  // Native carousel layout aligns body heights without a clipping height cap.
   const bubbles = flat.map(({ content, page, idx, pageCount }) =>
-    buildBubble(content, page, idx, pageCount, forceCardStyle)
+    buildBubble(content, page, idx, pageCount)
   )
 
   const flexContents = bubbles.length === 1 ? bubbles[0] : { type: 'carousel', contents: bubbles }

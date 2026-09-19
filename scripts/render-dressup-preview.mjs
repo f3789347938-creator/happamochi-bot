@@ -7,6 +7,8 @@
 // --settings shows wardrobe home and ranking icon settings; --compare-custom
 // adds an equipped example page. --baseline reads these two builders from HEAD.
 // --announcements renders every registered native notice card for internal QA.
+// --font-scale=1.5 / --line-height-scale=1.2 stress larger text without changing
+// the LINE JSON. --check-overflow fails when text extends beyond a clipped box.
 // --default shows C000/BG000. --fixtures=FILE loads
 // a saved actual Flex fixture for baseline comparisons without rewriting it.
 import fs from 'node:fs'
@@ -22,6 +24,13 @@ const statusOnly = process.argv.includes('--status-only')
 const settingsOnly = process.argv.includes('--settings')
 const announcementsOnly = process.argv.includes('--announcements')
 const compareCustom = process.argv.includes('--compare-custom')
+const positiveScale=(name)=>{
+  const value=Number(process.argv.find(arg=>arg.startsWith(`--${name}=`))?.split('=')[1] ?? 1)
+  if(!Number.isFinite(value)||value<=0||value>3) throw new Error(`--${name} must be >0 and <=3`)
+  return value
+}
+const fontScale=positiveScale('font-scale')
+const lineHeightScale=positiveScale('line-height-scale')
 if ([rankingOnly,statusOnly,settingsOnly,announcementsOnly].filter(Boolean).length > 1) throw new Error('Choose one preview mode')
 const baseUrl = process.env.DRESSUP_PREVIEW_BASE || 'https://line-group-bbs.pages.dev'
 const output = path.resolve(process.argv.slice(2).find(arg => !arg.startsWith('--')) || path.join(root, 'samples/dressup'))
@@ -156,19 +165,25 @@ const textWidth = (text,size) => [...text].reduce((w,ch) => w + (/[^\x00-\x7f]/.
 
 // Keep fixed dimensions/flex:0 intact. For unconstrained horizontal children,
 // share remaining space; vertical children retain their intrinsic/fixed height.
+const qaNodes=new Map()
+let qaSequence=0
 function flexNode(n,ctx={}) {
   if (!n) return null
+  const qaId=String(++qaSequence)
+  const qaProps={'data-qa-id':qaId}
+  qaNodes.set(qaId,{kind:n.type,parentId:ctx.qaParent ?? null,clip:n.type==='box'||n.type==='bubble',text:n.text ?? n.contents?.filter(x=>x.type==='span').map(x=>x.text ?? '').join('') ?? ''})
   if (n.type === 'bubble') {
     const width = bubbleWidths[n.size] ?? 300
-    return el('article',{display:'flex',flexDirection:'column',width,flexShrink:0,borderRadius:14,overflow:'hidden',backgroundColor:'#FFFFFF'},
-      ['header','hero','body','footer'].filter(k=>n[k]).map(k=>flexNode(n[k],{axis:'column',width,section:k})),
-      {'data-bubble':true,'data-native-width':width})
+    return el('article',{display:'flex',flexDirection:'column',width,flexGrow:announcementsOnly?1:0,flexShrink:0,borderRadius:14,overflow:'hidden',backgroundColor:'#FFFFFF'},
+      ['header','hero','body','footer'].filter(k=>n[k]).map(k=>flexNode(n[k],{axis:'column',width,section:k,qaParent:qaId})),
+      {'data-bubble':true,'data-native-width':width,...qaProps})
   }
   const horizontal = ctx.axis === 'row'
   const fixed = horizontal ? n.width !== undefined : n.height !== undefined
   const grow = fixed ? 0 : n.flex ?? (horizontal && ['box','text','image','button'].includes(n.type) ? 1 : 0)
   const style = {display:'flex',boxSizing:'border-box',minWidth:0,flexGrow:grow,flexShrink:n.flex === 0 || fixed || !horizontal ? 0 : 1}
-  if (grow > 0) style.flexBasis = 0
+  if (grow > 0) style.flexBasis = horizontal ? 0 : 'auto'
+  if (announcementsOnly && ctx.section==='body') Object.assign(style,{flexGrow:1,flexBasis:'auto'})
   for (const key of ['width','height','maxWidth','maxHeight','backgroundColor','borderColor']) if (n[key] !== undefined) style[key] = scalar(n[key])
   if (n.borderWidth) Object.assign(style,{borderWidth:length(n.borderWidth),borderStyle:'solid'})
   if (n.cornerRadius) style.borderRadius = length(n.cornerRadius)
@@ -200,19 +215,19 @@ function flexNode(n,ctx={}) {
     if (axis === 'row') for (const child of children) {
       if (child.width) fixedWidth += Number(scalar(child.width)) || 0
       else if (child.flex === 0 && child.type === 'image') fixedWidth += Number(imageSizes[child.size] ?? scalar(child.size) ?? 80) || 0
-      else if (child.flex === 0 && child.type === 'text') fixedWidth += textWidth(child.text ?? '',fontSizes[child.size] ?? scalar(child.size) ?? 16)
+      else if (child.flex === 0 && child.type === 'text') fixedWidth += textWidth(child.text ?? '',(fontSizes[child.size] ?? scalar(child.size) ?? 16)*fontScale)
       else if (child.flex !== 0) weights += child.flex ?? 1
     }
     return el('div',style,children.map(child=>{
       const width = axis === 'column' ? available : child.width ? Number(scalar(child.width)) : child.flex === 0 ? undefined : Math.max(0,(available-fixedWidth-gaps)*(child.flex ?? 1)/(weights || 1))
-      return flexNode(child,{axis,width,height:style.height})
-    }))
+      return flexNode(child,{axis,width,height:style.height,qaParent:qaId})
+    }),qaProps)
   }
   if (n.type === 'text') {
     const fullText=n.text ?? (n.contents ?? []).map(span=>span.text ?? '').join('')
-    let size = fontSizes[n.size] ?? scalar(n.size) ?? 16
+    let size = (fontSizes[n.size] ?? scalar(n.size) ?? 16)*fontScale
     if (n.adjustMode === 'shrink-to-fit' && ctx.width > 0) size = Math.min(size,Math.max(8,ctx.width / Math.max(1,textWidth(fullText,1))))
-    Object.assign(style,{display:'flex',justifyContent:n.align === 'center' ? 'center' : n.align === 'end' ? 'flex-end' : 'flex-start',fontSize:size,fontWeight:n.weight === 'bold' ? 700 : 400,color:n.color ?? '#17364C',textAlign:({start:'left',end:'right'})[n.align] ?? n.align ?? 'left',lineHeight:1.25+Number(scalar(n.lineSpacing ?? 0))/size,whiteSpace:n.wrap === true ? 'pre-wrap' : 'nowrap'})
+    Object.assign(style,{display:'flex',justifyContent:n.align === 'center' ? 'center' : n.align === 'end' ? 'flex-end' : 'flex-start',fontSize:size,fontWeight:n.weight === 'bold' ? 700 : 400,color:n.color ?? '#17364C',textAlign:({start:'left',end:'right'})[n.align] ?? n.align ?? 'left',lineHeight:(1.25+Number(scalar(n.lineSpacing ?? 0))/size)*lineHeightScale,whiteSpace:n.wrap === true ? 'pre-wrap' : 'nowrap'})
     // Yoga otherwise sizes a plain text div to its glyphs in a vertical box,
     // making center/end alignment appear left-aligned in the PNG fallback.
     if (!horizontal && style.width === undefined) style.width='100%'
@@ -223,14 +238,15 @@ function flexNode(n,ctx={}) {
       // Wrappable runs preserve inline color/weight and explicit newlines in
       // this offline approximation. The saved LINE JSON remains untouched.
       const runs=n.contents.flatMap(span=>{
-        const runStyle={display:'flex',flexShrink:0,whiteSpace:'pre',color:span.color ?? style.color,fontWeight:span.weight === 'bold' ? 700 : span.weight === 'regular' ? 400 : style.fontWeight,...(span.size ? {fontSize:fontSizes[span.size] ?? scalar(span.size)} : {})}
+        // Span size has its own md default; do not assume it inherits text.size.
+        const runStyle={display:'flex',flexShrink:0,whiteSpace:'pre',color:span.color ?? style.color,fontWeight:span.weight === 'bold' ? 700 : span.weight === 'regular' ? 400 : style.fontWeight,fontSize:(fontSizes[span.size] ?? scalar(span.size) ?? 16)*fontScale}
         return (span.text ?? '').match(/[A-Za-z0-9.,:/]+|\n|[^\n]/gu)?.map(token=>token === '\n'
           ? el('span',{display:'flex',width:'100%',height:0,flexShrink:0},'')
           : el('span',runStyle,token)) ?? []
       })
-      return el('div',{...style,flexDirection:'row',flexWrap:n.wrap ? 'wrap' : 'nowrap',alignContent:'flex-start'},runs)
+      return el('div',{...style,flexDirection:'row',flexWrap:n.wrap ? 'wrap' : 'nowrap',alignContent:'flex-start'},runs,qaProps)
     }
-    return el('div',style,fullText)
+    return el('div',style,fullText,qaProps)
   }
   if (n.type === 'image') {
     const width = imageSizes[n.size] ?? scalar(n.size) ?? 80
@@ -265,7 +281,7 @@ function previewTree(selected) {
   const width=selected.reduce((sum,doc)=>sum+(bubbleWidths[doc.message.contents.size] ?? 300),0)+48+(selected.length-1)*24
   return el('main',{display:'flex',flexDirection:'column',width,padding:24,backgroundColor:'#EDF8FC',fontFamily:'Noto',color:'#17364C'},[
     el('div',{fontSize:13,fontWeight:700,marginBottom:16},'実装Flexのレイアウト確認 · QA'),
-    el('div',{display:'flex',alignItems:'flex-start',gap:24},selected.map(doc=>el('section',{display:'flex',flexDirection:'column',width:bubbleWidths[doc.message.contents.size] ?? 300,flexShrink:0},[
+    el('div',{display:'flex',alignItems:announcementsOnly?'stretch':'flex-start',gap:24},selected.map(doc=>el('section',{display:'flex',flexDirection:'column',width:bubbleWidths[doc.message.contents.size] ?? 300,flexShrink:0},[
       el('div',{fontSize:12,lineHeight:1.3,fontWeight:700,marginBottom:10},doc.label+' · '+(bubbleWidths[doc.message.contents.size] ?? 300)+'px'),
       flexNode(doc.message.contents),
     ]))),
@@ -284,6 +300,30 @@ fs.writeFileSync(path.join(output,'flex-samples.json'),JSON.stringify(documents,
 if(noticeMessage) fs.writeFileSync(path.join(output,'announcement-message.json'),JSON.stringify(noticeMessage,null,2))
 db.close()
 console.log('Offline HTML and actual Flex fixtures written: '+output)
+function inspectTextBounds(measured) {
+  const byId=new Map(measured.map(box=>[box.id,box]))
+  const textBounds=[]
+  const clippedText=[]
+  for(const [id,meta] of qaNodes) {
+    const box=byId.get(id)
+    if(meta.kind!=='text'||!box) continue
+    textBounds.push({text:meta.text,...box})
+    let parentId=meta.parentId
+    while(parentId) {
+      const parentMeta=qaNodes.get(parentId)
+      const parent=byId.get(parentId)
+      if(parentMeta?.clip&&parent) {
+        const overflow={left:Math.max(0,parent.left-box.left),top:Math.max(0,parent.top-box.top),right:Math.max(0,box.left+box.width-parent.left-parent.width),bottom:Math.max(0,box.top+box.height-parent.top-parent.height)}
+        if(Object.values(overflow).some(value=>value>1)) {
+          clippedText.push({text:meta.text,node:id,ancestor:parentId,overflow,box,parent})
+          break
+        }
+      }
+      parentId=parentMeta?.parentId
+    }
+  }
+  return {textBounds,clippedText}
+}
 if (process.argv.includes('--screenshot') || process.argv.includes('--svg')) {
   let browser
   if (!process.argv.includes('--svg')) {
@@ -293,7 +333,7 @@ if (process.argv.includes('--screenshot') || process.argv.includes('--svg')) {
       browser=await chromium.launch({headless:true,args:['--no-sandbox']})
     } catch(error) { console.warn('Chromium unavailable; using Satori/resvg approximation: '+String(error.message).split('\n')[0]) }
   }
-  const metrics={renderer:browser ? 'chromium' : 'satori-resvg',nativeLineScreenshot:false,pages:[]}
+  const metrics={renderer:browser ? 'chromium' : 'satori-resvg',nativeLineScreenshot:false,fontScale,lineHeightScale,keywordSpacingIsApproximate:true,pages:[]}
   if (browser) {
     try {
       for (const document of pages) {
@@ -302,7 +342,8 @@ if (process.argv.includes('--screenshot') || process.argv.includes('--svg')) {
         await page.evaluate(()=>document.fonts.ready)
         const broken=await page.locator('img').evaluateAll(nodes=>nodes.filter(n=>!n.complete||!n.naturalWidth).length)
         if(broken) throw new Error('Broken preview images: '+broken)
-        metrics.pages.push({name:document.name,cards:await page.locator('[data-bubble]').evaluateAll(nodes=>nodes.map(n=>({width:n.getBoundingClientRect().width,height:n.getBoundingClientRect().height})))})
+        const measured=await page.locator('[data-qa-id]').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return{id:n.getAttribute('data-qa-id'),left:r.left,top:r.top,width:r.width,height:r.height}}))
+        metrics.pages.push({name:document.name,cards:await page.locator('[data-bubble]').evaluateAll(nodes=>nodes.map(n=>({width:n.getBoundingClientRect().width,height:n.getBoundingClientRect().height}))),...inspectTextBounds(measured)})
         await page.screenshot({path:path.join(output,document.name+'.png'),fullPage:true})
         await page.close()
       }
@@ -314,17 +355,22 @@ if (process.argv.includes('--screenshot') || process.argv.includes('--svg')) {
     await init(await WebAssembly.compile(fs.readFileSync(path.join(root,'node_modules/satori/yoga.wasm'))))
     for (const document of pages) {
       const cards=[]
+      const measured=[]
       const svg=await satori(document.tree,{
         width:document.tree.props.style.width,
         fonts:[{name:'Noto',data:regular,weight:400,style:'normal'},{name:'Noto',data:bold,weight:700,style:'normal'}],
-        onNodeDetected:node=>{if(node.props?.['data-bubble']) cards.push({width:node.width,height:node.height})},
+        onNodeDetected:node=>{
+          if(node.props?.['data-bubble']) cards.push({width:node.width,height:node.height})
+          if(node.props?.['data-qa-id']) measured.push({id:String(node.props['data-qa-id']),left:node.left,top:node.top,width:node.width,height:node.height})
+        },
       })
       fs.writeFileSync(path.join(output,document.name+'.svg'),svg)
       const renderer=new Resvg(svg)
       try {const rendered=renderer.render();try {fs.writeFileSync(path.join(output,document.name+'.png'),Buffer.from(rendered.asPng()))}finally{rendered.free()}}finally{renderer.free()}
-      metrics.pages.push({name:document.name,cards})
+      metrics.pages.push({name:document.name,cards,...inspectTextBounds(measured)})
     }
   }
   fs.writeFileSync(path.join(output,'layout-metrics.json'),JSON.stringify(metrics,null,2))
-  console.log(JSON.stringify(metrics,null,2))
+  console.log(JSON.stringify({...metrics,pages:metrics.pages.map(({textBounds,...page})=>({...page,textNodes:textBounds.length}))},null,2))
+  if(process.argv.includes('--check-overflow')&&metrics.pages.some(page=>page.clippedText.length)) process.exitCode=1
 }
