@@ -101,14 +101,14 @@ test("enforces five-minute bounds against both the event time and current clock"
   assert.equal(parseGroupReadReceipt(fixture({ timestamp: NOW - 600_000, read: { watermark: NOW - 299_999 } }), OPTIONS), null);
 });
 
-test("formats confirmed distinct people and explicitly avoids calling the rest unread", () => {
+test("formats confirmed distinct people and an empty result", () => {
   assert.equal(formatReadReceipts([
     { userId: USER, displayName: "もち" },
     { userId: USER2, displayName: "はっぱ" },
     { userId: USER, displayName: "duplicate" },
     { userId: USER2.toUpperCase(), displayName: "duplicate case" },
-  ]), "既読が確認できた人（2人）\n・もち\n・はっぱ\n\n※イベント未受信の人が、未読とは限りません。");
-  assert.equal(formatReadReceipts([]), "既読が確認できた人（0人）\nまだ既読イベントを受信していません。\n\n※イベント未受信の人が、未読とは限りません。");
+  ]), "既読が確認できた人（2人）\n・もち\n・はっぱ");
+  assert.equal(formatReadReceipts([]), "既読が確認できた人（0人）\nまだ既読イベントを受信していません。");
 });
 
 test("names cannot add output lines and missing names do not expose IDs", () => {

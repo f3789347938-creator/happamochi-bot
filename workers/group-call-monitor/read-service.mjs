@@ -2,7 +2,7 @@ import { parseGroupReadReceipt, formatReadReceipts } from './read-receipts.mjs';
 
 const COMMANDS = new Map([['既読開始', 'start'], ['既読確認', 'list'], ['既読終了', 'stop']]);
 const MAX_COMMAND_AGE = 15 * 60 * 1000;
-const HELP = '「既読開始」で確認を開始\n「既読確認」で名前を表示\n「既読終了」で確認を終了\n開始から24時間で自動終了します。';
+const HELP = '「既読開始」で確認を開始\n「既読確認」で名前を表示\n「既読終了」で確認を終了';
 const validUser = value => typeof value === 'string' && /^U[0-9a-f]{32}$/i.test(value);
 const safeName = name => Array.from(String(name || '名前未取得').replace(/[\u0000-\u001f\u007f\u2028\u2029\u202a-\u202e\u2066-\u2069]/g, ' ').trim()).slice(0, 40).join('') || '名前未取得';
 
@@ -67,7 +67,7 @@ export class ReadReceiptService {
           // Only display members whose current group profile can be verified.
           const readers = receipts.filter(r => names.has(r.user_id)).map(r => ({userId: r.user_id, displayName: names.get(r.user_id)}));
           const started = new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false }).format(new Date(session.checkpoint_at));
-          text = `${ownerName}さんの既読確認\n開始：${started}\n\n${formatReadReceipts(readers)}\n\n「既読終了」で終了できます。`;
+          text = `${ownerName}さんの既読確認\n開始：${started}\n\n${formatReadReceipts(readers)}`;
         }
       }
     } catch {

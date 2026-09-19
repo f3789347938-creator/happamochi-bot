@@ -179,7 +179,7 @@ test('start claims the actor session before acknowledgement and includes the usa
   assert.equal(f.calls.claimed[0].command.userId, ALICE);
   assert.equal(f.calls.sent[0].sendId, 'send-start-1');
   assert.match(f.calls.sent[0].text, /^もちさんの既読確認を開始しました。/);
-  for (const command of ['既読開始', '既読確認', '既読終了', '24時間']) assert.ok(f.calls.sent[0].text.includes(command));
+  for (const command of ['既読開始', '既読確認', '既読終了']) assert.ok(f.calls.sent[0].text.includes(command));
   assert.equal(f.calls.sessions.length + f.calls.receipts.length, 0);
   assert.equal(f.calls.finished[0].status, 'sent');
 });
@@ -192,7 +192,6 @@ test('list requests only the session and receipts belonging to the command sende
   assert.deepEqual(f.calls.receipts.map(x => [x.chatId, x.userId]), [[CHAT, ALICE], [CHAT, BOB]]);
   assert.match(f.calls.sent[0].text, /^もちさんの既読確認/);
   assert.match(f.calls.sent[1].text, /^はっぱさんの既読確認/);
-  assert.ok(f.calls.sent.every(x => x.text.includes('未読とは限りません')));
 });
 
 test('inactive session provides help and never lists another person’s receipts', async () => {

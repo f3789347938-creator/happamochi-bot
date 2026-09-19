@@ -63,6 +63,5 @@ export function formatReadReceipts(readers, { maxNames = 40 } = {}) {
     lines.push(...names.slice(0, maxNames).map(name => `・${name}`));
     if (names.length > maxNames) lines.push(`ほか${names.length - maxNames}人`);
   }
-  lines.push("", "※イベント未受信の人が、未読とは限りません。");
   return lines.join("\n");
 }
