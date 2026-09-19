@@ -1446,24 +1446,18 @@ async function handleMessageEvent(env: Bindings, event: any, baseUrl: string) {
     pictureUrl = profile?.pictureUrl ?? null
   }
 
-  // 個人ステータスのEXP/ポイント加算(追加機能)。
-  //   ・本人が新しく送った1通につき EXP+1・ポイント+1。
-  //   ・種類(文章/画像/スタンプ/コマンド)で除外しない。
-  //   ・グループと個人トークの両方が対象。
-  //   ・連呼対策として、直前と同じ本文のときだけ加算しない
-  //     (「あ」「あ」の2通目は付かない / 「あ」「い」「あ」は全部付く)。
-  //     回数・時間による獲得制限は付けない。
-  //   ・「1通を1回と数える」ため、
-  //     webhookEventId(無ければ message.id)で二重加算だけ防ぐ。
-  //   ・Bot自身の返信やボタン操作(Postback)はここを通らないので加算されない。
-  // 失敗しても既存処理を止めないよう try/catch で完全に隔離する。
+  // 対象1通につきEXP+1。文字数1〜8P、確認できた別の人へのグループ返信+2P。
+  // 全グループ・個人トーク共通の5秒間隔／重複・類似文チェック／再送対策。
+  // Bot自身の返信やPostbackは加算しない。日ごとの上限は設けない。
   if (userId) {
     try {
       const eventKey = event.webhookEventId ?? (message?.id ? `msg_${message.id}` : null)
-      // 本文はテキストのときだけ渡す(連呼判定に使う)。
-      // スタンプ・画像などは本文が無いので null のまま = 従来どおり必ず加算。
+      // テキスト以外は基本1P。返信元はこのメッセージの保存前に確認する。
       const expText = message?.type === 'text' ? (message.text ?? null) : null
-      await addExpForMessage(env, userId, eventKey, displayName, pictureUrl, expText)
+      await addExpForMessage(env, userId, eventKey, displayName, pictureUrl, expText, {
+        groupId: isGroup ? groupId : null,
+        quotedMessageId: message?.quotedMessageId ?? null,
+      })
     } catch {
       /* EXP加算の失敗は既存機能に影響させない */
     }
@@ -2237,7 +2231,11 @@ const HELP_TEXT = `葉っぱもち Bot ヘルプ
 共通称号確認 - 装備中の共通称号を確認
 称号検索 [文字] - 共通称号を名前で探す
 
-メッセージを1通送るごとに 1EXP と 1ポイントがたまります。
+加算対象の1通につき1EXP、文字数に応じて1〜8Pがたまります。
+1〜9文字:1P／10〜29文字:2P／30〜79文字:3P／80〜149文字:5P／150文字以上:8P。
+同じグループの別の人への返信は、返信元を確認できた場合に+2P(1通最大10P)。
+画像・スタンプは基本1P。全グループ・個人トーク共通で5秒間隔です。
+直前の加算対象と同じ・よく似た文章は加算なし。空白・記号・URL・繰り返しによる文字数の水増しは対象外です。
 必要EXPは「100 + 8 ×（現在のレベル − 1）」です。
 共通称号はグループをまたいで共通、上の「称号」はグループごとです。
 個人ランキングと公開ステータス: ${SITE_URL}/ranking/personal`

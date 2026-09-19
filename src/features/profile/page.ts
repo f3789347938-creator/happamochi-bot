@@ -93,10 +93,32 @@ export async function renderPersonalRankingPage(
     }
   </section>
 
+  <section class="pf-section" id="personal-point-rules">
+    <h2 class="pf-h2">ポイントとEXPのため方</h2>
+    <p class="pf-hero-sub">加算対象の1通につき1 EXP。基本ポイントは本文の有効文字数で決まります。空白・URL・絵文字・記号は数えず、文字や語句の繰り返しをまとめて判定します。</p>
+    <table style="width:100%;max-width:460px;margin:14px 0;border-collapse:collapse;color:#15384d;font-size:14px;line-height:1.8">
+      <thead><tr style="background:#e4f7ff"><th scope="col" style="padding:6px 12px;text-align:left">有効な文字数</th><th scope="col" style="padding:6px 12px;text-align:right">基本ポイント</th></tr></thead>
+      <tbody>
+        <tr><th scope="row" style="padding:5px 12px;text-align:left;font-weight:400">1〜9文字</th><td style="padding:5px 12px;text-align:right">1P</td></tr>
+        <tr style="background:#f4fbff"><th scope="row" style="padding:5px 12px;text-align:left;font-weight:400">10〜29文字</th><td style="padding:5px 12px;text-align:right">2P</td></tr>
+        <tr><th scope="row" style="padding:5px 12px;text-align:left;font-weight:400">30〜79文字</th><td style="padding:5px 12px;text-align:right">3P</td></tr>
+        <tr style="background:#f4fbff"><th scope="row" style="padding:5px 12px;text-align:left;font-weight:400">80〜149文字</th><td style="padding:5px 12px;text-align:right">5P</td></tr>
+        <tr><th scope="row" style="padding:5px 12px;text-align:left;font-weight:400">150文字以上</th><td style="padding:5px 12px;text-align:right">8P</td></tr>
+      </tbody>
+    </table>
+    <ul class="pf-notes">
+      <li>同じグループの他の人のメッセージに引用返信すると＋2P。合計は1通最大10Pです。</li>
+      <li>返信元と投稿者を確認できた場合だけ加算します。自分への返信・投稿者不明・別グループの引用は対象外です。</li>
+      <li>スタンプ・画像など文字以外は基本1P。グループと個別トークで残高・EXP・加算間隔を共有します。</li>
+      <li>加算は5秒間隔です。前回加算された本文と同じ・よく似た内容は、EXPもポイントも加算しません。</li>
+      <li>空白や繰り返しで文字数を水増ししても、ポイントの段階は上がりません。</li>
+    </ul>
+  </section>
+
   <section class="pf-section" id="personal-ranking-about">
     <h2 class="pf-h2">集計と公開について</h2>
     <ul class="pf-notes">
-      <li>メッセージを1通送るごとに 1 EXP と 1 ポイントがたまります。</li>
+      <li>ランキングは累計EXPで決まります。獲得ポイントが多い場合も、EXPは加算対象1通につき1です。</li>
       <li>次のレベルに必要なEXPは「100 + 8 ×（現在のレベル − 1）」です。</li>
       <li>同じ累計EXPの人は同じ順位になります（1位、2位、2位、4位…）。</li>
       <li>名前を押すと、その人の公開ステータスを見られます。</li>

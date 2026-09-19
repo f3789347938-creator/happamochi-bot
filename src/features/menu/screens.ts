@@ -561,7 +561,7 @@ export const screenH01: ScreenDef = {
     { label: '個人', value: 'ステータス・着せ替え・共通称号・誕生日' },
     { label: 'ゲーム', value: 'オセロ・チェス' },
     { label: 'グループ', value: 'ランキング・通知・ウェルカム・タグ・旧称号' },
-    { label: 'EXP・ポイント', value: '1通ごとに 1EXP・1P。上限や参加登録はありません' },
+    { label: 'EXP・ポイント', value: '対象1通で1EXP・1〜10P。5秒間隔。詳しい条件は個人ランキングへ' },
   ],
   buttons: [
     { label: '全コマンド', data: nav('H03'), kind: 'primary' },
@@ -606,7 +606,7 @@ const H03_PAGES: Row[][] = [
     { label: 'ウェルカム本文', value: 'ウェルカムメッセージ設定 本文 / ウェルカムメッセージ解除' },
     { label: 'タグ', value: 'タグ追加 タグ名 / タグ削除 タグ名 / タグ一覧' },
     { label: '動作確認', value: 'テスト' },
-    { label: 'EXP・ポイント', value: '1通ごとに 1EXP・1P。全グループ共通。上限なし' },
+    { label: 'EXP・ポイント', value: '対象1通で1EXP・1〜10P。5秒間隔。詳しい条件は個人ランキングへ' },
   ],
 ]
 

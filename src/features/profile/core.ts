@@ -6,9 +6,11 @@
 //   ・人単位・全グループ共通。既存のグループ別称号(user_titles)には触らない。
 //   ・EXP加算は「1通=1EXP」。同じイベントの再受信で二重加算しないよう
 //     exp_events に一意キーを入れてから加算する。
-//   ・ポイントはEXPと同時に1増える。購入時の引き落としは point_ledger の
+//   ・ポイントは文字数と返信先に応じて1〜10増える。購入時は point_ledger の
 //     reason_key の一意制約で二重成立を防ぐ。
 import type { LineEnv } from '../../lib/line'
+import { getGroupMessage } from '../groupTracking'
+import { analyzePointText, areSimilarPointTexts } from './messagePoints'
 
 // === レベル計算 ==========================================================
 // 必要EXP = 100 + 8 * (level - 1)
@@ -185,32 +187,21 @@ export async function getProfileByPublicId(
 }
 
 // === EXP / ポイントの加算 ================================================
+export interface MessagePointContext {
+  groupId?: string | null
+  quotedMessageId?: string | null
+}
+
 /**
- * 本人が新しく送った1通に対して EXP+1 / ポイント+1 する。
+ * Credited messages earn 1 EXP and 1–8 points by effective text length.
+ * A verified reply to someone else in the same group adds 2 points (max 10).
+ * The 5-second cooldown is shared across every group and DM. Exact/near copies
+ * of the last credited text are ignored; media has a base value of 1 point.
  *
- * eventKey は「その1通」を一意に表す文字列(webhookEventId、無ければ
- * message.id)。exp_events に INSERT OR IGNORE してから加算するため、
- * Webhookの再送や同じメッセージの再受信では2回目が加算されない。
- * これは連呼対策ではなく「1通を1回と数える」ための処理。
- *
- * 連呼対策(C案): 直前と同じ本文なら加算しない。
- *   ・「あ」「あ」→ 2通目は加算なし。「あ」「い」「あ」→ 全部加算。
- *   ・1日/時間あたりの獲得制限は付けない(方針どおり)。
- *   ・比較できるのはテキストだけなので、スタンプ・画像などは
- *     直前本文の記録を消して連続扱いにしない。
- *   ・前後の空白のみを揃えて比較する。大文字小文字や全角半角は
- *     区別したまま(むやみに同一視すると正当な発言まで落ちるため)。
- *
- * 連呼対策(A案): 前回加算から 5 秒間は加算しない。
- *   ・本文を一切見ないので、「あ+改行+ランダムな数字」のように
- *     毎回文面を変える手口でも回避できない(C案だけでは無力だった)。
- *   ・粒度はユーザーごと。EXP 自体が人単位の累計値であり、
- *     グループごとにすると複数グループを渡り歩いて無制限に稼げるため。
- *   ・スタンプ・画像も対象(連投の手段になるため除外しない)。
- *   ・回数や 1 日あたりの上限は付けない(方針どおり)。
- *
- * 失敗しても例外を投げない(既存のBot処理を止めないため)。
- * 戻り値はレベルアップしたときだけ新レベルを返す。
+ * Claim, cooldown state, balance and receipt commit as one D1 batch transaction.
+ * The state comparison also guards the text analysis against concurrent updates.
+ * Rejected events are finalized at 0, so a redelivery cannot earn points later.
+ * Failures roll back the whole award and do not interrupt the bot's other work.
  */
 export async function addExpForMessage(
   env: LineEnv,
@@ -218,91 +209,83 @@ export async function addExpForMessage(
   eventKey: string | null,
   displayName?: string | null,
   pictureUrl?: string | null,
-  messageText?: string | null
+  messageText?: string | null,
+  context: MessagePointContext = {}
 ): Promise<{ leveledUpTo: number | null }> {
   try {
     if (!eventKey) return { leveledUpTo: null }
-
-    const claimed = await env.DB.prepare(
-      `INSERT OR IGNORE INTO exp_events (event_key, user_id) VALUES (?, ?)`
-    )
-      .bind(eventKey, userId)
-      .run()
-    // 既に処理済み = 二重加算しない
-    if (!claimed.meta.changes) return { leveledUpTo: null }
-
-    // --- 連呼対策 -------------------------------------------------------
-    // 前回加算時刻と直前本文を一度に読む。
+    const text = typeof messageText === 'string' ? messageText.slice(0, 5000).trim() || null : null
+    const analysis = analyzePointText(text)
     const state = await env.DB.prepare(
-      `SELECT last_text,
-              CAST((julianday('now') - julianday(last_exp_at)) * 86400 AS REAL) AS elapsed
-         FROM exp_last_message WHERE user_id = ?`
-    )
-      .bind(userId)
-      .first<{ last_text: string | null; elapsed: number | null }>()
-
-    const text = typeof messageText === 'string' ? messageText.trim() : null
-    const hasText = text !== null && text.length > 0
-
-    // (1) クールダウン: 前回加算から EXP_COOLDOWN_SECONDS 未満なら加算しない。
-    //     本文を一切見ないので、文字をいくら変えても回避できない。
-    //     last_exp_at が NULL(=旧データ・初回) のときは通す。
-    const inCooldown =
-      state?.elapsed !== null && state?.elapsed !== undefined && state.elapsed < EXP_COOLDOWN_SECONDS
-
-    // (2) 同一本文: 直前と同じ本文のテキストは加算しない。
-    const sameText = hasText && state?.last_text != null && state.last_text === text
-
-    // 記録の更新値。テキスト以外は本文で比較できないので NULL に戻し、
-    // 「あ」→スタンプ→「あ」が同一本文扱いにならないようにする。
-    const nextText = hasText ? text : null
-
-    if (inCooldown || sameText) {
-      // 加算しない。直前本文は最新に保つが、last_exp_at は更新しない。
-      // (ここで時刻を更新すると、連投し続ける限り永久に加算されなくなる)
-      await env.DB.prepare(
-        `INSERT INTO exp_last_message (user_id, last_text, updated_at)
-         VALUES (?, ?, datetime('now'))
-         ON CONFLICT(user_id) DO UPDATE SET
-           last_text = excluded.last_text, updated_at = datetime('now')`
-      )
-        .bind(userId, nextText)
-        .run()
-      return { leveledUpTo: null }
+      `SELECT last_text, last_exp_at, last_event_key FROM exp_last_message WHERE user_id = ?`
+    ).bind(userId).first<{
+      last_text: string | null; last_exp_at: string | null; last_event_key: string | null
+    }>()
+    // Keep legacy raw last_text compatible; normalization is used only for scoring/comparison.
+    const similar = areSimilarPointTexts(analysis.normalizedText, analyzePointText(state?.last_text).normalizedText)
+    let replyBonus = 0
+    if (typeof context.groupId === 'string' && context.groupId &&
+        typeof context.quotedMessageId === 'string' && context.quotedMessageId) {
+      const original = await getGroupMessage(env, context.groupId, context.quotedMessageId)
+      if (original?.user_id && original.user_id !== userId) replyBonus = 2
     }
+    const points = Math.min(10, analysis.basePoints + replyBonus)
+    await ensureProfile(env, userId, displayName, pictureUrl)
 
-    // 加算対象。直前本文と加算時刻の両方を更新する。
-    // last_exp_at はミリ秒精度で持つ。datetime('now') は秒精度のため、
-    // 1秒未満の連投が秒境界をまたぐと取りこぼしが出る(実測で漏れた)。
-    await env.DB.prepare(
-      `INSERT INTO exp_last_message (user_id, last_text, last_exp_at, updated_at)
-       VALUES (?, ?, strftime('%Y-%m-%d %H:%M:%f','now'), datetime('now'))
-       ON CONFLICT(user_id) DO UPDATE SET
-         last_text = excluded.last_text,
-         last_exp_at = strftime('%Y-%m-%d %H:%M:%f','now'),
-         updated_at = datetime('now')`
-    )
-      .bind(userId, nextText)
-      .run()
-
-    const before = await ensureProfile(env, userId, displayName, pictureUrl)
-    const beforeLevel = levelFromTotalExp(before.total_exp).level
-
-    // EXPとポイントを同時に1増やす。
-    await env.DB.prepare(
-      `UPDATE user_profiles
-          SET total_exp = total_exp + 1, points = points + 1, updated_at = datetime('now')
-        WHERE user_id = ?`
-    )
-      .bind(userId)
-      .run()
-
-    const afterLevel = levelFromTotalExp(before.total_exp + 1).level
+    const batch = await env.DB.batch([
+      env.DB.prepare(
+        `INSERT OR IGNORE INTO exp_events (event_key, user_id, points_delta) VALUES (?, ?, -1)`
+      ).bind(eventKey, userId),
+      env.DB.prepare(
+        `INSERT INTO exp_last_message (user_id, last_text, last_exp_at, updated_at, last_event_key)
+         SELECT ?, ?, strftime('%Y-%m-%d %H:%M:%f','now'), datetime('now'), ?
+          WHERE ? = 0
+            AND EXISTS (SELECT 1 FROM user_profiles WHERE user_id = ?)
+            AND EXISTS (SELECT 1 FROM exp_events WHERE event_key = ? AND user_id = ? AND points_delta = -1)
+            AND (
+              (? = 0 AND NOT EXISTS (SELECT 1 FROM exp_last_message WHERE user_id = ?))
+              OR EXISTS (
+                SELECT 1 FROM exp_last_message WHERE user_id = ?
+                  AND last_text IS ? AND last_exp_at IS ? AND last_event_key IS ?
+                  AND (last_exp_at IS NULL OR julianday(last_exp_at) <= julianday('now', ?))
+              )
+            )
+         ON CONFLICT(user_id) DO UPDATE SET
+           last_text = excluded.last_text, last_exp_at = excluded.last_exp_at,
+           updated_at = excluded.updated_at, last_event_key = excluded.last_event_key`
+      ).bind(userId, text, eventKey, similar ? 1 : 0, userId, eventKey, userId,
+        state ? 1 : 0, userId, userId, state?.last_text ?? null,
+        state?.last_exp_at ?? null, state?.last_event_key ?? null, `-${EXP_COOLDOWN_SECONDS} seconds`),
+      env.DB.prepare(
+        `UPDATE user_profiles SET total_exp = total_exp + 1, points = points + ?, updated_at = datetime('now')
+          WHERE user_id = ?
+            AND EXISTS (SELECT 1 FROM exp_events WHERE event_key = ? AND user_id = ? AND points_delta = -1)
+            AND EXISTS (SELECT 1 FROM exp_last_message WHERE user_id = ? AND last_event_key = ?)`
+      ).bind(points, userId, eventKey, userId, userId, eventKey),
+      env.DB.prepare(
+        `UPDATE exp_events SET
+           points_delta = CASE WHEN EXISTS (
+             SELECT 1 FROM exp_last_message WHERE user_id = ? AND last_event_key = ?
+           ) THEN ? ELSE 0 END,
+           exp_before = CASE WHEN EXISTS (
+             SELECT 1 FROM exp_last_message WHERE user_id = ? AND last_event_key = ?
+           ) THEN (SELECT total_exp - 1 FROM user_profiles WHERE user_id = ?) ELSE NULL END
+          WHERE event_key = ? AND user_id = ? AND points_delta = -1`
+      ).bind(userId, eventKey, points, userId, eventKey, userId, eventKey, userId),
+    ])
+    if (!batch[3]?.meta.changes) return { leveledUpTo: null }
+    const receipt = await env.DB.prepare(
+      `SELECT points_delta, exp_before FROM exp_events WHERE event_key = ? AND user_id = ?`
+    ).bind(eventKey, userId).first<{ points_delta: number; exp_before: number | null }>()
+    if (!receipt || receipt.points_delta <= 0 || receipt.exp_before === null) return { leveledUpTo: null }
+    const beforeLevel = levelFromTotalExp(receipt.exp_before).level
+    const afterLevel = levelFromTotalExp(receipt.exp_before + 1).level
     return { leveledUpTo: afterLevel > beforeLevel ? afterLevel : null }
   } catch {
     return { leveledUpTo: null }
   }
 }
+
 
 // === テーマ ==============================================================
 export interface Theme {
