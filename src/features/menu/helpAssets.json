@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "designHash": "19ffb2d6dc64f222caf9fde834988e95fe5b8466935ccc4fac9becbf71b6e30a",
+  "designHash": "e4fb2239355ca110cc7b6954aadd998762b7a62da3b98ca713a2811e743fbb71",
   "header": {
     "file": "header-e7d7e059623e.png",
     "width": 520,
@@ -38,8 +38,8 @@
     },
     {
       "label": "既読セット",
-      "desc": "既読確認の開始・リセット",
-      "file": "row-03-746bc74d3c5c.png",
+      "desc": "既読確認をする",
+      "file": "row-03-da36e7bce8f8.png",
       "width": 520,
       "height": 140
     },

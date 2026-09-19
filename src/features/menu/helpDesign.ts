@@ -43,7 +43,7 @@ export const HELP_DESIGN = {
   commands: [
     { label: 'ヘルプ', desc: 'このメニューを開く' },
     { label: 'ステータス', desc: '自分のレベル・EXP・ポイント' },
-    { label: '既読セット', desc: '既読確認の開始・リセット' },
+    { label: '既読セット', desc: '既読確認をする' },
     { label: 'りぷかく', desc: '自分への返信を確認' },
     { label: 'めんかく', desc: '自分宛のメンションを確認' },
     { label: 'ランキング', desc: '各種ランキングを表示' },
