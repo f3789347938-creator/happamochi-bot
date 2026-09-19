@@ -1,0 +1,86 @@
+import { parseGroupReadReceipt, formatReadReceipts } from './read-receipts.mjs';
+
+const COMMANDS = new Map([['既読開始', 'start'], ['既読確認', 'list'], ['既読終了', 'stop']]);
+const MAX_COMMAND_AGE = 15 * 60 * 1000;
+const HELP = '「既読開始」で確認を開始\n「既読確認」で名前を表示\n「既読終了」で確認を終了\n開始から24時間で自動終了します。';
+const validUser = value => typeof value === 'string' && /^U[0-9a-f]{32}$/i.test(value);
+const safeName = name => Array.from(String(name || '名前未取得').replace(/[\u0000-\u001f\u007f\u2028\u2029\u202a-\u202e\u2066-\u2069]/g, ' ').trim()).slice(0, 40).join('') || '名前未取得';
+
+export function parseReadCommand(event, eventId, { botId, now = Date.now(), cutoff = 0 } = {}) {
+  const p = event?.payload;
+  if (!validUser(botId) || event?.event !== 'chat' || event?.subEvent !== 'message' || event?.botId !== botId ||
+      p?.type !== 'message' || p.sendId || p.bizId || !/^C[0-9a-f]{32}$/i.test(event.chatId || '') ||
+      event.chatId !== p.source?.chatId || !validUser(p.source?.userId) || p.source.userId.toLowerCase() === botId.toLowerCase() ||
+      !['text', 'textV2'].includes(p.message?.type) || typeof p.message.text !== 'string' ||
+      typeof eventId !== 'string' || !/^[A-Za-z0-9_-]{1,256}$/.test(eventId) ||
+      !Number.isSafeInteger(p.timestamp) || p.timestamp < Math.max(cutoff, now - MAX_COMMAND_AGE) ||
+      p.timestamp > now + 5 * 60 * 1000) return null;
+  const action = COMMANDS.get(p.message.text.trim());
+  return action ? { chatId: event.chatId, userId: p.source.userId, eventId, action,
+    checkpointAt: p.timestamp, eventAt: p.timestamp } : null;
+}
+
+/** Records only active, user-started checks. History has no reader ID and is never inferred. */
+export class ReadReceiptService {
+  constructor(store, client, config) { this.store = store; this.client = client; this.config = config; }
+
+  async memberNames(chatId) {
+    const names = new Map();
+    let next;
+    const seen = new Set();
+    for (let page = 0; page < 10; page++) {
+      const result = await this.client.members(chatId, { next, limit: 100 });
+      if (!Array.isArray(result.list)) throw new Error('invalid_members_response');
+      for (const member of result.list) if (validUser(member.userId)) names.set(member.userId, safeName(member.name));
+      if (!result.next) return names;
+      if (seen.has(result.next)) throw new Error('members_cursor_stalled');
+      seen.add(result.next); next = result.next;
+    }
+    throw new Error('members_page_limit');
+  }
+
+  async receive(event, eventId, cutoff, now = Date.now()) {
+    if (!event || !this.config.enabled || !/^C[0-9a-f]{32}$/i.test(event.chatId || '') ||
+        (this.config.scope !== 'all' && !String(this.config.scope || '').split(',').map(x => x.trim()).includes(event.chatId))) return;
+    const receipt = parseGroupReadReceipt(event, { botId: this.config.botId, chatId: event.chatId, now });
+    if (receipt) {
+      await this.store.recordReceipt(receipt.chatId, receipt.userId, receipt.watermark, receipt.eventAt, now);
+      return;
+    }
+    const command = parseReadCommand(event, eventId, { botId: this.config.botId, now, cutoff });
+    if (!command) return;
+    const row = await this.store.claimCommand(command, now);
+    if (!row) return;
+    let text;
+    try {
+      const names = await this.memberNames(command.chatId);
+      const ownerName = names.get(command.userId) || 'あなた';
+      if (command.action === 'start') {
+        text = `${ownerName}さんの既読確認を開始しました。\n「既読開始」を送った時点から、既読が確認できた人を記録します。\n\n${HELP}`;
+      } else if (command.action === 'stop') {
+        text = `${ownerName}さんの既読確認を終了しました。\nもう一度始めるときは「既読開始」と送ってください。`;
+      } else {
+        const session = await this.store.getSession(command.chatId, command.userId, now);
+        if (!session) text = `${ownerName}さんの既読確認は開始されていません。\n\n${HELP}`;
+        else {
+          const receipts = await this.store.listReceipts(command.chatId, command.userId, now);
+          // Only display members whose current group profile can be verified.
+          const readers = receipts.filter(r => names.has(r.user_id)).map(r => ({userId: r.user_id, displayName: names.get(r.user_id)}));
+          const started = new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false }).format(new Date(session.checkpoint_at));
+          text = `${ownerName}さんの既読確認\n開始：${started}\n\n${formatReadReceipts(readers)}\n\n「既読終了」で終了できます。`;
+        }
+      }
+    } catch {
+      text = '既読確認の名前を取得できませんでした。少し待ってから「既読確認」と送ってください。';
+    }
+    if (!await this.store.markSending(row, text, Date.now())) return;
+    try {
+      await this.client.sendText(command.chatId, text, row.send_id);
+      await this.store.finishCommand(row, 'sent', null, Date.now());
+    } catch (error) {
+      const rejected = error?.status >= 400 && error?.status < 500;
+      await this.store.finishCommand(row, rejected ? 'failed' : 'uncertain', Number.isInteger(error?.status) ? `line_http_${error.status}` : 'send_error', Date.now());
+      if ([401, 403, 429].includes(error?.status)) throw error;
+    }
+  }
+}

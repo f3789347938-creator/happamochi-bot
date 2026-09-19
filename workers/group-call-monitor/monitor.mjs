@@ -139,7 +139,7 @@ export async function reconcile(store, client, config, cutoff, owner, { signal }
   }
 }
 
-export async function runMonitor(store, client, config, { streamSeconds = 40, reconcileFirst = true } = {}) {
+export async function runMonitor(store, client, config, { streamSeconds = 40, reconcileFirst = true, readService } = {}) {
   const owner = crypto.randomUUID();
   const now = Date.now();
   if (!await store.acquire(owner, now)) return { skipped: 'already_running' };
@@ -149,6 +149,10 @@ export async function runMonitor(store, client, config, { streamSeconds = 40, re
     const state = await store.state();
     const cutoff = Math.max(state.initialized_at, state.scope_activated_at, now - 15 * 60 * 1000);
     await store.quarantineInterrupted(now);
+    if (readService) {
+      await readService.store.cleanup(now);
+      await readService.store.quarantineInterrupted(now);
+    }
     // On bootstrap, use the server's current stream cursor, never replay old calls.
     let cursor = state.cursor;
     if (!cursor) {
@@ -200,9 +204,13 @@ export async function runMonitor(store, client, config, { streamSeconds = 40, re
           const kind = event?.event || frame.event;
           if (kind === 'chat' && event?.botId === config.botId && allowedChat(event.chatId, config.scope) && event.payload?.sendId) {
             await store.acknowledge(event.chatId, event.payload.sendId, event.payload.timestamp);
+            if (readService) await readService.store.acknowledge(event.chatId, event.payload.sendId, event.payload.timestamp);
           }
           if (kind === 'chat' && event?.payload?.message?.type === 'callHistory') {
             await receiveCall(store, client, event, config, cutoff, owner);
+          }
+          if (readService && config.enabled && kind === 'chat' && event?.botId === config.botId && allowedChat(event.chatId, config.scope)) {
+            await readService.receive(event, frame.id, cutoff);
           }
         }
         if (frame.id) latestId = frame.id;

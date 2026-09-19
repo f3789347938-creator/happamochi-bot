@@ -22,7 +22,7 @@ export default {
     const store = new MonitorStore(env.DB);
     if (path === '/status' && request.method === 'GET') {
       const [state, scheduler] = await Promise.all([store.status(), monitor(env).schedulerStatus()]);
-      return Response.json({ ...state, scheduler, scope: env.CHAT_SCOPE, sending: env.SEND_ENABLED === 'true' });
+      return Response.json({ ...state, scheduler, scope: env.CHAT_SCOPE, sending: env.SEND_ENABLED === 'true', readReceipts: env.READ_RECEIPTS_ENABLED === 'true' });
     }
     if (path === '/probe' && request.method === 'GET') {
       try {

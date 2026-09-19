@@ -5,7 +5,7 @@ const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
 const JSON_LIMIT = 2 * 1024 * 1024;
 const SSE_FRAME_LIMIT = 512 * 1024;
 const REQUEST_TIMEOUT_MS = 15_000;
-const OPERATIONS = new Set(['configuration', 'csrf', 'history', 'chats', 'streamToken', 'streamUrl', 'sendText', 'sse']);
+const OPERATIONS = new Set(['configuration', 'csrf', 'history', 'chats', 'members', 'streamToken', 'streamUrl', 'sendText', 'sse']);
 
 /** Deliberately contains neither server response text nor underlying exception causes. */
 export class OaApiError extends Error {
@@ -177,6 +177,13 @@ export class OaClient {
 
   streamToken() {
     return this.#request('streamToken', `/api/v1/bots/${this.#botId}/streamingApiToken`, { method: 'POST', csrf: true });
+  }
+
+  members(chatId, { next, limit = 100 } = {}) {
+    const chat = identifier(chatId, 'members');
+    const query = new URLSearchParams({ limit: pageLimit(limit, 'members') });
+    if (next !== undefined) query.set('next', cursor(next, 'members'));
+    return this.#request('members', `/api/v1/bots/${this.#botId}/chats/${chat}/members?${query}`);
   }
 
   /** token is the complete streamToken() response. Never log the returned URL. */

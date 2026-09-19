@@ -1,4 +1,4 @@
-# グループ通話の自動記録
+# グループ通話の自動記録・既読確認
 
 葉っぱもちの公式アカウント管理APIでグループ通話履歴を受け取り、終了後に同じグループへ通話時間を送信する独立Worker。既存のPages Botやポイントの処理は変更しない。
 
@@ -13,6 +13,7 @@ Cloudflare WranglerにWorkers ScriptsとD1の書き込み権限でログイン�
 
 ```sh
 wrangler d1 execute line-group-bbs-db --remote --file workers/group-call-monitor/schema.sql --config workers/group-call-monitor/wrangler.jsonc
+wrangler d1 execute line-group-bbs-db --remote --file workers/group-call-monitor/read-schema.sql --config workers/group-call-monitor/wrangler.jsonc
 wrangler deploy --config workers/group-call-monitor/wrangler.jsonc
 wrangler secret put OA_COOKIE --config workers/group-call-monitor/wrangler.jsonc
 wrangler secret put ADMIN_TOKEN --config workers/group-call-monitor/wrangler.jsonc
@@ -35,6 +36,25 @@ wrangler secret put ADMIN_TOKEN --config workers/group-call-monitor/wrangler.jso
 - [Durable Object alarms](https://developers.cloudflare.com/durable-objects/api/alarms/)の実行前に復旧用の次回alarmを保存する。通常時の遅延を抑える構成であり、LINE側の遅延やCloudflare障害時まで通知時間を保証するものではない。
 
 管理画面の非公開APIを利用するため、LINE側の変更や管理セッションの期限切れで停止する可能性がある。`GET /status` の `last_success_at` と `last_error`、CloudflareのWorkerログで稼働を確認する。401/403の場合は管理画面に再ログインして `OA_COOKIE` を更新する。送信だけ止める場合は `SEND_ENABLED` を `false` に変更して再配備する。
+
+## 既読確認
+
+`READ_RECEIPTS_ENABLED` と `SEND_ENABLED` が `true` の場合、対象グループで次のコマンドが使える。
+
+| コマンド | 動作 |
+| --- | --- |
+| 既読開始 | 自分の確認を開始・やり直す。開始投稿以降の既読イベントを記録する。 |
+| 既読確認 | 自分の開始位置から既読を確認できた、現在のグループメンバーの名前を表示する。 |
+| 既読終了 | 自分の確認を終了する。他の人の確認は継続する。 |
+
+- 確認は利用者ごとに独立し、開始から24時間で自動終了する。最初から全グループの個人別既読履歴を保存する方式ではなく、確認中のグループだけを記録する。
+- SSE の `chatRead` にある `source.userId` と `read.watermark` を使う。OA管理者側の `read` イベントや、発言した事実から既読を推測しない。
+- 履歴APIの既読イベントには読者IDが欠けるため、開始前やイベントを取り逃した期間の既読者を復元しない。未受信を「未読」とは表示しない。
+- 現在のメンバー一覧で名前を照合し、最大40人を表示する。以降は残人数を明示する。IDをグループへ表示しない。
+- 同じコマンドの再配信はグループ＋SSEイベントIDで重複排除。開始・終了の状態変更とコマンド取得をD1 batchで一体化する。送信結果不明時は自動再送しない。
+- 期限切れの確認と不要な既読記録を削除し、コマンド重複防止情報は7日保持する。既存のポイントやグループ設定は変更しない。
+
+実機の根拠と制限は [READ-RECEIPT-EVIDENCE.md](./READ-RECEIPT-EVIDENCE.md) を参照。
 
 ## 管理用エンドポイント
 

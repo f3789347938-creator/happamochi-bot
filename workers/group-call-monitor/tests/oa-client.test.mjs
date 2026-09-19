@@ -89,6 +89,21 @@ test('chats uses ALL, no pinned priority and encoded next cursor', async () => {
   assert.throws(() => client.chats({ limit: 50 }), isSafeError(0, 'chats'));
 });
 
+test('members fetches the group profile list with an opaque pagination cursor', async () => {
+  const value = { list: [{ userId: 'Umember', name: 'Test member' }], next: 'later' };
+  const client = makeClient(async (url, init) => {
+    const parsed = new URL(url);
+    assert.equal(parsed.pathname, '/api/v1/bots/Ubot_123/chats/Cgroup_1/members');
+    assert.deepEqual(Object.fromEntries(parsed.searchParams), { limit: '100', next: 'opaque+/=&x' });
+    assert.equal(init.method, 'GET');
+    assert.equal(init.redirect, 'manual');
+    return json(value);
+  });
+  assert.deepEqual(await client.members('Cgroup_1', { next: 'opaque+/=&x' }), value);
+  assert.throws(() => client.members('../other'), isSafeError(0, 'members'));
+  assert.throws(() => client.members('Cgroup_1', { limit: 101 }), isSafeError(0, 'members'));
+});
+
 test('streamToken obtains returned CSRF header and sends POST with no body', async () => {
   const calls = [];
   const token = { streamingApiToken: 'dummy-token', lastEventId: 'cursor', streamingApiVersion: 'v2' };
