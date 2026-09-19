@@ -29,7 +29,7 @@ test("observed group-call end retains exact string ID and derives start only fro
   // The separately observed start was 10 ms later. Matching it is not required.
   assert.notEqual(call.startedAt, 1_789_835_460_814);
   assert.equal(entry.source.userId, "not-retained");
-  assert.equal(formatCallMessage(call), "📞 グループ通話が終了しました\n通話時間：3秒");
+  assert.equal(formatCallMessage(call), "グループ通話が終了しました\n通話時間：3秒");
 });
 
 test("both observed durations are milliseconds, not seconds", () => {

@@ -44,5 +44,5 @@ export function formatDuration(ms) {
 }
 
 export function formatCallMessage(call) {
-  return `📞 グループ通話が終了しました\n通話時間：${formatDuration(call.durationMs)}`;
+  return `グループ通話が終了しました\n通話時間：${formatDuration(call.durationMs)}`;
 }

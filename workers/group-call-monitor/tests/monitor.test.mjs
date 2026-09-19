@@ -310,7 +310,7 @@ test('expanding the authorized scope excludes both queued and newly discovered p
   };
   const config = { scope: 'all', enabled: true };
   await reconcile(store, api, config, state.scope_activated_at, 'first');
-  assert.deepEqual(delivered, [{ id: addedChat, text: '📞 グループ通話が終了しました\n通話時間：3秒' }]);
+  assert.deepEqual(delivered, [{ id: addedChat, text: 'グループ通話が終了しました\n通話時間：3秒' }]);
   const status = await store.status();
   assert.equal(status.recent.find(row => row.message_id === 'old-pending').status, 'observed');
   assert.equal(status.recent.some(row => row.message_id === 'old-undiscovered'), false);
