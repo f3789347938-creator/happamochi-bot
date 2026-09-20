@@ -131,6 +131,8 @@ export async function verifySignature(secret: string, body: string, signature: s
 }
 
 // ─── Push-free broadcast queue ───
+// delivered: 0 = queued, 1 = sent, 2 = announcement claimed/outcome unknown,
+// 3 = an unsent announcement replaced by a newer delivery edition.
 // Enqueue a notification for a group. It will be delivered as part of the
 // Reply payload the next time someone in that group sends a message.
 export async function enqueueBroadcast(
@@ -189,4 +191,65 @@ export async function markBroadcastsDelivered(env: LineEnv, ids: number[]) {
   )
     .bind(...ids)
     .run()
+}
+
+// Only announcements claim the send before calling LINE. The claimed state
+// also means "outcome unknown" after a timeout/crash: do not retry it blindly.
+export async function replyWithBroadcasts(
+  env: LineEnv,
+  groupId: string,
+  replyToken: string,
+  direct: LineMessage[],
+  { announcementCommand = false }: { announcementCommand?: boolean } = {}
+) {
+  const messages = direct.slice(0, 5)
+  const absorbedByDirect = announcementCommand && messages.length > 0
+  const ids: number[] = []
+  const announcementIds: number[] = []
+  const { results } = await env.DB.prepare(
+    `SELECT id, kind, message_json FROM pending_broadcasts
+      WHERE group_id = ? AND delivered = 0
+      ORDER BY CASE WHEN kind = 'announcement' THEN 0 ELSE 1 END, id ASC LIMIT 20`
+  )
+    .bind(groupId)
+    .all<{ id: number; kind: string; message_json: string }>()
+
+  for (const row of results ?? []) {
+    const queued: LineMessage[] = JSON.parse(row.message_json)
+    if (!Array.isArray(queued) || queued.length === 0) continue
+    const announcement = row.kind === 'announcement'
+    const absorbed = announcement && absorbedByDirect
+    // Never claim or mark an item that did not fit in this exact Reply payload.
+    // Keep ordinary broadcasts whole and in their existing FIFO order.
+    if (!absorbed && messages.length + queued.length > 5) break
+    if (announcement) {
+      const claimed = await env.DB.prepare(
+        `UPDATE pending_broadcasts SET delivered = 2
+          WHERE id = ? AND group_id = ? AND kind = 'announcement' AND delivered = 0
+          RETURNING id`
+      )
+        .bind(row.id, groupId)
+        .first<{ id: number }>()
+      if (!claimed) continue
+      announcementIds.push(row.id)
+    }
+    if (!absorbed) messages.push(...queued)
+    ids.push(row.id)
+  }
+  if (messages.length === 0) return
+
+  // A thrown error may occur after LINE accepted the reply (including while
+  // writing its audit log). Leave announcement claims at 2 in that case.
+  const result = await replyMessage(env, replyToken, messages, groupId)
+  if (result.ok) {
+    await markBroadcastsDelivered(env, ids)
+  } else if (result.status >= 400 && result.status < 500 && announcementIds.length > 0) {
+    const placeholders = announcementIds.map(() => '?').join(',')
+    await env.DB.prepare(
+      `UPDATE pending_broadcasts SET delivered = 0
+        WHERE group_id = ? AND kind = 'announcement' AND delivered = 2 AND id IN (${placeholders})`
+    )
+      .bind(groupId, ...announcementIds)
+      .run()
+  }
 }

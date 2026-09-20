@@ -3,7 +3,8 @@
 // The text command returns the current announcements on demand.
 // Newly registered IDs are also queued once per group by
 // checkAndQueueAnnouncements below. Both paths use Reply API only.
-// Preserve existing IDs and announcement_sends when adding new notices.
+// Preserve existing IDs and history. A user-authorized delivery edition can
+// reannounce the current collection once without deleting other group data.
 //
 // To add a NEW announcement in the future: just append an entry to the
 // ANNOUNCEMENTS array below (new unique id, title, body, optional
@@ -12,7 +13,6 @@
 // text is too long for one card) are handled generically by this file.
 // targetGroupIds can still be used to limit which groups the command
 // responds in, e.g. while testing a new announcement.
-import { enqueueBroadcast } from '../lib/line'
 import type { LineMessage, LineEnv } from '../lib/line'
 
 // --- Content model -------------------------------------------------------
@@ -58,8 +58,29 @@ export interface AnnouncementContent {
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const BOT_TEST_GROUP_ID = 'C69deb597234d891abaf8b643b186476c' // "botテスト"
 
+// 2026/09/20: owner requested one fresh announcement delivery in every group.
+// Keep this stable when merely editing wording or adding the next notice.
+export const ANNOUNCEMENT_DELIVERY_EDITION = '20260920_read_v1'
+
 export const ANNOUNCEMENTS: AnnouncementContent[] = [
-  // 新しい項目のみ追加する。グループ情報・既存の送信履歴はリセットしない。
+  {
+    id: 'notice_2026_09_20_read_receipts',
+    title: '公式アカウント初！',
+    date: '2026/09/20',
+    body: [
+      '既読確認が出来るのはこのアカウントだけです。',
+      '・「既読セット」でスタート',
+      '・「既読確認」で名前をチェック',
+      '・最終確認時刻も日本時間で表示',
+      '・再セットで記録をリセット',
+      'ぜひグループで使ってみてね！',
+    ].join('\n'),
+    highlightWord: 'このアカウントだけ',
+    button: {
+      label: '既読確認を試してみる',
+      action: { type: 'message', label: '既読確認を試してみる', text: '既読セット' },
+    },
+  },
   {
     id: 'notice_2026_09_19_dressup_gacha',
     title: '着せ替えガチャ登場！',
@@ -368,14 +389,14 @@ export function getLatestAnnouncementMessages(groupId: string | null): LineMessa
 //      が呼ばれる。
 //   2. そのグループに対して「まだ送っていない id」があるか調べる。
 //      (announcement_sends テーブルで管理)
-//   3. あればブロードキャストキューに積み、送信済みとして記録する。
+//   3. あればキュー投入と配信予約履歴を1トランザクションで記録する。
 //   4. 実際の送信は、その発言への Reply に便乗して行われる(Push API不使用)。
 //
 // したがって:
 //   ・新しい id を追加 → 各グループで次の発言時に1回だけ届く
 //   ・そのあとは、次に新しい id を追加するまで自動送信されない
 //   ・既存の id の文面だけを直した場合は「送信済み」なので再送されない
-//     (再送したいなら id を新しくする)
+//   ・全件を一度だけ再案内するときは、明示的な依頼を受けて配信版を更新する
 export async function checkAndQueueAnnouncements(env: LineEnv, groupId: string) {
   // このグループが対象になるお知らせだけに絞る
   // (targetGroupIds が指定されているものは、そのグループ限定)
@@ -384,44 +405,37 @@ export async function checkAndQueueAnnouncements(env: LineEnv, groupId: string) 
   )
   if (visible.length === 0) return
 
-  // 既に送信済みの id を取得
+  const deliveryId = (a: AnnouncementContent) => `${ANNOUNCEMENT_DELIVERY_EDITION}:${a.id}`
+  const queuePrefix = `announcement_${ANNOUNCEMENT_DELIVERY_EDITION}_`
+  // 既存の履歴は保持し、今回の配信版について予約済みかを確認する。
   const placeholders = visible.map(() => '?').join(',')
   const { results } = await env.DB.prepare(
     `SELECT announcement_id FROM announcement_sends
       WHERE group_id = ? AND announcement_id IN (${placeholders})`
   )
-    .bind(groupId, ...visible.map((a) => a.id))
+    .bind(groupId, ...visible.map(deliveryId))
     .all<{ announcement_id: string }>()
 
   const alreadySent = new Set((results ?? []).map((r) => r.announcement_id))
-  const unsent = visible.filter((a) => !alreadySent.has(a.id))
-  if (unsent.length === 0) return
-
-  // 未送信ぶんをまとめて1通のFlex(複数ならCarousel)にする。
-  // LINEの1リプライ5メッセージ制限があるため、Flex 1通に束ねるのが安全。
-  const message = buildAnnouncementsMessage(unsent)
-
-  await enqueueBroadcast(
-    env,
-    groupId,
-    'announcement',
-    [message],
-    // dedup_key: 同じ組み合わせを二重にキューしない
-    `announcement_${groupId}_${unsent.map((a) => a.id).join('+')}`
-  )
-
-  // 送信済みとして記録する。
-  //
-  // 注意: ここでキュー投入直後に記録している。キューは delivered=0 のまま
-  // 残り、Reply成功まで再試行されるので「キューに入った=最終的に届く」と
-  // みなして良い。逆にReply成功を待って記録しようとすると、キューの
-  // 送信経路(lib/line.ts)にお知らせ専用の後処理を差し込む必要があり、
-  // 既存のブロードキャスト処理に手を入れることになるため採らない。
-  for (const a of unsent) {
-    await env.DB.prepare(
-      `INSERT OR IGNORE INTO announcement_sends (group_id, announcement_id) VALUES (?, ?)`
-    )
-      .bind(groupId, a.id)
-      .run()
+  const unsent = visible.filter((a) => !alreadySent.has(deliveryId(a)))
+  const statements = [env.DB.prepare(
+    // 旧版の未送信お知らせは新版に置き換える。配信中や他種の通知には触れない。
+    // delivered=3 は置換済み。過去の送信履歴と行そのものは残す。
+    `UPDATE pending_broadcasts SET delivered=3
+      WHERE group_id=? AND kind='announcement' AND delivered=0
+      AND (dedup_key IS NULL OR substr(dedup_key,1,?)<>?)`
+  ).bind(groupId, queuePrefix.length, queuePrefix)]
+  if (unsent.length > 0) {
+    // 全未送信項目を1通にまとめ、同時受信でも同一キーを一度だけ予約する。
+    statements.push(env.DB.prepare(
+      `INSERT OR IGNORE INTO pending_broadcasts (group_id,kind,message_json,dedup_key) VALUES (?,?,?,?)`
+    ).bind(groupId, 'announcement', JSON.stringify([buildAnnouncementsMessage(unsent)]),
+      `${queuePrefix}${groupId}_${unsent.map(a => a.id).join('+')}`))
+    for (const a of unsent) {
+      statements.push(env.DB.prepare(
+        `INSERT OR IGNORE INTO announcement_sends (group_id,announcement_id) VALUES (?,?)`
+      ).bind(groupId, deliveryId(a)))
+    }
   }
+  await env.DB.batch(statements)
 }

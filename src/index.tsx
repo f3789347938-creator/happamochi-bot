@@ -6,7 +6,7 @@ import {
   getGroupSummary,
   verifySignature,
   peekBroadcasts,
-  markBroadcastsDelivered,
+  replyWithBroadcasts,
   type LineEnv,
   type LineMessage,
 } from './lib/line'
@@ -1548,7 +1548,7 @@ async function handleMessageEvent(env: Bindings, event: any, baseUrl: string) {
   })
 
   if (isGroup) {
-    await flushQueueOnReply(env, groupId, replyToken, directReplies)
+    await flushQueueOnReply(env, groupId, replyToken, directReplies, { announcementCommand: text === 'お知らせ' })
   } else if (directReplies.length > 0) {
     await replyMessage(env, replyToken, directReplies, userId)
   }
@@ -1708,22 +1708,16 @@ async function handlePostback(env: Bindings, event: any, baseUrl: string) {
 // sitting in the push-free broadcast queue for this group, then send it all
 // in ONE free Reply call (LINE allows up to 5 messages per reply).
 //
-// IMPORTANT: queued broadcasts are only marked delivered AFTER we confirm
-// the reply call actually succeeded. If the reply fails (expired/invalid
-// replyToken, network error, etc.) the broadcast rows stay pending and will
-// be retried on the next incoming message — nothing is silently lost.
-async function flushQueueOnReply(env: Bindings, groupId: string, replyToken: string, direct: LineMessage[]) {
-  const { messages: queued, ids: queuedIds } = await peekBroadcasts(env, groupId)
-  const combined = [...direct, ...queued].slice(0, 5)
-  if (combined.length === 0) return
-
-  const result = await replyMessage(env, replyToken, combined, groupId)
-  if (result.ok) {
-    await markBroadcastsDelivered(env, queuedIds)
-  }
-  // If it failed, direct replies are lost (nothing we can do — the
-  // replyToken is already spent/invalid either way), but queued broadcasts
-  // remain pending and will be included in the next reply attempt.
+// Announcements are claimed atomically before sending; an unknown send outcome
+// remains claimed to prevent another webhook from sending the same notice.
+async function flushQueueOnReply(
+  env: Bindings,
+  groupId: string,
+  replyToken: string,
+  direct: LineMessage[],
+  options: { announcementCommand?: boolean } = {}
+) {
+  await replyWithBroadcasts(env, groupId, replyToken, direct, options)
 }
 
 interface CommandCtx {
