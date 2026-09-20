@@ -95,9 +95,12 @@ const textMessage = (text: string): LineMessage => ({ type: 'text', text })
 const label = (text: string, options: Record<string, unknown> = {}) => ({
   type: 'text', text, size: 'sm', color: '#17364C', wrap: true, ...options,
 })
-const button = (label: string, data: string, primary = false) => ({
+const messageAction = (text: string) => ({ type: 'message' as const, text })
+type ActionTarget = string | ReturnType<typeof messageAction>
+const button = (label: string, data: ActionTarget, primary = false) => ({
   type: 'button', height: 'sm', style: primary ? 'primary' : 'secondary',
-  ...(primary ? { color: '#009FDE' } : {}), action: { type: 'postback', label, data },
+  ...(primary ? { color: '#009FDE' } : {}),
+  action: typeof data === 'string' ? { type: 'postback', label, data } : { ...data, label },
 })
 function iconImage(baseUrl: string, icon: RankingIcon, pictureUrl?: string | null) {
   return { type: 'image', url: rankingIconUrl(baseUrl, icon, pictureUrl), size: 'lg', aspectRatio: '1:1', aspectMode: icon.costumeId ? 'fit' : 'cover', align: 'center' }
@@ -118,11 +121,12 @@ function settingsCard(baseUrl: string, icon: RankingIcon, pictureUrl: string | n
     type: 'text', text: value, size, color: '#17364C',
     wrap: false, maxLines: 1, adjustMode: 'shrink-to-fit', ...options,
   })
-  const action = (label: string, data: string, primary = false, margin = '4px') => ({
+  const action = (label: string, data: ActionTarget, primary = false, margin = '4px') => ({
     type: 'box', layout: 'vertical', height: '32px', flex: 0, margin,
     cornerRadius: '7px', borderWidth: '1px', borderColor: blue,
     backgroundColor: primary ? blue : '#FFFFFF', justifyContent: 'center',
-    paddingStart: '6px', paddingEnd: '6px', action: { type: 'postback', data },
+    paddingStart: '6px', paddingEnd: '6px',
+    action: typeof data === 'string' ? { type: 'postback', data } : data,
     contents: [text(label, '13px', { align: 'center', color: primary ? '#FFFFFF' : '#17364C', weight: primary ? 'bold' : 'regular' })],
   })
   const currentName = icon.costumeId ? getCosmetic(icon.costumeId)!.name : 'LINEプロフィール画像'
@@ -162,7 +166,7 @@ function settingsCard(baseUrl: string, icon: RankingIcon, pictureUrl: string | n
           },
           action(`所持アイコンを選ぶ (${count}/120)`, 'pf|rankicon|list|1', true, '8px'),
           action('LINEプロフィール画像に戻す', 'pf|rankicon|line'),
-          action('ガチャでアイコンを増やす', 'pf|dress|gacha'),
+          action('ガチャでアイコンを増やす', messageAction('ガチャ')),
         ],
       },
       footer: {
@@ -196,7 +200,7 @@ async function iconList(env: LineEnv, ctx: ProfileCtx, requestedPage: number): P
   const navigation: Record<string, unknown>[] = [label(`${page} / ${pages} ページ`, { weight: 'bold', align: 'center' })]
   if (page > 1) navigation.push(button('前のページ', `pf|rankicon|list|${page - 1}`))
   if (page < pages) navigation.push(button('次のページ', `pf|rankicon|list|${page + 1}`, true))
-  navigation.push(button('ガチャで増やす', 'pf|dress|gacha'), button('アイコン設定に戻る', 'pf|rankicon|home'))
+  navigation.push(button('ガチャで増やす', messageAction('ガチャ')), button('アイコン設定に戻る', 'pf|rankicon|home'))
   contents.push(bubble('アイコン一覧・ページ操作', navigation))
   return { type: 'flex', altText: `所持ランキングアイコン（${page}/${pages}ページ）`, contents: { type: 'carousel', contents } }
 }

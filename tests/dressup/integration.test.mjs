@@ -110,7 +110,7 @@ function nodes(value) {
   return [value, ...Object.values(value).flatMap(nodes)]
 }
 const texts = (value) => nodes(value).filter((node) => node.type === 'text').map((node) => node.text).join('\n')
-const actions = (value) => nodes(value).filter((node) => node.type === 'postback' || node.type === 'uri')
+const actions = (value) => nodes(value).filter((node) => node.type === 'postback' || node.type === 'uri' || node.type === 'message')
 const images = (value) => nodes(value).filter((node) => node.type === 'image')
 const textNodes = (value) => nodes(value).filter((node) => node.type === 'text')
 const px = (value) => {
@@ -176,6 +176,7 @@ function validateMessages(messages) {
     for (const action of actions(message)) {
       if (action.type === 'postback') assert.ok(action.data.length <= 300)
       if (action.type === 'uri') assert.match(action.uri, /^https:\/\//)
+      if (action.type === 'message') assert.ok(action.text && action.text.length <= 300)
     }
   }
   const output = JSON.stringify(messages)
@@ -204,7 +205,7 @@ test('default status uses the reference LINE-photo card while wardrobe and theme
   const wardrobe = await f.text('着せ替え')
   assert.match(texts(wardrobe), /衣装 0\/120[\s\S]*背景 0\/30/)
   assert.ok(actions(wardrobe).some((action) => action.data === 'pf|themes'))
-  assert.ok(actions(wardrobe).some((action) => action.data === 'pf|dress|gacha'))
+  assert.ok(actions(wardrobe).some((action) => action.type === 'message' && action.text === 'ガチャ'))
   assert.match(texts(await f.text('カードテーマ')), /水色/)
   assert.match(texts(await f.postback('pf|themes')), /水色/)
   assert.equal(f.snapshot(), before)
@@ -353,6 +354,44 @@ test('zero EXP, no title or rank and missing LINE photo produce a valid default 
   assert.equal(f.snapshot(), before)
 })
 
+test('old gacha postbacks stay silent and never create a confirmation, even after a real command', async (t) => {
+  const f = fixture(t)
+  const before = f.snapshot()
+  const confirmations = () => f.sqlite.prepare('SELECT * FROM dressup_confirmations ORDER BY token').all()
+  for (const command of ['ガチャ', '着せ替えガチャ', 'きせかえガチャ']) {
+    const tokensBefore = confirmations()
+    for (const user of [A, B, A]) {
+      assert.deepEqual(await f.postback('pf|dress|gacha', user), [])
+      assert.deepEqual(await f.postback('pf|dress|gacha|legacy', user), [])
+    }
+    assert.deepEqual(confirmations(), tokensBefore, 'silent taps neither create nor change confirmation tokens')
+    assert.equal(f.snapshot(), before, 'silent taps do not change points, equipment or inventory')
+    const confirmation = await f.text(command)
+    assert.match(actionFor(confirmation, 'Yes'), /^pf\|dress\|draw\|/)
+    assert.equal(confirmations().length, tokensBefore.length + 1, 'a visible text command opens its own confirmation')
+  }
+  assert.equal(f.snapshot(), before, 'opening confirmation never charges points')
+})
+
+test('every gacha entry button sends the visible command before opening confirmation', async (t) => {
+  const f = fixture(t)
+  const before = f.snapshot()
+  const entries = [
+    ['wardrobe', await f.text('着せ替え')],
+    ['costume list', await f.text('衣装一覧')],
+    ['background list', await f.text('背景一覧')],
+    ['unowned preview', await f.postback('pf|dress|preview|C001')],
+    ['ranking icon settings', await f.text('ランキングアイコン')],
+    ['ranking icon list', await f.postback('pf|rankicon|list|1')],
+  ]
+  for (const [name, messages] of entries) {
+    assert.ok(actions(messages).some((action) => action.type === 'message' && action.text === 'ガチャ'), `${name} sends ガチャ`)
+    assert.ok(!actions(messages).some((action) => action.data?.startsWith('pf|dress|gacha')), `${name} has no silent gacha action`)
+  }
+  assert.equal(f.sqlite.prepare('SELECT COUNT(*) AS count FROM dressup_confirmations').get().count, 0)
+  assert.equal(f.snapshot(), before)
+})
+
 test('confirmation matches 3,000-point Yes/No UI; cancel invalidates previously copied Yes', async (t) => {
   const f = fixture(t)
   const before = f.snapshot()
@@ -376,6 +415,10 @@ test('actual Yes grants once, charges exactly 3,000, and changes appearance only
   const confirmation = await f.text('きせかえガチャ')
   const yes = actionFor(confirmation, 'Yes')
   const result = await f.postback(yes)
+  assert.deepEqual(actions(result).find((action) => action.label === 'もう一度（確認へ）'), {
+    type: 'message', text: 'ガチャ', label: 'もう一度（確認へ）',
+  })
+  assert.ok(!actions(result).some((action) => action.data?.startsWith('pf|dress|gacha')))
   assert.equal(f.balance(), 12225)
   assert.match(texts(result), /消費 3,000 P ／ 残高 12,225 P/)
   assert.deepEqual(await app.getAppearance(f.env, A), { costumeId: 'C000', backgroundId: 'BG000' })

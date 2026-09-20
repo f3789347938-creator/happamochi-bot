@@ -125,7 +125,8 @@ export async function handleDressupPostback(
   const parts = data.split('|')
   const op = parts[2]
   if (op === 'home') return [await wardrobe(env, ctx)]
-  if (op === 'gacha') return [await confirmation(env, ctx)]
+  // Old cards must not open confirmations silently. New buttons send the ガチャ message.
+  if (op === 'gacha') return []
   if (op === 'list') {
     const kind: WardrobeKind = parts[3] === 'background' ? 'background' : 'costume'
     const filter: WardrobeFilter = parts[4] === 'owned' ? 'owned' : 'all'

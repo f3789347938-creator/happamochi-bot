@@ -21,11 +21,14 @@ function text(value: string, options: Record<string, any> = {}): Record<string, 
   return { type: 'text', text: value, size: 'sm', color: INK, wrap: true, ...options }
 }
 
-function action(label: string, data: string, primary = false): Record<string, any> {
+const messageAction = (text: string) => ({ type: 'message' as const, text })
+type ActionTarget = string | ReturnType<typeof messageAction>
+
+function action(label: string, data: ActionTarget, primary = false): Record<string, any> {
   return {
     type: 'button', height: 'sm', style: primary ? 'primary' : 'secondary',
     ...(primary ? { color: BLUE } : {}),
-    action: { type: 'postback', label, data },
+    action: typeof data === 'string' ? { type: 'postback', label, data } : { ...data, label },
   }
 }
 
@@ -79,11 +82,11 @@ export function buildWardrobeCard(input: {
   const line = (value: string, options: Record<string, any> = {}) => text(value, {
     size: '13px', wrap: false, maxLines: 1, adjustMode: 'shrink-to-fit', ...options,
   })
-  const compactAction = (label: string, data: string, primary = false) => ({
+  const compactAction = (label: string, data: ActionTarget, primary = false) => ({
     type: 'box', layout: 'vertical', height: '32px', flex: 1,
     justifyContent: 'center', cornerRadius: '6px', paddingStart: '4px', paddingEnd: '4px',
     backgroundColor: primary ? BLUE : '#FFFFFF', borderColor: '#A8DFF2', borderWidth: '1px',
-    action: { type: 'postback', data },
+    action: typeof data === 'string' ? { type: 'postback', data } : data,
     contents: [line(label, { align: 'center', color: primary ? '#FFFFFF' : INK, weight: primary ? 'bold' : 'regular' })],
   })
   const controls = (contents: Record<string, any>[]) => ({
@@ -121,7 +124,7 @@ export function buildWardrobeCard(input: {
           compactAction(`衣装 ${ownedCount(input.ownedIds, 'costume')}/120`, 'pf|dress|list|costume|owned|1'),
           compactAction(`背景 ${ownedCount(input.ownedIds, 'background')}/30`, 'pf|dress|list|background|owned|1'),
         ]),
-        controls([compactAction(`きせかえガチャ ${number(GACHA_COST)} P`, 'pf|dress|gacha', true)]),
+        controls([compactAction(`きせかえガチャ ${number(GACHA_COST)} P`, messageAction('ガチャ'), true)]),
         {
           type: 'box', layout: 'vertical', height: '14px', flex: 0, margin: '4px', justifyContent: 'center',
           contents: [line('未所持から1点・重複なし', { size: '11px', color: MUTED, align: 'center' })],
@@ -181,7 +184,7 @@ export function buildGachaResult(input: {
     ]),
     action('さっそく着せ替える', `pf|dress|equip|${input.item.id}`, true),
     ...(input.item.kind === 'costume' ? [action('ランキングアイコンにする', `pf|rankicon|set|${input.item.id}`)] : []),
-    row([action('もう一度（確認へ）', 'pf|dress|gacha'), action('着せ替えに戻る', 'pf|dress|home')]),
+    row([action('もう一度（確認へ）', messageAction('ガチャ')), action('着せ替えに戻る', 'pf|dress|home')]),
   ]))
 }
 
@@ -199,7 +202,7 @@ export function buildCosmeticPreview(input: {
       text('プレビューです。装備・ポイントは変更していません。', { size: 'xs', color: MUTED, align: 'center' }),
       text(input.owned ? '「これを装備する」でステータスに反映されます。ランキングアイコンは設定で変更できます。' : '未所持のアイテムです。ガチャで入手すると装備できます。', { size: 'xs', color: MUTED }),
     ]),
-    input.owned ? action('これを装備する', `pf|dress|equip|${input.item.id}`, true) : action('ガチャの確認へ', 'pf|dress|gacha', true),
+    input.owned ? action('これを装備する', `pf|dress|equip|${input.item.id}`, true) : action('ガチャの確認へ', messageAction('ガチャ'), true),
     row([
       action('一覧に戻る', `pf|dress|list|${input.item.kind}|all|1`),
       action('着せ替えに戻る', 'pf|dress|home'),
@@ -244,7 +247,7 @@ export function buildWardrobeList(input: {
       action('所持のみ', `pf|dress|list|${input.kind}|owned|1`, input.filter === 'owned'),
     ]),
     text('初期衣装・背景の各1点は無料です。未所持アイテムは試着しても装備されません。', { size: 'xxs', color: MUTED }),
-    action('きせかえガチャ', 'pf|dress|gacha', true),
+    action('きせかえガチャ', messageAction('ガチャ'), true),
     action('着せ替えに戻る', 'pf|dress|home'),
   )
   bubbles.push(bubble(`${title} · ページ操作`, nav))
