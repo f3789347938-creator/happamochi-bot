@@ -35,8 +35,8 @@ function dayRow(label: string, days: number): Record<string, any> {
 
 /**
  * Native, single-bubble version of the reference login card (kilo width).
- * Padding retains its lower white space without a fixed height: larger LINE
- * fonts and longer counts can grow naturally instead of clipping the reward.
+ * Content-sized with compact padding: larger LINE fonts and longer counts
+ * can grow naturally instead of clipping the reward.
  */
 export function buildLoginBonusCard(input: LoginBonusCardInput): LineMessage {
   const { claimed, day, totalDays, streakDays, rewardDays, rewardPoints, balance } = input
@@ -60,7 +60,7 @@ export function buildLoginBonusCard(input: LoginBonusCardInput): LineMessage {
           {
             type: 'box', layout: 'vertical', backgroundColor: '#FFFFFF',
             borderColor: BORDER, borderWidth: '1px', cornerRadius: '6px',
-            paddingTop: '10px', paddingBottom: '60px', paddingStart: '8px', paddingEnd: '8px',
+            paddingTop: '10px', paddingBottom: '10px', paddingStart: '8px', paddingEnd: '8px',
             contents: [
               text(claimed ? '今日も来てくれてありがとう！' : receivedLabel, '14px', { weight: 'bold', align: 'center' }),
               { type: 'separator', color: BORDER, margin: '6px' },
