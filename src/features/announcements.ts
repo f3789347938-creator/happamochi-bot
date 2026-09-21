@@ -14,6 +14,7 @@
 // targetGroupIds can still be used to limit which groups the command
 // responds in, e.g. while testing a new announcement.
 import type { LineMessage, LineEnv } from '../lib/line'
+import { gameOpenUrl, survivorOpenUrl } from './menu/gameLink'
 
 // --- Content model -------------------------------------------------------
 
@@ -63,6 +64,42 @@ const BOT_TEST_GROUP_ID = 'C69deb597234d891abaf8b643b186476c' // "botテスト"
 export const ANNOUNCEMENT_DELIVERY_EDITION = '20260920_read_v1'
 
 export const ANNOUNCEMENTS: AnnouncementContent[] = [
+  {
+    id: 'notice_2026_09_21_games_reopened',
+    title: 'ゲームが遊べるように！',
+    date: '2026/09/21',
+    body: [
+      '開けなかった不具合を修正！',
+      '「パズル」「サバイバル」は',
+      '誰でも遊べるようになりました。',
+      '遊んでガチャ用ポイントもGET！',
+      '今まで開けなかった人も、',
+      'ぜひ遊んでみてね！',
+    ].join('\n'),
+    highlightWord: 'ガチャ用ポイント',
+    button: {
+      label: 'パズルで遊ぶ',
+      action: { type: 'uri', label: 'パズルで遊ぶ', uri: gameOpenUrl('https://line-group-bbs.pages.dev') },
+    },
+  },
+  {
+    id: 'notice_2026_09_21_game_gacha_rewards',
+    title: '遊んでガチャに挑戦！',
+    date: '2026/09/21',
+    body: [
+      '30秒以上遊ぶと100点ごとに1P',
+      '1回最大100P／1日合計1,000P',
+      '「ガチャ」で衣装・背景を',
+      '合計100種類以上集めると',
+      'PayPay 1万円分プレゼント！',
+      '期限：2027/9/19まで',
+    ].join('\n'),
+    highlightWord: 'PayPay 1万円分',
+    button: {
+      label: 'サバイバルで遊ぶ',
+      action: { type: 'uri', label: 'サバイバルで遊ぶ', uri: survivorOpenUrl('https://line-group-bbs.pages.dev') },
+    },
+  },
   {
     id: 'notice_2026_09_20_read_receipts',
     title: '公式アカウント初！',

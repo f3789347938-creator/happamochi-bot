@@ -4,7 +4,9 @@ import { LINE_CONFIG } from './line-config.js';
 import { snapshotResult, resultText, lineShareUrl, drawResultCard, canShareImage, shareResultImage } from './share.mjs';
 // ランキング送信。ranking.mjs は前から置いてあったが、ゲーム本体を新版に
 // 差し替えたときに呼び出しが消えてしまい、スコアが1件も保存されていなかった。
-import { canSubmit, submitScore } from './ranking.mjs';
+import { startScoreRun, submitScore } from './ranking.mjs?v=20260921-rewards';
+import { PuzzleRewardSession } from './reward-session.mjs?v=20260921-rewards';
+import { gameRewardText } from '../game-rewards.mjs?v=20260921-rewards';
 
 const $ = selector => document.querySelector(selector);
 const canvas = $('#game-canvas');
@@ -36,6 +38,8 @@ let resultImageFile = null;
 let resultImageUrl = null;
 let resultImageGeneration = 0;
 let imageShareBusy = false;
+let lineReady = Promise.resolve();
+let gameRun = null;
 const skillButtons = [...document.querySelectorAll('[data-skill]')];
 
 function savePreferences() {
@@ -54,26 +58,33 @@ function clearResultSharing() {
   $('#share-status').textContent = '';
 }
 
-// 結果をランキングへ送る。
-// LINEの中で開いていない(＝ログインできない)ときは、何も言わずに送らない。
-// 通信に失敗してもゲームは続けられるよう、例外は全部ここで飲み込む。
+function beginRewardRun() {
+  // Keep start/save requests in play order even when replay is pressed quickly.
+  gameRun = new PuzzleRewardSession({ ready: lineReady, previous: gameRun, start: startScoreRun, submit: submitScore });
+  $('#rank-status').textContent = '';
+  $('#game-points-status').textContent = '';
+  $('#rank-retry-button').hidden = true;
+}
+
 async function sendScoreToRanking() {
-  const el = $('#rank-status');
-  if (el) el.textContent = '';
+  const session = gameRun;
+  if (!session) return;
+  // Capture before awaiting LINE/network; a replay must not replace these numbers.
+  const score = { score: game.score, merges: game.merges, stage: game.highest };
+  $('#rank-status').textContent = '記録を保存しています…';
+  $('#game-points-status').textContent = 'ガチャ用ポイントを確認しています…';
+  $('#rank-retry-button').hidden = true;
   try {
-    if (!canSubmit()) return;               // 普通のブラウザで遊んでいる場合
-    if (!(game.score > 0)) return;          // 0点は登録しない
-    if (el) el.textContent = 'ランキングに登録中…';
-    const r = await submitScore({
-      score: game.score,
-      merges: game.merges,
-      stage: game.highest,
-    });
-    // ranking.mjs は { ok, message } を返す。その文言をそのまま出す。
-    if (!el) return;
-    el.textContent = r && r.ok ? (r.message || 'ランキングに登録しました') : '';
+    const saved = await session.save(score);
+    if (session !== gameRun || !game.gameOver) return;
+    $('#rank-status').textContent = saved.message || '';
+    $('#game-points-status').textContent = saved.reward ? gameRewardText(saved.reward) : 'ガチャ用ポイントの付与結果はまだ確認できていません。';
+    $('#rank-retry-button').hidden = !saved.retryable;
   } catch {
-    if (el) el.textContent = '';            // 失敗しても黙って続行
+    if (session !== gameRun || !game.gameOver) return;
+    $('#rank-status').textContent = '通信できませんでした。記録を再送できます。';
+    $('#game-points-status').textContent = 'ガチャ用ポイントの付与結果はまだ確認できていません。';
+    $('#rank-retry-button').hidden = false;
   }
 }
 
@@ -424,6 +435,7 @@ function closeDialog(id) { document.getElementById(id).close(); }
 
 function resetGame() {
   clearResultSharing();
+  beginRewardRun();
   releasePointer(); game.reset(); bestAtStart = best; fx.reset(); aimX = 210; snackTarget = null;
   accumulator = 0; lastFrame = performance.now(); lastAnnouncement = 0;
   for (const dialog of document.querySelectorAll('dialog[open]')) dialog.close();
@@ -519,6 +531,7 @@ $('#resume-button').addEventListener('click', () => closeDialog('pause-dialog'))
 $('#restart-button').addEventListener('click', () => { openDialog('reset-dialog'); closeDialog('pause-dialog'); });
 $('#cancel-restart').addEventListener('click', () => closeDialog('reset-dialog'));
 $('#confirm-restart').addEventListener('click', resetGame);
+$('#rank-retry-button').addEventListener('click', () => { void sendScoreToRanking(); });
 $('#play-again-button').addEventListener('click', resetGame);
 $('#line-share-button').addEventListener('click', event => {
   if (!sharedResult) { event.preventDefault(); return; }
@@ -559,9 +572,18 @@ async function initializeLine() {
   try {
     await new Promise((resolve, reject) => {
       const script = document.createElement('script'); script.src = 'https://static.line-scdn.net/liff/edge/2/sdk.js';
-      script.onload = resolve; script.onerror = reject; document.head.appendChild(script);
+      const timer = setTimeout(() => reject(new Error('LINE SDK timeout')), 8000);
+      script.onload = () => { clearTimeout(timer); resolve(); };
+      script.onerror = () => { clearTimeout(timer); reject(new Error('LINE SDK unavailable')); };
+      document.head.appendChild(script);
     });
-    await window.liff.init({ liffId: LINE_CONFIG.liffId });
+    let initTimer;
+    try {
+      await Promise.race([
+        window.liff.init({ liffId: LINE_CONFIG.liffId }),
+        new Promise((_, reject) => { initTimer = setTimeout(() => reject(new Error('LINE init timeout')), 8000); }),
+      ]);
+    } finally { clearTimeout(initTimer); }
   } catch { /* Standalone play remains available if LINE is unreachable. */ }
 }
 
@@ -597,6 +619,7 @@ function startGameFromScreen() {
   screen.hidden = true;
   $('#pause-button').disabled = false;
   $('#restart-button').disabled = false;
+  beginRewardRun();
   // ここで初めて操作を受け付ける。
   ready = true;
   syncHUD();
@@ -628,7 +651,8 @@ async function initialize() {
     // ready は押されるまで false のままなので、入力・物理・落下は動かない
     // (既存の各ハンドラが !ready で必ず抜ける作りをそのまま利用している)。
     showStartScreen();
-    syncHUD(); render(); requestAnimationFrame(frame); void initializeLine();
+    lineReady = initializeLine();
+    syncHUD(); render(); requestAnimationFrame(frame);
   } catch (error) {
     $('#loading').hidden = true; $('#load-error').hidden = false; $('#play-area').setAttribute('aria-busy', 'false');
     $('#pause-button').disabled = true; console.error('The mochi game could not initialize.', error);

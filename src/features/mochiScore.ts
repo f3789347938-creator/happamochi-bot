@@ -23,6 +23,10 @@
 // 同じ値。公開して良い値(OAuthのclient_idとしてURLに載る)。
 // チャネルシークレットはこの検証に不要なので、コードには持たせない。
 import type { LineEnv } from '../lib/line'
+import {
+  finishGameRewardRun, gameRewardWithoutRun, startGameRewardRun,
+  GameRewardError, type GameRewardResult,
+} from './gameRewards'
 
 export const LOGIN_CHANNEL_ID = '2011492233'
 
@@ -116,6 +120,11 @@ export interface ScoreRow {
   plays: number
 }
 
+/** Only a server-timed session started before play is eligible for points. */
+export function startPuzzleRun(env: LineEnv, user: VerifiedUser, id: unknown, now = Date.now()): Promise<{ id: string }> {
+  return startGameRewardRun(env, user, 'puzzle', id, now)
+}
+
 /**
  * 自己ベストだけを更新する。
  * 低いスコアを送っても best_score は下がらない(plays だけ増える)。
@@ -125,8 +134,16 @@ export async function submitScore(
   user: VerifiedUser,
   score: number,
   merges: number,
-  stage: number
-): Promise<{ best: number; updated: boolean; rank: number | null }> {
+  stage: number,
+  runId?: unknown,
+  now = Date.now()
+): Promise<{ best: number; updated: boolean; rank: number | null; reward: GameRewardResult }> {
+  if (!isPlausibleScore(score, merges, stage)) throw new GameRewardError(400, 'ゲームのスコアが正しくありません。')
+  // Settle first: a ranking write failure remains retryable with the same
+  // immutable point receipt, and a reward failure never saves an unfrozen score.
+  const reward = runId === undefined || runId === null
+    ? await gameRewardWithoutRun(env, user, now)
+    : await finishGameRewardRun(env, user, 'puzzle', runId, score, now)
   await env.DB.prepare(
     `INSERT INTO mochi_scores (user_id, display_name, picture_url, best_score, best_merges, best_stage, plays)
      VALUES (?, ?, ?, ?, ?, ?, 1)
@@ -155,7 +172,7 @@ export async function submitScore(
     .bind(best)
     .first<{ c: number }>()
 
-  return { best, updated: best === score && score > 0, rank: (above?.c ?? 0) + 1 }
+  return { best, updated: best === score && score > 0, rank: (above?.c ?? 0) + 1, reward }
 }
 
 /** 上位を取る */

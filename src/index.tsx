@@ -24,9 +24,11 @@ import {
   verifyLiffToken,
   isPlausibleScore,
   submitScore,
+  startPuzzleRun,
   getRanking as getMochiRanking,
   getMyScore as getMyMochiScore,
 } from './features/mochiScore'
+import { GameRewardError } from './features/gameRewards'
 import { buildRankingCarousel } from './features/rankingCards'
 import { renderAppearanceResponse } from './features/dressup/art-renderer'
 import { renderMochiRankingPage } from './features/mochiRankingPage'
@@ -230,10 +232,35 @@ app.get('/ranking/survivor', async (c) => {
 // なりすまし対策: 「誰のスコアか」はクライアントに決めさせない。
 // リクエストからは userId を一切読まず、アクセストークンをLINEに検証させて
 // 得られた userId でだけ書き込む。詳細は features/mochiScore.ts の冒頭。
-app.post('/api/mochi/score', async (c) => {
-  let body: { accessToken?: string; score?: unknown; merges?: unknown; stage?: unknown }
+app.post('/api/mochi/runs/start', async (c) => {
+  let body: { accessToken?: unknown; id?: unknown }
   try {
     body = await c.req.json()
+    if (!body || typeof body !== 'object') return c.json({ error: 'bad json' }, 400)
+  } catch {
+    return c.json({ error: 'bad json' }, 400)
+  }
+  if (typeof body.accessToken !== 'string' || !body.accessToken) {
+    return c.json({ error: 'login required' }, 401)
+  }
+  if (typeof body.id !== 'string' || !/^[a-zA-Z0-9-]{8,80}$/.test(body.id)) {
+    return c.json({ error: 'invalid run' }, 400)
+  }
+  const user = await verifyLiffToken(body.accessToken)
+  if (!user) return c.json({ error: 'invalid token' }, 401)
+  try {
+    return c.json(await startPuzzleRun(c.env, user, body.id))
+  } catch (e) {
+    if (e instanceof GameRewardError) return c.json({ error: e.message }, e.status)
+    return c.json({ error: 'ポイント記録を開始できませんでした。もう一度お試しください。' }, 500)
+  }
+})
+
+app.post('/api/mochi/score', async (c) => {
+  let body: { accessToken?: string; score?: unknown; merges?: unknown; stage?: unknown; runId?: unknown }
+  try {
+    body = await c.req.json()
+    if (!body || typeof body !== 'object') return c.json({ error: 'bad json' }, 400)
   } catch {
     return c.json({ error: 'bad json' }, 400)
   }
@@ -255,10 +282,12 @@ app.post('/api/mochi/score', async (c) => {
       user,
       body.score as number,
       body.merges as number,
-      body.stage as number
+      body.stage as number,
+      body.runId
     )
-    return c.json({ ok: true, best: r.best, updated: r.updated, rank: r.rank })
+    return c.json({ ok: true, best: r.best, updated: r.updated, rank: r.rank, reward: r.reward })
   } catch (e: any) {
+    if (e instanceof GameRewardError) return c.json({ error: e.message }, e.status)
     return c.json({ error: String(e?.message ?? e) }, 500)
   }
 })
@@ -331,6 +360,7 @@ async function survivorAuth(c: any) {
   let body: Record<string, any>
   try {
     body = await c.req.json()
+    if (!body || typeof body !== 'object') return { error: c.json({ error: 'bad json' }, 400) }
   } catch {
     return { error: c.json({ error: 'bad json' }, 400) }
   }
@@ -370,6 +400,7 @@ function survivorProfileOf(p: any) {
 // エラーの出し方を1か所にまとめる。SurvivorError は想定内の拒否なので
 // そのstatusとメッセージを返し、それ以外は500にして中身を漏らさない。
 function survivorFail(c: any, e: any) {
+  if (e instanceof GameRewardError) return c.json({ error: e.message }, e.status)
   if (e instanceof SurvivorError) return c.json({ error: e.message }, e.status as any)
   console.error('survivor error', e?.message ?? e)
   return c.json({ error: '記録を保存できませんでした。もう一度試してください。' }, 500)

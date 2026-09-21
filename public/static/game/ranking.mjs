@@ -14,6 +14,7 @@
 const API_SUBMIT = '/api/mochi/score';
 const API_RANKING = '/api/mochi/ranking';
 const API_ME = '/api/mochi/me';
+const API_START = '/api/mochi/runs/start';
 
 const num = (v) => Math.round(v).toLocaleString('ja-JP');
 
@@ -34,36 +35,55 @@ export function canSubmit() {
   return accessToken() !== null;
 }
 
+async function post(path, body) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: controller.signal });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } finally { clearTimeout(timer); }
+}
+
+/** Register only when play begins, after LIFF is ready. Guest play stays available. */
+export async function startScoreRun(id) {
+  const token = accessToken();
+  if (!token) return { status: 'guest' };
+  try {
+    const res = await post(API_START, { accessToken: token, id });
+    if (!res.ok) return { status: 'start_error' };
+    const data = res.data;
+    return data.id === id ? { id, status: 'ready' } : { status: 'start_error' };
+  } catch { return { status: 'start_error' }; }
+}
+
 /**
  * 自己ベストをサーバーへ送る。
  * 戻り値は画面に出す短い文章(送れなかった理由も含む)。
  */
-export async function submitScore({ score, merges, stage }) {
+export async function submitScore({ score, merges, stage, runId }) {
   const token = accessToken();
   if (!token) {
-    return { ok: false, message: 'LINEの中で遊ぶとランキングに載ります' };
+    return { ok: false, retryable: true, message: 'LINEログインを確認して再送してください。' };
   }
   try {
-    const res = await fetch(API_SUBMIT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accessToken: token, score, merges, stage }),
-    });
+    const res = await post(API_SUBMIT, { accessToken: token, score, merges, stage, ...(runId ? { runId } : {}) });
     if (!res.ok) {
       // 401はログインの問題、400は値の問題。どちらも遊びは続けられる。
-      return { ok: false, message: 'ランキングに登録できませんでした' };
+      return { ok: false, retryable: ![400, 403, 404, 409].includes(res.status), message: '記録を保存できませんでした。' };
     }
-    const data = await res.json();
+    const data = res.data;
     const rank = data.rank ? `${data.rank}位` : '';
     if (data.updated) {
-      return { ok: true, message: `自己ベスト更新！ 現在 ${rank}`.trim() };
+      return { ok: true, reward: data.reward, message: `自己ベスト更新！ 現在 ${rank}`.trim() };
     }
     return {
       ok: true,
+      reward: data.reward,
       message: `ベスト ${num(data.best)}点 · 現在 ${rank}`.trim(),
     };
   } catch {
-    return { ok: false, message: '通信できませんでした' };
+    return { ok: false, retryable: true, message: '通信できませんでした。記録を再送できます。' };
   }
 }
 

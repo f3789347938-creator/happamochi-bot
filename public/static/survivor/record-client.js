@@ -1,11 +1,19 @@
 import {RULESET,reportOf,weekAt} from './records.js';
-import {getAccessToken} from './liff-auth.js';
+import {getAccessToken,initLiff} from './liff-auth.js';
 const QUEUE='mochi-record-outbox-v1',TERMINAL='mochi-record-receipts-v1';
 // APIの置き場所。元パックは '/api' 直下だったが、この葉っぱもちBotには
 // 既に /api/mochi/* などが居るので /api/survivor/* に分けている。
 const API_BASE='/api/survivor';
+// A stalled SDK must release the departure button and its offline fallback.
+export async function waitForRecordLogin(initialize=initLiff,timeoutMs=8000){
+ let timer;
+ try{return await Promise.race([
+  initialize(),
+  new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('LINE連携に時間がかかっています。もう一度試してください。')),timeoutMs);}),
+ ]);}finally{clearTimeout(timer);}
+}
 export class RecordClient{
- constructor(storage,fetcher=(...args)=>globalThis.fetch(...args)){this.storage=storage;this.fetcher=fetcher;this.profile=null;this.account=null;this.flushing=null;this.week=weekAt();this.challengeBest=0;this.active=null;this.error='';this.busy=false;this.queue=[];this.terminal=new Set();try{const handled=JSON.parse(storage?.getItem(TERMINAL)||'[]');if(Array.isArray(handled))this.terminal=new Set(handled.filter(x=>typeof x==='string').slice(-80));}catch{}try{const value=JSON.parse(storage?.getItem(QUEUE)||'[]');if(Array.isArray(value))this.queue=value.filter(r=>typeof r.id==='string'&&r.report).slice(-20);}catch{}}
+ constructor(storage,fetcher=(...args)=>globalThis.fetch(...args)){this.storage=storage;this.fetcher=fetcher;this.profile=null;this.account=null;this.flushing=null;this.week=weekAt();this.challengeBest=0;this.active=null;this.error='';this.busy=false;this.queue=[];this.rewards=new Map();this.terminal=new Set();try{const handled=JSON.parse(storage?.getItem(TERMINAL)||'[]');if(Array.isArray(handled))this.terminal=new Set(handled.filter(x=>typeof x==='string').slice(-80));}catch{}try{const value=JSON.parse(storage?.getItem(QUEUE)||'[]');if(Array.isArray(value))this.queue=value.filter(r=>typeof r.id==='string'&&r.report).slice(-20);}catch{}}
  // すべてのリクエストにアクセストークンを添える。
  // userId は送らない。誰なのかはサーバーがLINEに問い合わせて決める。
  async request(path,body){
@@ -30,9 +38,10 @@ export class RecordClient{
  get blocked(){return this.pending.filter(r=>r.blocked);}
  discardBlocked(){for(const r of this.blocked)this.terminal.add(r.id);this.queue=this.queue.filter(r=>!this.blocked.includes(r));this.persist();}
  flush(){if(this.flushing)return this.flushing;this.busy=true;this.flushing=(async()=>{const unlocked=[];
-  while(true){const item=this.pending.find(r=>!r.blocked);if(!item)break;try{const data=await this.request('/runs/finish',item);this.profile=data.profile;unlocked.push(...data.unlocked);this.terminal.add(item.id);this.queue=this.queue.filter(r=>r!==item);this.persist();}catch(e){if([400,404,409].includes(e.status)){item.blocked=e.message;this.persist();continue;}throw e;}}
+  while(true){const item=this.pending.find(r=>!r.blocked);if(!item)break;try{const data=await this.request('/runs/finish',item);this.profile=data.profile;unlocked.push(...data.unlocked);this.rewards.set(item.id,data.reward||null);if(this.rewards.size>80)this.rewards.delete(this.rewards.keys().next().value);this.terminal.add(item.id);this.queue=this.queue.filter(r=>r!==item);this.persist();}catch(e){if([400,404,409].includes(e.status)){item.blocked=e.message;this.persist();continue;}throw e;}}
   return [...new Set(unlocked)];
  })().finally(()=>{this.busy=false;this.flushing=null;});return this.flushing;}
+ rewardFor(id){return this.rewards.get(id)||null;}
 
  async update(changes){const data=await this.request('/profile',changes);this.profile=data.profile;return data;}
  async board(mode='normal',period='week'){return this.request('/leaderboard',{mode,period});}

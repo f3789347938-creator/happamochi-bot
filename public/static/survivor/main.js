@@ -1,4 +1,4 @@
-import {RecordClient} from './record-client.js';
+import {RecordClient,waitForRecordLogin} from './record-client.js?v=20260921-rewards';
 import {battleReport,shareRecordImage,escapeHTML} from './record-ui.js';
 import {challengeOptions,titleText,ACHIEVEMENTS} from './records.js';
 import {encounterInfo} from './encounters.js';
@@ -14,6 +14,7 @@ import {Renderer} from './renderer.js';
 import {Sound} from './audio.js';
 import {LineBridge} from './line.js';
 import {Revival} from './revival.js';
+import {gameRewardText} from '../game-rewards.mjs?v=20260921-rewards';
 const $=id=>document.getElementById(id),game=new Game(),sound=new Sound(),line=new LineBridge(),gate=new ChoiceGate();
 const canvas=$('game'),keys=new Set(),dialogs=['menu','choice-dialog','pause-dialog','book-dialog','result-dialog','loot-dialog','revive-dialog'];
 let renderer,drag=null,vector={x:0,y:0},lastFrame=0,accumulator=0,lastHud=0,lastLoadout='',bannerTimer,toastTimer,moved=false,result=null,sharing=false,selectedWeapon='kunai',bookFilter='attack';
@@ -83,7 +84,7 @@ async function start(mode='normal',offline=false){
  const retry=$('retry');retry.disabled=true;retry.textContent='出撃準備中…';
  const id=globalThis.crypto?.randomUUID?.()||Date.now()+'-'+Math.random().toString(36).slice(2);let session=null;
  try{
-  if(!offline){if(!records.account)await records.load();await records.flush();session=await records.start(id,runMode,progress.p.selectedWeapon);}
+  if(!offline){await waitForRecordLogin();if(!records.account)await records.load();await records.flush();session=await records.start(id,runMode,progress.p.selectedWeapon);}
   const run=progress.begin(id,runMode,!!session,records.account);if(!run.ok){if(session)void records.request('/runs/abandon',{id});throw Error(run.message);}
   activeRunId=id;runRanked=!!session;lastCheckpoint=0;clearRevival();selectedWeapon=session?.mode==='challenge'?session.weapon:run.weapon;
   const best=runMode==='challenge'?records.challengeBest:Math.max(progress.p.bestScore,records.profile?.bestScore||0);
@@ -130,7 +131,7 @@ async function shareToRevive(){
  }else renderRevival({cancelled:'シェアをキャンセルしました。復活はまだ使っていません。',failed:'送信できませんでした。もう一度シェアを試せます。',unavailable:'共有画面を利用できません。復活はまだ使っていません。',stale:'この冒険の復活は終了しました。'}[outcome.status]);
 }
 function showResult(){
- clearRevival();releaseMovement();result={...game.result(),ended:game.player.hp<=0?'death':'retire',runMode,recordTitle:titleText(game.options.title)};const receipt=settleRun();if(receipt?.invalid)return;$('result-rewards').innerHTML=rewardMarkup(receipt);$('result-save-status').textContent=progress.notice||'報酬と育成状況を保存しました';close('choice-dialog');close('pause-dialog');$('wave-banner').classList.remove('show');
+ clearRevival();releaseMovement();result={...game.result(),ended:game.player.hp<=0?'death':'retire',runMode,recordTitle:titleText(game.options.title)};const receipt=settleRun();if(receipt?.invalid)return;result.runId=receipt?.id;result.ranked=runRanked;$('result-rewards').innerHTML=rewardMarkup(receipt);$('result-save-status').textContent=progress.notice||'ゲーム内の育成報酬と育成状況を保存しました';$('game-points-status').textContent=runRanked?'ガチャ用ポイントを確認しています…':gameRewardText({status:'offline'});close('choice-dialog');close('pause-dialog');$('wave-banner').classList.remove('show');
  $('result-eyebrow').textContent='ENDLESS RECORD';$('result-title').textContent='もち軍団、おつかれさま';$('result-description').textContent=`Lv.${result.level} · ボス${result.bossKills}体撃破。次はどんな軍団にする？`;
  $('result-score').textContent=result.score.toLocaleString('ja-JP');$('result-stats').innerHTML=[['生存時間',formatTime(result.seconds)],['倒した敵',`${result.kills.toLocaleString('ja-JP')}体`],['最大連続撃破',`${result.maxCombo}体`]].map(([name,value])=>`<div class="result-stat"><b>${value}</b><span>${name}</span></div>`).join('');
  $('result-report').innerHTML=battleReport(result);$('result-achievements').innerHTML='';document.querySelector('.result-portrait').className='result-portrait outfit-preview outfit-'+game.options.outfit;$('record-save-status').textContent=runRanked?'記録を送信しています…':'記録なしの出撃です。育成用の報酬は持ち帰れます。';$('record-retry').hidden=true;if(receipt&&runRanked){records.enqueue(receipt.id,result);void syncRecords();}
@@ -187,7 +188,27 @@ function interrupted(){checkpoint();releaseMovement();gate.reset();if(game.mode=
 window.addEventListener('blur',interrupted);document.addEventListener('visibilitychange',()=>{if(document.hidden)interrupted();else{lastFrame=performance.now();accumulator=0;}});window.addEventListener('pagehide',interrupted);
 window.addEventListener('storage',e=>{if(e.key!==SAVE_KEY)return;progress.refresh();if(activeRunId&&progress.p.active?.id!==activeRunId){invalidateRun();}if($('menu').open)renderHub();});
 async function loadRecords(){try{await records.load();await records.flush();await records.load();}catch{}if($('menu').open)renderHub();}
-async function syncRecords(){try{const unlocked=await records.flush();$('record-save-status').textContent=records.blocked.length?'この記録は送信条件を満たしませんでした。拠点の「今週」で詳細を確認できます。':'ランキングと実績を保存しました。';$('record-retry').hidden=true;$('result-achievements').innerHTML=unlocked.map(id=>{const a=ACHIEVEMENTS.find(a=>a.id===id);return '<p>実績達成：'+escapeHTML(a.name)+'<br>称号「'+escapeHTML(a.title)+'」'+(a.outfit?'と衣装':a.effect?'と撃破演出':'')+'を獲得！</p>';}).join('');if(unlocked.length)sound.play('evolution');await records.load();}catch{$('record-save-status').textContent=records.error;$('record-retry').hidden=false;}}
+async function syncRecords(){
+ const current=result;
+ try{
+  const unlocked=await records.flush();
+  if(result!==current||!current)return;
+  const blocked=records.blocked.find(item=>item.id===current.runId);
+  $('record-save-status').textContent=blocked?'この記録は送信条件を満たしませんでした。拠点の「今週」で詳細を確認できます。':'ランキングと実績を保存しました。';
+  $('game-points-status').textContent=blocked?'記録を保存できなかったため、ガチャ用ポイントは付与されていません。':gameRewardText(records.rewardFor(current.runId));
+  $('record-retry').hidden=true;
+  $('result-achievements').innerHTML=unlocked.map(id=>{const a=ACHIEVEMENTS.find(a=>a.id===id);return '<p>実績達成：'+escapeHTML(a.name)+'<br>称号「'+escapeHTML(a.title)+'」'+(a.outfit?'と衣装':a.effect?'と撃破演出':'')+'を獲得！</p>';}).join('');
+  if(unlocked.length)sound.play('evolution');
+  // Refreshing the hub must not turn an already confirmed reward into an error.
+  await records.load().catch(()=>{});
+ }catch{
+  if(result!==current||!current)return;
+  const reward=records.rewardFor(current.runId);
+  $('record-save-status').textContent=reward?'ランキングと実績を保存しました。':records.error;
+  $('game-points-status').textContent=reward?gameRewardText(reward):'ガチャ用ポイントの付与結果はまだ確認できていません。';
+  $('record-retry').hidden=!!reward;
+ }
+}
 async function loadBoard(){const seq=++boardState.seq;boardState.loading=true;boardState.data=null;renderHub();try{const data=await records.board(boardState.mode,boardState.period);if(seq===boardState.seq)boardState.data=data;}catch{}finally{if(seq===boardState.seq){boardState.loading=false;if($('menu').open)renderHub();}}}
 async function recordAction(button){const action=button.dataset.recordAction;if(action==='challenge'){void start('challenge');return;}button.disabled=true;try{if(action==='refresh'){await records.load();await loadBoard();}else if(action==='retry'){await records.flush();await records.load();renderHub();toast('記録を保存しました。');}else if(action==='discard'){records.discardBlocked();renderHub();}else if(action==='abandon'){await records.abandon();renderHub();toast('前の出撃を整理しました。');}else if(action==='cosmetic'){await records.update({[button.dataset.kind]:button.dataset.value});renderHub();toast('装備を変更しました。');}}catch(e){toast(e.message);renderHub();}finally{if(button.isConnected)button.disabled=false;}}
 $('menu').addEventListener('submit',async e=>{if(e.target.id!=='nickname-form')return;e.preventDefault();const button=e.target.querySelector('button');button.disabled=true;try{await records.update({nickname:new FormData(e.target).get('nickname')});toast('名前を保存しました。');if(homeTab==='ranking')await loadBoard();}catch(error){toast(error.message);}finally{if(button.isConnected)button.disabled=false;}});
