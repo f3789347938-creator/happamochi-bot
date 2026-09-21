@@ -20,6 +20,7 @@ import { registerBirthday, unregisterBirthday, checkAndQueueBirthdays } from './
 // 個人ステータス(レベル/EXP/ポイント)・着せ替え・共通称号。
 // 既存のグループ別称号(features/titles.ts)とは別系統の独立モジュール。
 import { addExpForMessage } from './features/profile/core'
+import { handleLoginBonusText } from './features/loginBonus'
 import {
   verifyLiffToken,
   isPlausibleScore,
@@ -1576,6 +1577,7 @@ async function handleMessageEvent(env: Bindings, event: any, baseUrl: string) {
     pictureUrl,
     baseUrl,
     quotedMessageId: message.quotedMessageId,
+    eventKey: event.webhookEventId ?? (message.id ? `msg_${message.id}` : null),
   })
 
   if (isGroup) {
@@ -1760,6 +1762,7 @@ interface CommandCtx {
   pictureUrl: string | null
   baseUrl: string
   quotedMessageId?: string
+  eventKey?: string | null
 }
 
 async function routeCommand(env: Bindings, ctx: CommandCtx): Promise<LineMessage[]> {
@@ -1800,6 +1803,9 @@ async function routeCommand(env: Bindings, ctx: CommandCtx): Promise<LineMessage
   // 下の方で処理されるので、ここでは触らない。
   // グループでも個人トークでも使える(個人トークへ誘導しない)。
   // 失敗しても他のコマンドを止めないよう try/catch で囲う。
+  const loginBonus = await handleLoginBonusText(env, ctx, text)
+  if (loginBonus) return loginBonus
+
   if (ctx.userId) {
     try {
       const pfMsgs = await handleProfileText(
@@ -2249,6 +2255,7 @@ const HELP_TEXT = `葉っぱもち Bot ヘルプ
 
 【ステータス・着せ替え・共通称号】
 ステータス - レベル・EXP・順位・ポイントを表示
+ログイン - 日本時間で1日1回、連続日数×500P（最大3,500P）を受け取る
 着せ替え - 衣装・背景のガチャ／所持一覧／装備
 着せ替えガチャ - 1回3,000P(確認付き・重複なし)
 カードテーマ - カードの配色を選ぶ(名言カードにも反映)

@@ -48,6 +48,7 @@ export const HELP_DESIGN = {
     { label: 'めんかく', desc: '自分宛のメンションを確認' },
     { label: 'ランキング', desc: '各種ランキングを表示' },
     { label: 'めいく', desc: '発言にリプライして使うと、その発言の画像を作成', noAction: true },
+    { label: 'ログイン', desc: '1日1回、最大3,500Pを受け取る' },
     { label: 'お知らせ', desc: '直近のお知らせを表示' },
     { label: '着せ替え', desc: 'ガチャで衣装・背景を集める' },
     { label: 'パズル', desc: 'もち合体パズルで遊ぶ' },

@@ -12,10 +12,10 @@ if (!['localhost', '127.0.0.1', '[::1]'].includes(BASE.hostname)) {
 const manifest = JSON.parse(await readFile(new URL('../src/features/menu/helpAssets.json', import.meta.url), 'utf8'))
 const expectedPages = [
   ['ヘルプ', 'ステータス', '既読セット', 'りぷかく', 'めんかく'],
-  ['ランキング', 'めいく', 'お知らせ', '着せ替え', 'パズル'],
-  ['サバイバル', 'オセロ', 'オセロ参加', 'オセロ戦績', 'チェス'],
-  ['盤面', 'めいく 装飾', 'めいく:本文', 'めいく bold虹7:文', 'ウェルカムオン'],
-  ['ウェルカムオフ', '取り消し通知オン', '取り消し通知オフ', '設定'],
+  ['ランキング', 'めいく', 'ログイン', 'お知らせ', '着せ替え'],
+  ['パズル', 'サバイバル', 'オセロ', 'オセロ参加', 'オセロ戦績'],
+  ['チェス', '盤面', 'めいく 装飾', 'めいく:本文', 'めいく bold虹7:文'],
+  ['ウェルカムオン', 'ウェルカムオフ', '取り消し通知オン', '取り消し通知オフ', '設定'],
 ]
 
 let pass = 0
@@ -73,7 +73,7 @@ async function main() {
   ok(manifest.version === 1, '画像一覧の形式が version 1')
   ok(/^[a-f0-9]{64}$/.test(manifest.designHash ?? ''), '描画元を識別する SHA-256 がある')
   ok(HELP_DESIGN.perCard === 5, '1ページ5項目の指定を維持')
-  ok(same(HELP_DESIGN.commands.map((c) => c.label), expectedPages.flat()), '先頭7項目の指定順を含め、全24項目を掲載')
+  ok(same(HELP_DESIGN.commands.map((c) => c.label), expectedPages.flat()), '先頭7項目の指定順を含め、全25項目を掲載')
   ok(HELP_DESIGN.commands.find((c) => c.label === 'めいく')?.desc === '発言にリプライして使うと、その発言の画像を作成', '「めいく」は返信して使うことを説明')
   ok(same(manifest.rows.map(commandData), HELP_DESIGN.commands.map(commandData)), '全行の画像とコマンド定義が一致')
   ok(HELP_DESIGN.coverTitle === 'ヘルプ' && HELP_DESIGN.commandTitle === 'コマンド一覧', '表紙と一覧の見出しを維持')

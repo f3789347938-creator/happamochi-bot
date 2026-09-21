@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "designHash": "e4fb2239355ca110cc7b6954aadd998762b7a62da3b98ca713a2811e743fbb71",
+  "designHash": "590063f99e4870f0340b831001d4ae581e964539ed6b8e4eb37fd8a28ceb895d",
   "header": {
     "file": "header-e7d7e059623e.png",
     "width": 520,
@@ -73,30 +73,37 @@
       "height": 140
     },
     {
+      "label": "ログイン",
+      "desc": "1日1回、最大3,500Pを受け取る",
+      "file": "row-08-2e56e925f82f.png",
+      "width": 520,
+      "height": 140
+    },
+    {
       "label": "お知らせ",
       "desc": "直近のお知らせを表示",
-      "file": "row-08-bdd88fbed159.png",
+      "file": "row-09-166f3e6aaf70.png",
       "width": 520,
       "height": 140
     },
     {
       "label": "着せ替え",
       "desc": "ガチャで衣装・背景を集める",
-      "file": "row-09-257c985a59da.png",
+      "file": "row-10-e6db376c3ddd.png",
       "width": 520,
       "height": 140
     },
     {
       "label": "パズル",
       "desc": "もち合体パズルで遊ぶ",
-      "file": "row-10-597abc71b2ea.png",
+      "file": "row-11-237d27408f6f.png",
       "width": 520,
       "height": 140
     },
     {
       "label": "サバイバル",
       "desc": "もち軍団サバイバルで遊ぶ",
-      "file": "row-11-bddebf1ec5f3.png",
+      "file": "row-12-3eb533837162.png",
       "width": 520,
       "height": 140
     },
@@ -104,35 +111,35 @@
       "label": "オセロ",
       "desc": "対局を募集する",
       "send": "オセロ開始",
-      "file": "row-12-074a3e1f8b51.png",
+      "file": "row-13-25bddd4544df.png",
       "width": 520,
       "height": 140
     },
     {
       "label": "オセロ参加",
       "desc": "募集中の対局に入る",
-      "file": "row-13-b29e69fad391.png",
+      "file": "row-14-7ab49790e6df.png",
       "width": 520,
       "height": 140
     },
     {
       "label": "オセロ戦績",
       "desc": "自分の勝敗数を見る",
-      "file": "row-14-efada0d7cb67.png",
+      "file": "row-15-dde42eb0bcdf.png",
       "width": 520,
       "height": 140
     },
     {
       "label": "チェス",
       "desc": "対局を募集する",
-      "file": "row-15-08e484680037.png",
+      "file": "row-16-0f646c1288f6.png",
       "width": 520,
       "height": 140
     },
     {
       "label": "盤面",
       "desc": "チェスの盤面を出す",
-      "file": "row-16-6df0a5cd126a.png",
+      "file": "row-17-2b9e8c26a6ad.png",
       "width": 520,
       "height": 140
     },
@@ -140,7 +147,7 @@
       "label": "めいく 装飾",
       "desc": "使える装飾の一覧",
       "send": "めいく装飾",
-      "file": "row-17-4c4803770281.png",
+      "file": "row-18-cf1b7e2d2f7f.png",
       "width": 520,
       "height": 140
     },
@@ -148,7 +155,7 @@
       "label": "めいく:本文",
       "desc": "文字を入れて画像を作る",
       "noAction": true,
-      "file": "row-18-fa7cd1c47961.png",
+      "file": "row-19-3e7916dd8416.png",
       "width": 520,
       "height": 140
     },
@@ -156,42 +163,42 @@
       "label": "めいく bold虹7:文",
       "desc": "装飾つきの書き方",
       "noAction": true,
-      "file": "row-19-3bbb1f996ea8.png",
+      "file": "row-20-b6aabe9fedf5.png",
       "width": 520,
       "height": 140
     },
     {
       "label": "ウェルカムオン",
       "desc": "参加時のあいさつを出す",
-      "file": "row-20-a88958328659.png",
+      "file": "row-21-a0a844edcf4b.png",
       "width": 520,
       "height": 140
     },
     {
       "label": "ウェルカムオフ",
       "desc": "あいさつを止める",
-      "file": "row-21-0c3d8ba67b8b.png",
+      "file": "row-22-9dbaa229e6ca.png",
       "width": 520,
       "height": 140
     },
     {
       "label": "取り消し通知オン",
       "desc": "送信取消を知らせる（初期はオフ）",
-      "file": "row-22-730e276364ad.png",
+      "file": "row-23-6fd97c3e1eee.png",
       "width": 520,
       "height": 140
     },
     {
       "label": "取り消し通知オフ",
       "desc": "知らせない",
-      "file": "row-23-3e16dc299ea4.png",
+      "file": "row-24-43a35ff1800c.png",
       "width": 520,
       "height": 140
     },
     {
       "label": "設定",
       "desc": "ランキングアイコンなどを変更",
-      "file": "row-24-8ee00764d5ab.png",
+      "file": "row-25-a33beee182ec.png",
       "width": 520,
       "height": 140
     }
