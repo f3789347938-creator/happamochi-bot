@@ -1,9 +1,6 @@
-import { OaClient } from './oa-client.mjs';
 import { MonitorStore } from './store.mjs';
-import { parseGroupCall } from './calls.mjs';
 export { GroupCallMonitor } from './durable-monitor.mjs';
 
-function client(env) { return new OaClient({ botId: env.OA_BOT_ID, cookie: env.OA_COOKIE }); }
 function monitor(env) { return env.CALL_MONITOR.getByName(env.OA_BOT_ID, { locationHint: 'apac' }); }
 async function authorized(request, env) {
   const supplied = request.headers.get('Authorization') || '';
@@ -21,15 +18,12 @@ export default {
     const path = new URL(request.url).pathname;
     const store = new MonitorStore(env.DB);
     if (path === '/status' && request.method === 'GET') {
-      const [state, scheduler] = await Promise.all([store.status(), monitor(env).schedulerStatus()]);
-      return Response.json({ ...state, scheduler, scope: env.CHAT_SCOPE, sending: env.SEND_ENABLED === 'true', readReceipts: env.READ_RECEIPTS_ENABLED === 'true' });
+      const [state, scheduler, session] = await Promise.all([store.status(), monitor(env).schedulerStatus(), monitor(env).sessionStatus()]);
+      return Response.json({ ...state, scheduler, session, scope: env.CHAT_SCOPE, sending: env.SEND_ENABLED === 'true', readReceipts: env.READ_RECEIPTS_ENABLED === 'true' });
     }
     if (path === '/probe' && request.method === 'GET') {
       try {
-        const api = client(env);
-        const history = await api.history(env.TEST_CHAT_ID);
-        const token = await api.streamToken();
-        return Response.json({ ok: true, historyCount: history.list?.length, streamReady: Boolean(token.streamingApiToken), calls: history.list.map(entry => parseGroupCall(entry, env.TEST_CHAT_ID)).filter(Boolean) });
+        return Response.json(await monitor(env).probe());
       } catch (error) { return Response.json({ ok: false, operation: error.operation || 'probe', status: error.status || 0 }, { status: 502 }); }
     }
     if (path === '/run' && request.method === 'POST') return Response.json(await monitor(env).ensureStarted());

@@ -1,4 +1,5 @@
 // Protocol evidence: work/oa-call-public-assets/PROTOCOL.md (OA web app 8.7.0).
+import { SessionCookies } from './session-cookies.mjs';
 const ORIGIN = 'https://chat.line.biz';
 const CLIENT_VERSION = '20240513144702';
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36';
@@ -80,22 +81,60 @@ async function boundedJson(response, signal) {
 /** No retries: a failed/timeout send can already have reached the server. */
 export class OaClient {
   #botId;
-  #cookie;
+  #seedCookie;
+  #cookies;
+  #saveCookies;
+  #cookiePending;
   #fetch;
   #csrfValue;
   #csrfPending;
 
-  constructor({ botId, cookie, fetchImpl = (...args) => globalThis.fetch(...args) } = {}) {
+  constructor({ botId, cookie, cookieSnapshot, saveCookies = async () => {}, fetchImpl = (...args) => globalThis.fetch(...args) } = {}) {
     this.#botId = identifier(botId, 'configuration');
     if (typeof cookie !== 'string' || !cookie.trim() || cookie.length > 32_768 ||
         /[^\x20-\x7e]/.test(cookie) || !cookie.split(';').every(part => /^[!#$%&'*+.^_`|~0-9A-Za-z-]+=[^;]*$/.test(part.trim())) ||
-        typeof fetchImpl !== 'function') invalid('configuration');
-    this.#cookie = cookie.trim();
+        typeof fetchImpl !== 'function' || typeof saveCookies !== 'function') invalid('configuration');
+    this.#seedCookie = cookie.trim();
+    try { this.#cookies = new SessionCookies({ cookie, snapshot: cookieSnapshot }); }
+    catch { invalid('configuration'); }
+    this.#saveCookies = saveCookies;
     this.#fetch = fetchImpl;
   }
 
+  sessionMetadata() { return this.#cookies.metadata(); }
+
+  refreshCsrfOnNextRequest() { this.#csrfValue = undefined; }
+
+  #captureCookies(response, sentHeader) {
+    // Requests use redirect:manual and only the fixed Chat origin. Never accept
+    // cookies from another host, including a mock/adapter that followed redirects.
+    if (response.url && new URL(response.url).origin !== ORIGIN) invalid('configuration');
+    const update = (this.#cookiePending ?? Promise.resolve()).then(async () => {
+      const stale = this.#cookies.header() !== sentHeader;
+      const next = new SessionCookies({ cookie: this.#seedCookie, snapshot: this.#cookies.snapshot() });
+      if (!next.accept(response.headers, sentHeader)) return { stale, revision: this.#cookies.metadata().revision };
+      // Persist before publication. A failed write keeps the previous live jar;
+      // other requests cannot start using an update that would vanish on restart.
+      await this.#saveCookies(next.snapshot());
+      this.#cookies = next;
+      this.#csrfValue = undefined;
+      return { stale, revision: next.metadata().revision };
+    });
+    this.#cookiePending = update.catch(() => {});
+    return update;
+  }
+
   async #request(operation, path, { method = 'GET', body, csrf = false } = {}) {
-    if (csrf && !this.#csrfValue) await this.csrf();
+    if (this.#cookiePending) await this.#cookiePending;
+    if (csrf) {
+      // Only the read-only CSRF GET is retried; message POSTs are never replayed.
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (!this.#csrfValue || this.#csrfValue.revision !== this.#cookies.metadata().revision) await this.csrf();
+        if (this.#cookiePending) await this.#cookiePending;
+        if (this.#csrfValue?.revision === this.#cookies.metadata().revision) break;
+      }
+      if (this.#csrfValue?.revision !== this.#cookies.metadata().revision) throw new OaApiError(0, 'csrf');
+    }
     const controller = new AbortController();
     let status = 0;
     let timer;
@@ -108,7 +147,7 @@ export class OaClient {
     try {
       const headers = new Headers({
         Accept: 'application/json',
-        Cookie: this.#cookie,
+        Cookie: this.#cookies.header(),
         Referer: `${ORIGIN}/`,
         Origin: ORIGIN,
         'x-oa-chat-client-version': CLIENT_VERSION,
@@ -124,11 +163,15 @@ export class OaClient {
           redirect: 'manual',
         });
         status = response.status;
+        let session;
+        try { session = await this.#captureCookies(response, headers.get('Cookie')); }
+        catch { cancelQuietly(response.body); throw new Error('cookie persistence failed'); }
         if (!response.ok) {
           cancelQuietly(response.body);
           throw new Error('http failure');
         }
-        return boundedJson(response, controller.signal);
+        const data = await boundedJson(response, controller.signal);
+        return operation === 'csrf' ? { data, session } : data;
       };
       return await Promise.race([request(), deadline]);
     } catch {
@@ -144,15 +187,19 @@ export class OaClient {
   async csrf() {
     if (this.#csrfPending) return this.#csrfPending;
     this.#csrfPending = (async () => {
-      const result = await this.#request('csrf', '/api/v1/csrfToken');
-      const { headerName, token } = result;
-      // Honor the returned name, but never let a malformed response override Cookie/Host.
-      if (typeof headerName !== 'string' || !/^x-[a-z0-9-]*(?:csrf|xsrf)[a-z0-9-]*$/i.test(headerName) ||
-          headerName.length > 100 || typeof token !== 'string' || !/^[\x21-\x7e]{1,16384}$/.test(token)) {
-        throw new OaApiError(200, 'csrf');
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const { data, session } = await this.#request('csrf', '/api/v1/csrfToken');
+        const { headerName, token } = data;
+        // Honor the returned name, but never let a malformed response override Cookie/Host.
+        if (typeof headerName !== 'string' || !/^x-[a-z0-9-]*(?:csrf|xsrf)[a-z0-9-]*$/i.test(headerName) ||
+            headerName.length > 100 || typeof token !== 'string' || !/^[\x21-\x7e]{1,16384}$/.test(token)) {
+          throw new OaApiError(200, 'csrf');
+        }
+        if (session.stale || session.revision !== this.#cookies.metadata().revision) continue;
+        this.#csrfValue = { headerName, token, revision: session.revision };
+        return { headerName, token };
       }
-      this.#csrfValue = { headerName, token };
-      return { headerName, token };
+      throw new OaApiError(0, 'csrf');
     })();
     try { return await this.#csrfPending; }
     finally { this.#csrfPending = undefined; }

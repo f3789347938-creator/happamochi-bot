@@ -22,6 +22,12 @@ wrangler secret put ADMIN_TOKEN --config workers/group-call-monitor/wrangler.jso
 
 `OA_COOKIE` はLINE Official Account Managerの管理セッション。通常のMessaging APIトークンではない。`ADMIN_TOKEN` は32バイト以上のランダムな値を使う。どちらもCloudflareのSecretへ入力し、設定ファイル・Git・ログに書かない。管理セッションが期限切れになった場合は `OA_COOKIE` を更新する。
 
+通常の管理API応答で返る `Set-Cookie` は自動で取り込み、Durable Object内へAES-GCMで暗号化保存する。再接続・Worker再起動後も保存した更新Cookieを使う。対象は `chat.line.biz` の安全なルートCookie4種のみで、他サイトへの転送は追わない。保存に失敗した更新は送信Cookieへ反映しない。`OA_COOKIE` を手動で差し替えると、以前の保存Cookieより新しいSecretを優先する。
+
+暗号鍵は `ADMIN_TOKEN` と公式アカウントIDからHKDFで導出する。同じ `OA_COOKIE` のまま `ADMIN_TOKEN` だけを変更すると旧Cookieの復号ができなくなるため、認証を更新するときは新しい `OA_COOKIE` も一緒に設定する。認証情報を読み出す管理APIは設けない。
+
+これはLINEが発行した更新情報の引き継ぎであり、有効期限の延長や無期限ログインを保証しない。実機検証ではトップページ・CSRF取得によるセッション再発行は確認できず、ログインの転送先では本人ログインが必要だった。詳細は [SESSION-RENEWAL-EVIDENCE.md](./SESSION-RENEWAL-EVIDENCE.md) を参照。
+
 `wrangler.jsonc` の `CHAT_SCOPE` で送信先を指定する。カンマ区切りの管理画面chatId、または `all`（GROUP_CALLが届くグループ全体）を使用。管理画面chatIdとMessaging APIのgroupIdは別のIDなので、混用しない。`SEND_ENABLED` が文字列 `true` のときのみ送信する。送信を有効化した時や対象を拡大した時も、変更前の履歴は通知しない。
 
 ## 動作
@@ -66,7 +72,7 @@ wrangler secret put ADMIN_TOKEN --config workers/group-call-monitor/wrangler.jso
 
 すべて `Authorization: Bearer <ADMIN_TOKEN>` が必要。未認証リクエストは404。
 
-- `GET /status`: 稼働時刻、接続監視の状態、送信状態、直近の通話記録と通知遅延。
+- `GET /status`: 稼働時刻、接続監視の状態、送信状態、直近の通話記録と通知遅延。`session` はCookieの有無・更新時刻・明示された有効期限だけを返し、Cookie値は含まない。`hasSession` は値の存在であり、ログイン成功を示すものではない。
 - `GET /probe`: テストグループの履歴とSSE認証の読み取り確認。送信なし。
 - `POST /run`: 監視の起動を確認し、未起動ならalarmを予約。起動中は2本目の接続を作らない。
 
