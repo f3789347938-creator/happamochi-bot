@@ -133,7 +133,7 @@ app.use('/static/*', serveStatic({ root: './public' }))
 
 // ─── Health check ───
 app.get('/', (c) => {
-  c.header('X-Happa-Login-Card', 'compact-v1')
+  c.header('X-Happa-Login-Card', 'owner-repeat-v1')
   return c.text('HappaMochi Bot is running')
 })
 

@@ -24,11 +24,13 @@ const compiled = await build({
 const { default: app, HELP_DESIGN, HELP_ASSETS } = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`)
 const SECRET = 'offline-login-webhook-unit-secret'
 const TOKEN = 'offline-login-webhook-unit-token'
-const A = 'U_login_webhook_alice', B = 'U_login_webhook_bob'
+// Valid LINE-shaped identities, deliberately synthetic and never a real owner.
+const A = `U${'a'.repeat(32)}`, B = `U${'b'.repeat(32)}`
 const firstSeven = ['ヘルプ', 'ステータス', '既読セット', 'りぷかく', 'めんかく', 'ランキング', 'めいく']
 const migrations = [
   '0001_initial_schema.sql', '0004_reply_api_logs.sql', '0015_personalization.sql',
   '0020_exp_last_text.sql', '0021_exp_cooldown.sql', '0026_message_points.sql', '0028_login_bonus.sql',
+  '0029_login_bonus_test.sql',
 ]
 
 function nodes(value) {
@@ -37,10 +39,11 @@ function nodes(value) {
 }
 const textOf = value => nodes(value).filter(node => node.type === 'text').map(node => node.text).join('\n')
 
-function fixture(t) {
+function fixture(t, { testUserId, displayNames = {} } = {}) {
   // Keep the real handler's server clock inside one JST day even when this
   // suite happens to run across midnight. No client timestamp controls awards.
-  t.mock.method(Date, 'now', () => Date.parse('2026-09-22T03:00:00.000Z'))
+  let now = Date.parse('2026-09-22T03:00:00.000Z')
+  t.mock.method(Date, 'now', () => now)
   const db = new DatabaseSync(':memory:')
   db.exec('PRAGMA foreign_keys = ON')
   for (const name of migrations) db.exec(readFileSync(new URL(`../../migrations/${name}`, import.meta.url), 'utf8'))
@@ -61,6 +64,7 @@ function fixture(t) {
   }
   const env = {
     LINE_CHANNEL_SECRET: SECRET, LINE_CHANNEL_ACCESS_TOKEN: TOKEN,
+    LOGIN_BONUS_TEST_USER_ID: testUserId,
     DB: { prepare, async batch(statements) {
       // Each complete batch is synchronous and transactional, as in D1.
       db.exec('BEGIN')
@@ -76,7 +80,7 @@ function fixture(t) {
     assert.equal(new Headers(init.headers).get('authorization'), `Bearer ${TOKEN}`)
     if (url.pathname.startsWith('/v2/bot/profile/') && !init.method) {
       const userId = url.pathname.slice('/v2/bot/profile/'.length)
-      return Response.json({ userId, displayName: userId === A ? 'Alice' : 'Bob', pictureUrl: 'https://avatar.example/unit.png' })
+      return Response.json({ userId, displayName: displayNames[userId] ?? (userId === A ? 'Alice' : 'Bob'), pictureUrl: 'https://avatar.example/unit.png' })
     }
     if (url.pathname === '/v2/bot/message/reply' && init.method === 'POST') {
       replies.push(JSON.parse(init.body))
@@ -113,8 +117,11 @@ function fixture(t) {
   }
   const profile = (user = A) => db.prepare('SELECT * FROM user_profiles WHERE user_id = ?').get(user)
   const bonus = (user = A) => db.prepare("SELECT * FROM point_ledger WHERE user_id = ? AND reason = 'login_bonus' ORDER BY id").all(user)
+  const allBonus = (user = A) => db.prepare("SELECT * FROM point_ledger WHERE user_id = ? AND reason IN ('login_bonus', 'login_bonus_test') ORDER BY id").all(user)
+  const state = (user = A) => ({ ...db.prepare('SELECT last_day, total_days, streak_days FROM login_bonus_state WHERE user_id = ?').get(user) })
+  const setNow = value => { now = Date.parse(value); assert.ok(Number.isSafeInteger(now)) }
   const lastMessage = () => replies.at(-1)?.messages?.[0]
-  return { db, env, event, send, calls, replies, profile, bonus, lastMessage }
+  return { db, env, event, send, calls, replies, profile, bonus, allBonus, state, setNow, lastMessage }
 }
 
 test('a signed DM login credits 500 bonus points separately from its ordinary 1 point and sends the native receipt', async t => {
@@ -202,6 +209,124 @@ test('missing both event identities or the signed source user fails closed witho
   await f.send(f.event({ user: null }))
   assert.match(textOf(f.lastMessage()), /受け取り情報を確認できませんでした/)
   for (const table of ['user_profiles', 'exp_events', 'login_bonus_events', 'login_bonus_claims', 'point_ledger']) {
+    assert.equal(f.db.prepare(`SELECT count(*) AS n FROM ${table}`).get().n, 0)
+  }
+});
+
+test('only the configured owner earns the normal daily amount for each new signed login while day counters advance once', async t => {
+  const f = fixture(t, { testUserId: A })
+  for (let i = 0; i < 3; i++) {
+    await f.send(f.event())
+    assert.match(textOf(f.lastMessage()), /今日も来てくれてありがとう！/)
+    assert.match(textOf(f.lastMessage()), /500ポイント/)
+  }
+  assert.equal(f.profile().points, 1501, 'three 500-point awards plus the ordinary first-message point')
+  assert.deepEqual(f.allBonus().map(row => [row.reason, row.delta]), [
+    ['login_bonus', 500], ['login_bonus_test', 500], ['login_bonus_test', 500],
+  ])
+  assert.deepEqual(f.state(), { last_day: '2026-09-22', total_days: 1, streak_days: 1 })
+  assert.equal(f.db.prepare('SELECT count(*) AS n FROM login_bonus_claims').get().n, 1)
+
+  f.setNow('2026-09-22T15:00:00.000Z') // September 23, midnight in Japan.
+  await f.send(f.event())
+  await f.send(f.event())
+  assert.match(textOf(f.lastMessage()), /1,000ポイント/)
+  assert.deepEqual(f.allBonus().map(row => row.delta), [500, 500, 500, 1000, 1000])
+  assert.deepEqual(f.state(), { last_day: '2026-09-23', total_days: 2, streak_days: 2 })
+  assert.equal(f.db.prepare('SELECT count(*) AS n FROM login_bonus_claims').get().n, 2)
+  assert.equal(f.db.prepare('SELECT count(*) AS n FROM login_bonus_test_claims').get().n, 3)
+  const messagePoints = f.db.prepare('SELECT SUM(points_delta) AS n FROM exp_events WHERE user_id = ?').get(A).n
+  assert.equal(f.profile().points, 3500 + messagePoints, 'bonus credits and ordinary message awards reconcile with the balance')
+});
+
+test('a different signed UID with the same display name cannot acquire owner repeats from names or request fields', async t => {
+  const f = fixture(t, { testUserId: A, displayNames: { [A]: 'Same owner name', [B]: 'Same owner name' } })
+  await f.send(f.event({ user: A }))
+  await f.send(f.event({ user: B }))
+  await f.send(f.event({ user: B, displayName: 'Same owner name', userId: A, LOGIN_BONUS_TEST_USER_ID: B }))
+  assert.equal(f.profile(A).display_name, f.profile(B).display_name)
+  assert.equal(f.profile(B).points, 501)
+  assert.equal(f.allBonus(B).length, 1)
+  assert.match(textOf(f.lastMessage()), /2026\/09\/22分は受け取り済み/)
+  assert.deepEqual(f.state(B), { last_day: '2026-09-22', total_days: 1, streak_days: 1 })
+  assert.equal(f.db.prepare('SELECT count(*) AS n FROM login_bonus_test_claims WHERE user_id = ?').get(B).n, 0)
+});
+
+test('the private owner switch rejects absent, malformed, padded, multiple, or case-changed IDs', async t => {
+  const cases = [
+    ['absent', undefined, A], ['empty', '', A],
+    ['leading space', ` ${A}`, A], ['trailing space', `${A} `, A],
+    ['multiple UIDs', `${A},${B}`, A], ['different valid UID', B, A],
+    ['uppercase hex even when equal to actor', `U${'A'.repeat(32)}`, `U${'A'.repeat(32)}`],
+    ['malformed but equal to actor', 'U_unit_owner', 'U_unit_owner'],
+  ]
+  for (const [label, testUserId, user] of cases) {
+    await t.test(label, async t => {
+      const f = fixture(t, { testUserId })
+      await f.send(f.event({ user }))
+      await f.send(f.event({ user }))
+      assert.equal(f.profile(user).points, 501)
+      assert.equal(f.allBonus(user).length, 1)
+      assert.equal(f.db.prepare('SELECT count(*) AS n FROM login_bonus_test_claims').get().n, 0)
+      assert.match(textOf(f.lastMessage()), /分は受け取り済み/)
+    })
+  }
+});
+
+test('owner event redeliveries never award again, including across JST midnight and after the next daily claim', async t => {
+  const f = fixture(t, { testUserId: A })
+  f.setNow('2026-09-22T14:59:59.999Z')
+  const daily = f.event(), repeated = f.event()
+  await f.send(daily)
+  await f.send(repeated)
+  const beforeReplay = f.profile().points
+  const redeliver = event => ({ ...event, replyToken: 'unit-new-delivery-token', deliveryContext: { isRedelivery: true } })
+  await f.send(redeliver(repeated))
+  assert.equal(f.profile().points, beforeReplay)
+
+  f.setNow('2026-09-22T15:00:00.000Z')
+  for (const original of [daily, repeated]) {
+    await f.send(redeliver(original))
+    assert.match(textOf(f.lastMessage()), /2026\/09\/22分は受け取り済み/)
+    assert.match(textOf(f.lastMessage()), /500ポイント/)
+    assert.equal(f.profile().points, beforeReplay)
+  }
+  assert.equal(f.allBonus().length, 2)
+  assert.deepEqual(f.state(), { last_day: '2026-09-22', total_days: 1, streak_days: 1 })
+
+  await f.send(f.event())
+  const afterNextDay = f.profile().points
+  await f.send(redeliver(repeated))
+  assert.equal(f.profile().points, afterNextDay)
+  assert.deepEqual(f.allBonus().map(row => row.delta), [500, 500, 1000])
+  assert.deepEqual(f.state(), { last_day: '2026-09-23', total_days: 2, streak_days: 2 })
+  assert.match(textOf(f.lastMessage()), /2026\/09\/22分は受け取り済み/)
+  assert.match(textOf(f.lastMessage()), /500ポイント/)
+});
+
+test('owner message-ID fallback earns once per fresh message and retains replay protection', async t => {
+  const f = fixture(t, { testUserId: A })
+  await f.send(f.event({ eventId: null, messageId: 'owner-fallback-first' }))
+  const repeated = f.event({ eventId: null, messageId: 'owner-fallback-second' })
+  await f.send(repeated)
+  await f.send({ ...repeated, deliveryContext: { isRedelivery: true } })
+  assert.deepEqual(f.allBonus().map(row => row.delta), [500, 500])
+  assert.equal(f.profile().points, 1001)
+  assert.equal(f.db.prepare('SELECT event_key FROM login_bonus_test_claims').get().event_key, 'msg_owner-fallback-second')
+  assert.match(textOf(f.lastMessage()), /分は受け取り済み/)
+});
+
+test('owner permission cannot bypass signed event identity or signature requirements', async t => {
+  const f = fixture(t, { testUserId: A })
+  await f.send(f.event({ eventId: null, messageId: null }))
+  assert.match(textOf(f.lastMessage()), /受け取り情報を確認できませんでした/)
+  await f.send(f.event({ eventId: '', messageId: null }))
+  assert.match(textOf(f.lastMessage()), /受け取り情報を確認できませんでした/)
+  await f.send(f.event({ user: null }))
+  assert.match(textOf(f.lastMessage()), /受け取り情報を確認できませんでした/)
+  const invalid = await f.send(f.event(), { signature: 'invalid-owner-event-signature' })
+  assert.equal(invalid.status, 401)
+  for (const table of ['user_profiles', 'exp_events', 'login_bonus_events', 'login_bonus_claims', 'login_bonus_test_claims', 'point_ledger']) {
     assert.equal(f.db.prepare(`SELECT count(*) AS n FROM ${table}`).get().n, 0)
   }
 });

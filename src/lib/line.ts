@@ -19,6 +19,8 @@ const LINE_API = 'https://api.line.me/v2/bot'
 export interface LineEnv {
   LINE_CHANNEL_ACCESS_TOKEN: string
   LINE_CHANNEL_SECRET: string
+  // Private exact-UID override for repeated login reward testing.
+  LOGIN_BONUS_TEST_USER_ID?: string
   DB: D1Database
   ASSETS?: { fetch: (request: Request) => Promise<Response> }
   // ギャラリー管理者ログイン用パスワード。wrangler secret (本番) /

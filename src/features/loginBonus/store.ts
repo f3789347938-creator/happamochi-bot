@@ -43,20 +43,45 @@ export async function claimLoginBonus(
   }
   const day = new Date(now + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
   const attemptId = crypto.randomUUID()
+  // This private single-user switch is never accepted from a command, display
+  // name, group, or request body. Malformed/multiple IDs disable it entirely.
+  const testUserId = env.LOGIN_BONUS_TEST_USER_ID
+  const repeatForOwner = typeof testUserId === 'string' && /^U[0-9a-f]{32}$/.test(testUserId) && testUserId === userId
   try {
     const results = await env.DB.batch([
       env.DB.prepare(`INSERT INTO login_bonus_events(user_id, event_key, claim_day, attempt_id, received_at)
         VALUES(?, ?, ?, ?, ?) ON CONFLICT(user_id, event_key) DO NOTHING`)
         .bind(userId, eventKey, day, attemptId, now),
-      env.DB.prepare(`SELECT e.attempt_id, c.awarded_event_key, c.claim_day, c.total_days,
-          c.streak_days, c.reward_days, c.reward_points, c.balance_after
+      // Only a new event owned by this exact invocation can earn a repeat. The
+      // day's initial event already received its ordinary bonus in the trigger.
+      ...(repeatForOwner ? [env.DB.prepare(`INSERT INTO login_bonus_test_claims
+          (user_id, event_key, claim_day, total_days, streak_days, reward_days, reward_points, balance_after, claimed_at)
+        SELECT e.user_id, e.event_key, c.claim_day, c.total_days, c.streak_days,
+          c.reward_days, c.reward_points, p.points + c.reward_points, e.received_at
         FROM login_bonus_events e
         JOIN login_bonus_claims c ON c.user_id = e.user_id AND c.claim_day = e.claim_day
         JOIN user_profiles p ON p.user_id = e.user_id
+        WHERE e.user_id = ? AND e.event_key = ? AND e.attempt_id = ?
+          AND e.claim_day = ? AND e.event_key <> c.awarded_event_key
+        ON CONFLICT(user_id, event_key) DO NOTHING`)
+        .bind(userId, eventKey, attemptId, day)] : []),
+      // A test receipt remains the authoritative response to its event even
+      // after the private switch is removed or a later date has been claimed.
+      env.DB.prepare(`SELECT e.attempt_id, COALESCE(t.event_key, c.awarded_event_key) AS awarded_event_key,
+          COALESCE(t.claim_day, c.claim_day) AS claim_day,
+          COALESCE(t.total_days, c.total_days) AS total_days,
+          COALESCE(t.streak_days, c.streak_days) AS streak_days,
+          COALESCE(t.reward_days, c.reward_days) AS reward_days,
+          COALESCE(t.reward_points, c.reward_points) AS reward_points,
+          COALESCE(t.balance_after, c.balance_after) AS balance_after
+        FROM login_bonus_events e
+        JOIN login_bonus_claims c ON c.user_id = e.user_id AND c.claim_day = e.claim_day
+        JOIN user_profiles p ON p.user_id = e.user_id
+        LEFT JOIN login_bonus_test_claims t ON t.user_id = e.user_id AND t.event_key = e.event_key
         WHERE e.user_id = ? AND e.event_key = ?`)
         .bind(userId, eventKey),
     ])
-    const receipt = results[1]?.results?.[0] as Receipt | undefined
+    const receipt = results.at(-1)?.results?.[0] as Receipt | undefined
     if (results.some(result => !result.success) || !receipt ||
         !/^\d{4}-\d{2}-\d{2}$/.test(receipt.claim_day) ||
         !Number.isSafeInteger(receipt.total_days) || receipt.total_days < 1 ||
