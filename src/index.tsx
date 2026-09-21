@@ -132,7 +132,10 @@ app.use('/debug/*', async (c, next) => {
 app.use('/static/*', serveStatic({ root: './public' }))
 
 // ─── Health check ───
-app.get('/', (c) => c.text('HappaMochi Bot is running'))
+app.get('/', (c) => {
+  c.header('X-Happa-Login-Card', 'compact-v1')
+  return c.text('HappaMochi Bot is running')
+})
 
 // Costume/background combinations are public artwork, never private user data.
 app.get('/dressup-art/:costume/:background', (c) => {
