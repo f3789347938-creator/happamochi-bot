@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#102d25">
+  <meta name="description" content="葉っぱもちのカードゲーム。ポーカー、上級ポーカー、ブラックジャックを、練習コインで気軽に遊ぼう。">
+  <title>もちのテーブル | 葉っぱもち</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="葉っぱもち ホーム">
+        <span class="brand-mark" aria-hidden="true">葉</span>
+        <span><span class="eyebrow">HAPPA MOCHI</span><strong>もちのテーブル</strong></span>
+      </a>
+      <button type="button" class="icon-button" id="help-button" aria-label="遊び方を開く">？</button>
+    </header>
+
+    <main>
+      <div class="play-source" aria-label="プレイモード">
+        <div class="source-switch" role="group" aria-label="使うコイン">
+          <button type="button" id="practice-button" class="source-active" aria-pressed="true">練習</button>
+          <button type="button" id="points-button" aria-pressed="false">もちポイント</button>
+        </div>
+        <span id="source-description">練習コインで気軽にプレイ</span>
+      </div>
+
+      <nav class="game-tabs" aria-label="ゲームを選ぶ">
+        <button type="button" data-mode="draw" class="active" aria-pressed="true"><span class="tab-symbol" aria-hidden="true">♠</span><span>ポーカー<small>役をつくろう</small></span></button>
+        <button type="button" data-mode="duel" aria-pressed="false"><span class="tab-symbol" aria-hidden="true">♣</span><span>上級ポーカー<small>もちと対戦</small></span></button>
+        <button type="button" data-mode="blackjack" aria-pressed="false"><span class="tab-symbol tab-21" aria-hidden="true">21</span><span>ブラックジャック<small>21を目指そう</small></span></button>
+      </nav>
+
+      <div id="notice" class="notice" role="status" hidden></div>
+
+      <section class="game-table" aria-label="カードテーブル">
+        <div class="table-topline"><span id="mode-caption">JACKS OR BETTER</span><button type="button" id="payout-button" class="text-button">配当表 <span aria-hidden="true">↗</span></button></div>
+        <div class="dealer-area">
+          <svg class="mochi-dealer" viewBox="0 0 180 145" role="img" aria-label="葉っぱもちディーラー">
+            <ellipse cx="92" cy="133" rx="56" ry="7" fill="#071f19" opacity=".32"/>
+            <path d="M79 34C58 34 45 19 45 8c26-2 42 6 46 23C98 9 121 5 139 11c-3 19-21 28-42 25" fill="#98b66b"/>
+            <path d="M54 14l36 20 36-17" fill="none" stroke="#55774a" stroke-width="3" stroke-linecap="round"/>
+            <path d="M33 102C29 85 36 54 58 39c13-9 51-10 66 1 25 17 32 48 24 65-8 18-28 25-58 25-32 0-50-8-57-28" fill="#fff4d9" stroke="#e7d1a2" stroke-width="2"/>
+            <path d="M36 100c11 17 32 22 54 22 25 0 43-6 58-21-6 23-29 31-59 31-30 0-46-10-53-32" fill="#ead7b2"/>
+            <ellipse cx="60" cy="83" rx="10" ry="5" fill="#efb7a2" opacity=".7"/><ellipse cx="122" cy="83" rx="10" ry="5" fill="#efb7a2" opacity=".7"/>
+            <ellipse cx="69" cy="72" rx="4" ry="6" fill="#334135"/><ellipse cx="112" cy="72" rx="4" ry="6" fill="#334135"/>
+            <path d="M83 85q8 10 16 0" fill="none" stroke="#334135" stroke-width="3" stroke-linecap="round"/>
+            <path d="M69 113l17-8v15l-17-8m43 1l-17-8v15l17-8" fill="#406c58"/><circle cx="90" cy="113" r="5" fill="#cda75c"/>
+            <path d="M130 101q13-18 20-7t-14 22" fill="#fff4d9" stroke="#e7d1a2" stroke-width="2"/>
+            <rect x="138" y="82" width="22" height="30" rx="3" transform="rotate(13 149 97)" fill="#f7edda" stroke="#cab07b"/><path d="M149 89l4 7-4 7-4-7z" fill="#4e8064"/>
+          </svg>
+          <span class="dealer-bubble" id="dealer-message">どの役ができるかな？</span>
+        </div>
+
+        <div id="opponent-area" class="opponent-area" hidden>
+          <div class="hand-heading"><span>もちディーラー</span><span id="dealer-score" class="score-pill"></span></div>
+          <div id="dealer-cards" class="cards dealer-cards" aria-label="ディーラーのカード"></div>
+        </div>
+        <div class="table-divider"><span id="pot-label">ONE DRAW · FIVE CARDS</span></div>
+
+        <div id="result-banner" class="result-banner" role="status" hidden></div>
+        <div class="player-area">
+          <div class="hand-heading"><span id="hand-hint">カードを配ってスタート</span><span id="hand-role" class="role-pill"></span></div>
+          <div id="player-cards" class="cards player-cards" aria-label="あなたのカード"></div>
+          <p id="selection-hint" class="selection-hint">遊び方は右上の「？」から</p>
+        </div>
+        <div class="table-bottomline"><span aria-hidden="true">✦</span><span>ひと息ついたら、もうひと勝負。</span><span aria-hidden="true">✦</span></div>
+      </section>
+
+      <section class="wallet-bar" aria-label="コイン残高">
+        <div><span class="stat-label" id="balance-label">練習コイン</span><strong id="balance-value">10,000</strong><span class="stat-unit" id="balance-unit"> coins</span></div>
+        <div class="profit-stat"><span class="stat-label" id="profit-label">練習の収支</span><strong id="profit-value">0</strong></div>
+        <button type="button" class="history-button" id="history-button" aria-label="プレイ履歴を開く"><span aria-hidden="true">◷</span>履歴</button>
+      </section>
+
+      <section class="controls-panel" aria-label="ゲーム操作">
+        <div id="stakes-section">
+          <div class="section-label"><span id="stake-label">参加コイン</span><span id="fee-label"></span></div>
+          <div id="stake-options" class="stake-options" role="group" aria-label="参加額を選ぶ"></div>
+        </div>
+        <div id="actions" class="actions"></div>
+        <p id="action-note" class="action-note">練習コインは実際のポイントに影響しません</p>
+        <button type="button" id="refill-button" class="refill-button" hidden>練習コインを 10,000 に戻す</button>
+      </section>
+      <footer class="site-footer"><span>葉っぱもち</span><span>運も、ひとつまみ。</span></footer>
+    </main>
+  </div>
+
+  <dialog id="info-dialog" class="info-dialog">
+    <div class="dialog-header"><h2 id="dialog-title"></h2><button type="button" id="dialog-close" class="icon-button" aria-label="閉じる">×</button></div>
+    <div id="dialog-body" class="dialog-body"></div>
+  </dialog>
+  <noscript><p class="notice">このゲームには JavaScript が必要です。ブラウザの設定で有効にしてください。</p></noscript>
+  <script type="module" src="./app.mjs"></script>
+</body>
+</html>

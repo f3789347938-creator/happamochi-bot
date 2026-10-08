@@ -66,5 +66,6 @@ export const HELP_DESIGN = {
     { label: '取り消し通知オン', desc: '送信取消を知らせる（初期はオフ）' },
     { label: '取り消し通知オフ', desc: '知らせない' },
     { label: '設定', desc: 'ランキングアイコンなどを変更' },
+    { label: 'カジノ', desc: 'ポーカー・ブラックジャックで遊ぶ' },
   ] as HelpCommand[],
 }

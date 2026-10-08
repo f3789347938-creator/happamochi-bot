@@ -30,6 +30,8 @@ import {
   getMyScore as getMyMochiScore,
 } from './features/mochiScore'
 import { GameRewardError } from './features/gameRewards'
+import { registerCasinoRoutes } from './features/casino/routes'
+import { buildCasinoCommand, casinoLaunchUrl, casinoMode } from './features/menu/casinoLink'
 import { buildRankingCarousel } from './features/rankingCards'
 import { renderAppearanceResponse } from './features/dressup/art-renderer'
 import { renderMochiRankingPage } from './features/mochiRankingPage'
@@ -130,6 +132,12 @@ app.use('/debug/*', async (c, next) => {
 })
 
 app.use('/static/*', serveStatic({ root: './public' }))
+
+registerCasinoRoutes(app)
+app.get('/casino', (c) => {
+  c.header('Cache-Control', 'no-store')
+  return c.redirect(casinoLaunchUrl(c.env, casinoMode(c.req.query('mode'))), 302)
+})
 
 // ─── Health check ───
 app.get('/', (c) => {
@@ -1921,6 +1929,9 @@ async function routeCommand(env: Bindings, ctx: CommandCtx): Promise<LineMessage
       return [{ type: 'text', text: 'リプライの確認に失敗しました。' }]
     }
   }
+
+  const casinoMessages = buildCasinoCommand(text, SITE_URL)
+  if (casinoMessages) return casinoMessages
 
   // もち軍団サバイバル。もち合体パズルと同じ要領で、LINEの中で開くWebゲーム。
   // SURVIVOR_LIFF_ID が空のあいだは通常のHTTPS URL(内蔵ブラウザ)で開く。
