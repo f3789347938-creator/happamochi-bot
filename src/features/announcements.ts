@@ -407,10 +407,14 @@ export function buildAnnouncementsMessage(contents: AnnouncementContent[]): Line
 // bundled into a single Carousel when there's more than one, or [] if
 // there's nothing to show (no announcements registered, or the only one(s)
 // are restricted to other groups via targetGroupIds).
-export function getLatestAnnouncementMessages(groupId: string | null): LineMessage[] {
-  const visible = ANNOUNCEMENTS.filter(
+export function getVisibleAnnouncements(groupId: string | null): AnnouncementContent[] {
+  return ANNOUNCEMENTS.filter(
     (a) => !a.targetGroupIds || (groupId !== null && a.targetGroupIds.includes(groupId))
   )
+}
+
+export function getLatestAnnouncementMessages(groupId: string | null): LineMessage[] {
+  const visible = getVisibleAnnouncements(groupId)
   if (visible.length === 0) return []
   return [buildAnnouncementsMessage(visible)]
 }

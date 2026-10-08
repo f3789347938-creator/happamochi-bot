@@ -14,10 +14,14 @@ if (!token) {
 if (!token) throw new Error('LINE_CHANNEL_ACCESS_TOKEN is required for validation')
 
 const bundle = await build({
-  entryPoints: [fileURLToPath(new URL('src/features/loginBonus/flex.ts', root))],
+  stdin: {
+    contents: `export { buildLoginBonusCard } from './src/features/loginBonus/flex.ts';
+      export { getVisibleAnnouncements } from './src/features/announcements.ts';`,
+    resolveDir: fileURLToPath(root), loader: 'ts',
+  },
   bundle: true, write: false, platform: 'node', format: 'esm', target: 'node22', logLevel: 'silent',
 })
-const { buildLoginBonusCard } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`)
+const { buildLoginBonusCard, getVisibleAnnouncements } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`)
 const examples = [
   { claimed: true, day: '2026-09-22', totalDays: 1, streakDays: 1, rewardDays: 1, rewardPoints: 500, balance: 501 },
   { claimed: true, day: '2026-09-22', totalDays: 5, streakDays: 5, rewardDays: 5, rewardPoints: 2500, balance: 7500 },
@@ -26,10 +30,10 @@ const examples = [
 const response = await fetch('https://api.line.me/v2/bot/message/validate/reply', {
   method: 'POST', redirect: 'error',
   headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-  body: JSON.stringify({ messages: examples.map(buildLoginBonusCard) }),
+  body: JSON.stringify({ messages: examples.map(example => buildLoginBonusCard(example, getVisibleAnnouncements(null))) }),
 })
 if (!response.ok) {
   const result = await response.json().catch(() => ({}))
   console.error(JSON.stringify({ status: response.status, details: result.details ?? [], message: result.message ?? 'validation failed' }))
   process.exitCode = 1
-} else console.log('LINE accepted all 3 login bonus cards; no messages sent.')
+} else console.log('LINE accepted all 3 login bonus carousels with announcements; no messages sent.')

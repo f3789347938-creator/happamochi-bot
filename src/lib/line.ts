@@ -202,7 +202,10 @@ export async function replyWithBroadcasts(
   groupId: string,
   replyToken: string,
   direct: LineMessage[],
-  { announcementCommand = false }: { announcementCommand?: boolean } = {}
+  { announcementCommand = false, deferAnnouncements = false }: {
+    announcementCommand?: boolean
+    deferAnnouncements?: boolean
+  } = {}
 ) {
   const messages = direct.slice(0, 5)
   const absorbedByDirect = announcementCommand && messages.length > 0
@@ -217,6 +220,10 @@ export async function replyWithBroadcasts(
     .all<{ id: number; kind: string; message_json: string }>()
 
   for (const row of results ?? []) {
+    // A login carousel can preview at most eleven notices. If some did not
+    // fit, leave the full announcement queue pending for another reply; do
+    // not claim unseen notices or append another carousel to this login.
+    if (row.kind === 'announcement' && deferAnnouncements) continue
     const queued: LineMessage[] = JSON.parse(row.message_json)
     if (!Array.isArray(queued) || queued.length === 0) continue
     const announcement = row.kind === 'announcement'
