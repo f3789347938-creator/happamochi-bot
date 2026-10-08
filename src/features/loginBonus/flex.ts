@@ -1,4 +1,5 @@
 import type { LineMessage } from '../../lib/line'
+import type { AnnouncementContent } from '../announcements'
 
 export interface LoginBonusCardInput {
   claimed: boolean
@@ -33,18 +34,26 @@ function dayRow(label: string, days: number): Record<string, any> {
   }
 }
 
+function previewText(value: string, limit: number): string {
+  const characters = Array.from(value.trim())
+  return characters.length > limit ? `${characters.slice(0, limit - 1).join('')}…` : value.trim() || '詳しく見るから確認できます。'
+}
+
 /**
- * Native, single-bubble version of the reference login card (kilo width).
+ * Native login receipt (kilo width), optionally followed by notice previews.
  * Content-sized with compact padding: larger LINE fonts and longer counts
  * can grow naturally instead of clipping the reward.
  */
-export function buildLoginBonusCard(input: LoginBonusCardInput): LineMessage {
+export function buildLoginBonusCard(
+  input: LoginBonusCardInput,
+  announcements: AnnouncementContent[] = []
+): LineMessage {
   const { claimed, day, totalDays, streakDays, rewardDays, rewardPoints, balance } = input
   const points = `${format(rewardPoints)}ポイント`
   const receivedLabel = `${day.replaceAll('-', '/')}分は受け取り済み`
   const receipt = claimed ? `${points}を受け取りました。` : `${receivedLabel}です（${points}）。`
 
-  return {
+  const message: LineMessage = {
     type: 'flex',
     altText: `${day} ログインボーナス：${receipt} 合計${format(totalDays)}日／連続${format(streakDays)}日。受取時の保有ポイント：${format(balance)}`,
     contents: {
@@ -88,5 +97,48 @@ export function buildLoginBonusCard(input: LoginBonusCardInput): LineMessage {
         contents: [text('© 2026 HappaMochi Bot', '10px', { color: '#FFFFFF', align: 'center' })],
       },
     },
+  }
+
+  if (announcements.length === 0) return message
+
+  // A Flex carousel stretches every body to the tallest one. Reuse the
+  // existing login shell and keep previews shorter than its receipt panel;
+  // never append the full-size announcement cards here. The receipt itself
+  // remains unchanged, including its font scaling and natural height.
+  const login = message.contents
+  const previews = announcements.slice(0, 11).map(notice => ({
+    ...login,
+    header: {
+      ...login.header,
+      contents: [text('お知らせ', '15px', { color: '#FFFFFF', weight: 'bold', align: 'center' })],
+    },
+    body: {
+      ...login.body,
+      contents: [
+        {
+          ...login.body.contents[0],
+          flex: 1,
+          contents: [
+            text(previewText(notice.title, 80), '14px', { weight: 'bold', align: 'center', maxLines: 1, flex: 0 }),
+            { type: 'separator', color: BORDER, margin: '6px' },
+            text(previewText(notice.body, 240), '12px', { color: MUTED, margin: '8px', maxLines: 4, flex: 1 }),
+            text(previewText(notice.date ?? day.replaceAll('-', '/'), 32), '11px', {
+              color: GRAY, align: 'end', margin: '10px', maxLines: 1, flex: 0,
+            }),
+          ],
+        },
+        {
+          ...login.body.contents[1],
+          flex: 0,
+          action: { type: 'message', label: '詳しく見る', text: 'お知らせ' },
+          contents: [text('詳しく見る', '16px', { color: '#FFFFFF', align: 'center' })],
+        },
+      ],
+    },
+  }))
+  return {
+    ...message,
+    altText: `${message.altText}。お知らせは右にスワイプして確認できます。`,
+    contents: { type: 'carousel', contents: [login, ...previews] },
   }
 }

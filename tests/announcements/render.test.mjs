@@ -18,6 +18,8 @@ const bundled = await build({
 })
 const app = await import(`data:text/javascript;base64,${Buffer.from(bundled.outputFiles[0].text).toString('base64')}`)
 const expectedIds = [
+  'notice_2026_09_21_games_reopened',
+  'notice_2026_09_21_game_gacha_rewards',
   'notice_2026_09_20_read_receipts',
   'notice_2026_09_19_dressup_gacha',
   'notice_2026_09_19_mentions_replies',
@@ -68,7 +70,7 @@ test('registered notices preserve IDs, prize terms and command actions without a
   const messages = app.getLatestAnnouncementMessages('C_local_review')
   assert.equal(messages.length, 1)
   assert.equal(messages[0].contents.type, 'carousel')
-  assert.equal(bubbles(messages[0]).length, 4)
+  assert.equal(bubbles(messages[0]).length, expectedIds.length)
   assertUnboundedContent(messages[0])
   for (const [index, notice] of app.ANNOUNCEMENTS.entries()) {
     const bubble = bubbles(messages[0])[index]
@@ -76,16 +78,21 @@ test('registered notices preserve IDs, prize terms and command actions without a
     assert.equal(contentText(bodyText(bubble)), notice.body)
     assert.ok(textNodes(bubble).some(node => /^\d{4}\/\d{1,2}\/\d{1,2}$/.test(contentText(node))), 'date remains rendered after the complete body')
     const action = bubble.body.contents.find(node => node.action)?.action
-    assert.equal(action.type, 'message')
-    assert.equal(action.text, ['既読セット', 'ガチャ', 'ヘルプ', 'ヘルプ'][index])
+    if (index < 2) {
+      assert.equal(action.type, 'uri')
+      assert.match(action.uri, /^https:\/\//)
+    } else {
+      assert.equal(action.type, 'message')
+      assert.equal(action.text, ['既読セット', 'ガチャ', 'ヘルプ', 'ヘルプ'][index - 2])
+    }
     assert.equal(action.label, notice.button.label)
   }
-  const read = texts(bubbles(messages[0])[0])
+  const read = texts(bubbles(messages[0])[2])
   for (const required of ['公式アカウント初！', '既読確認が出来るのはこのアカウントだけです。', '既読セット', '既読確認', '日本時間', 'リセット', 'ぜひグループで使ってみてね！']) assert.ok(read.includes(required), `${required} must remain visible in the new first notice`)
-  const gacha = texts(bubbles(messages[0])[1])
+  const gacha = texts(bubbles(messages[0])[3])
   for (const required of ['衣装', '背景', '100種類', 'PayPay 1万円分', '2027/9/19']) assert.ok(gacha.includes(required), `${required} must remain visible in the native message`)
-  assert.match(texts(bubbles(messages[0])[2]), /めんかく/)
-  assert.match(texts(bubbles(messages[0])[2]), /りぷかく/)
+  assert.match(texts(bubbles(messages[0])[4]), /めんかく/)
+  assert.match(texts(bubbles(messages[0])[4]), /りぷかく/)
 })
 
 test('both standalone and mixed-length notices can grow with wrapped body, date and CTA', () => {
@@ -196,8 +203,8 @@ test('authorized delivery edition reannounces once while preserving historical r
   assert.equal(queued.delivered, 0)
   const message = JSON.parse(queued.message_json)[0]
   assertUnboundedContent(message)
-  assert.equal(bubbles(message).length, 4)
-  assert.match(texts(bubbles(message)[0]), /公式アカウント初！/)
+  assert.equal(bubbles(message).length, expectedIds.length)
+  assert.match(texts(bubbles(message)[2]), /公式アカウント初！/)
   await app.checkAndQueueAnnouncements(env, group)
   assert.deepEqual(snapshot(), after, 'the authorized edition queues only once even for a previously notified group')
 })
@@ -211,8 +218,8 @@ test('new groups receive all current notices once, and rereading notices does no
   assert.equal(first.history.length, expectedIds.length)
   assert.ok(currentQueue(first.queue[0]))
   assert.deepEqual(first.history.map(row => row.announcement_id).sort(), editionIds().sort())
-  assert.equal(bubbles(JSON.parse(first.queue[0].message_json)[0]).length, 4)
-  assert.equal(bubbles(app.getLatestAnnouncementMessages(group)[0]).length, 4)
+  assert.equal(bubbles(JSON.parse(first.queue[0].message_json)[0]).length, expectedIds.length)
+  assert.equal(bubbles(app.getLatestAnnouncementMessages(group)[0]).length, expectedIds.length)
   await app.checkAndQueueAnnouncements(env, group)
   await app.checkAndQueueAnnouncements(env, group)
   assert.deepEqual(snapshot(), first)

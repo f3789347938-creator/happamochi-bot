@@ -61,7 +61,7 @@ import { addTagToGroup, listGroupTags, removeTagFromGroup } from './features/tag
 import { setWelcomeSetting, clearWelcomeMessage } from './features/welcome'
 import { equipTitle, getEquippedTitle, listUserTitles } from './features/titles'
 import { startGame as startOthello, joinGame as joinOthello, endGame as endOthello, applyMove as applyOthelloMove, buildOthelloMessage, checkAndQueueOthelloTimeout, getOthelloRecord } from './features/othello'
-import { getLatestAnnouncementMessages, checkAndQueueAnnouncements } from './features/announcements'
+import { getLatestAnnouncementMessages, getVisibleAnnouncements, checkAndQueueAnnouncements } from './features/announcements'
 import {
   listThreads,
   listAllThreadIds,
@@ -1584,7 +1584,18 @@ async function handleMessageEvent(env: Bindings, event: any, baseUrl: string) {
   })
 
   if (isGroup) {
-    await flushQueueOnReply(env, groupId, replyToken, directReplies, { announcementCommand: text === 'お知らせ' })
+    // A successful login already includes the visible announcements. Absorb
+    // queued notices into that reply instead of adding a second, tall carousel.
+    // Failed logins remain ordinary replies and must not consume the notices.
+    const loginIncludesAnnouncements = text === 'ログイン'
+      && directReplies[0]?.type === 'flex'
+      && directReplies[0]?.contents?.type === 'carousel'
+    const loginHasMoreAnnouncements = loginIncludesAnnouncements
+      && getVisibleAnnouncements(groupId).length > directReplies[0].contents.contents.length - 1
+    await flushQueueOnReply(env, groupId, replyToken, directReplies, {
+      announcementCommand: text === 'お知らせ' || (loginIncludesAnnouncements && !loginHasMoreAnnouncements),
+      deferAnnouncements: loginHasMoreAnnouncements,
+    })
   } else if (directReplies.length > 0) {
     await replyMessage(env, replyToken, directReplies, userId)
   }
@@ -1751,7 +1762,7 @@ async function flushQueueOnReply(
   groupId: string,
   replyToken: string,
   direct: LineMessage[],
-  options: { announcementCommand?: boolean } = {}
+  options: { announcementCommand?: boolean; deferAnnouncements?: boolean } = {}
 ) {
   await replyWithBroadcasts(env, groupId, replyToken, direct, options)
 }
