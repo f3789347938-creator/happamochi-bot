@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "designHash": "590063f99e4870f0340b831001d4ae581e964539ed6b8e4eb37fd8a28ceb895d",
+  "designHash": "af99ae356ea14dc07af8a4a0709338c4119acbc7541cb17042bd748bc538cc83",
   "header": {
     "file": "header-e7d7e059623e.png",
     "width": 520,
@@ -199,6 +199,13 @@
       "label": "設定",
       "desc": "ランキングアイコンなどを変更",
       "file": "row-25-a33beee182ec.png",
+      "width": 520,
+      "height": 140
+    },
+    {
+      "label": "カジノ",
+      "desc": "ポーカー・ブラックジャックで遊ぶ",
+      "file": "row-26-026e9a204a67.png",
       "width": 520,
       "height": 140
     }

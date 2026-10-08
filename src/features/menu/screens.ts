@@ -19,6 +19,7 @@
 //      グループ・期限を照合してから既存の処理を呼ぶ。
 import type { Btn, Row } from './flex'
 import { gameOpenUrl } from './gameLink'
+import { casinoOpenUrl } from './casinoLink'
 
 /** 画面ID。既存接続点(S/G/H の一部)も遷移先として登場する。 */
 export type ScreenId = string
@@ -107,7 +108,7 @@ export function mainScreens(personalRankingUrl: string, siteUrl: string): Screen
         // 押した人が対局したいと明示したボタンなので、既存コマンドをそのまま実行する。
         { label: 'オセロ', data: runExisting('オセロ開始'), kind: 'sub' },
         { label: 'チェス', data: runExisting('チェス'), kind: 'sub' },
-        { label: '遊び方', data: nav('G01'), kind: 'sub' },
+        { label: 'ゲーム一覧・遊び方', data: nav('G01'), kind: 'sub' },
       ],
     },
     {
@@ -344,10 +345,12 @@ export function screenG01(siteUrl: string): ScreenDef {
     body: '遊び方を確認したら、いつものゲーム画面へ。',
     rows: [
       { label: 'もち合体パズル', value: 'ひとり用。LINEの中でそのまま遊べる' },
+      { label: 'もちカジノ', value: '通常・上級ポーカーとブラックジャック。練習もできる' },
       { label: 'オセロ', value: '2人用。石は盤面のマスをタップ' },
       { label: 'チェス', value: '2人用。募集カードから参加' },
     ],
     buttons: [
+      { label: 'もちカジノで遊ぶ', data: '', uri: casinoOpenUrl(siteUrl), kind: 'primary' },
       { label: 'もち合体パズルで遊ぶ', data: '', uri: gameOpenUrl(siteUrl), kind: 'primary' },
       { label: 'オセロを始める', data: runExisting('オセロ開始'), kind: 'sub' },
       { label: 'チェスを募集する', data: runExisting('チェス'), kind: 'sub' },
